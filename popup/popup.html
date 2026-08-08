@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>小鹅通播放助手</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <div class="heading">
+        <img class="mark" src="../icons/icon-48.png" alt="" />
+        <div>
+          <h1>小鹅通播放助手</h1>
+          <p id="summary">正在检查当前网页…</p>
+        </div>
+      </div>
+
+      <label class="setting">
+        <span>
+          <strong>自动切换</strong>
+          <small>视频加载后选择“超清”</small>
+        </span>
+        <input id="global-toggle" type="checkbox" />
+        <span class="switch" aria-hidden="true"></span>
+      </label>
+
+      <section id="site-section" hidden>
+        <div class="site-row">
+          <span>
+            <strong>当前网站</strong>
+            <small id="hostname"></small>
+          </span>
+          <button id="site-button" type="button">在此网站启用</button>
+        </div>
+      </section>
+
+      <p class="hint" id="hint">
+        打开课程并播放视频后，插件会自动选择可用的超清画质。
+      </p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

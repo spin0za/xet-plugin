@@ -1,0 +1,6 @@
+.playwright-cli/
+tmp/
+*.zip
+node_modules/
+.DS_Store
+Thumbs.db
