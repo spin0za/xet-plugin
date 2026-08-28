@@ -35,6 +35,8 @@
   let attemptRunning = false;
   let rerunRequested = false;
   let previousLocation = location.href;
+  let suppressWebFullscreenEscapeKeyup = false;
+  let suppressWebFullscreenTKeyup = false;
 
   function normalizeText(value) {
     return (value || "").replace(/\s+/g, "").trim();
@@ -445,11 +447,34 @@
   }
 
   function handlePlayerShortcut(event) {
+    if (event.key === "Escape") {
+      if (event.isComposing) return;
+
+      const player = findActivePlayer();
+      if (!player || !isWebFullscreen(player)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      suppressWebFullscreenEscapeKeyup = true;
+      exitWebFullscreen(player);
+      return;
+    }
+
     const action = playerShortcutAction(event);
+    if (event.defaultPrevented || !action) return;
+
+    const player = findActivePlayer();
+    if (!player) return;
+
+    const isUnmodifiedWebFullscreenExit =
+      action === "web-fullscreen" &&
+      isWebFullscreen(player) &&
+      !event.isComposing &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.metaKey;
     if (
-      event.defaultPrevented ||
-      !action ||
-      isModifiedOrEditableShortcut(event) ||
+      (!isUnmodifiedWebFullscreenExit && isModifiedOrEditableShortcut(event)) ||
       (event.repeat &&
         ["toggle-play", "native-fullscreen", "web-fullscreen"].includes(
           action,
@@ -457,9 +482,6 @@
     ) {
       return;
     }
-
-    const player = findActivePlayer();
-    if (!player) return;
 
     const video = findPlayerVideo(player);
     if (!video && !action.endsWith("fullscreen")) return;
@@ -493,6 +515,9 @@
         toggleNativeFullscreen(player);
         break;
       case "web-fullscreen":
+        if (isUnmodifiedWebFullscreenExit) {
+          suppressWebFullscreenTKeyup = true;
+        }
         toggleWebFullscreen(player);
         break;
       default:
@@ -501,6 +526,20 @@
   }
 
   function suppressPlayerShortcutKeyup(event) {
+    if (event.key === "Escape" && suppressWebFullscreenEscapeKeyup) {
+      suppressWebFullscreenEscapeKeyup = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+
+    if (event.code === "KeyT" && suppressWebFullscreenTKeyup) {
+      suppressWebFullscreenTKeyup = false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
+
     if (
       !playerShortcutAction(event) ||
       isModifiedOrEditableShortcut(event) ||
