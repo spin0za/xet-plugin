@@ -1,19 +1,19 @@
-# 小鹅通播放助手 / XiaoeTong Player Helper
+# 小鹅通播放助手 / Xiaoe Tech Player Helper
 
 <p align="center">
-  <img src="icons/icon-128.png" width="96" height="96" alt="小鹅通播放助手图标 / XiaoeTong Player Helper icon">
+  <img src="icons/icon-128.png" width="96" height="96" alt="小鹅通播放助手图标 / Xiaoe Tech Player Helper icon">
 </p>
 
 一个适用于 Chrome 和 Edge 的本地扩展：自动选择小鹅通视频的“超清”画质，提供类似 YouTube 的播放快捷键，并可通过无界面请求保持登录。
 
-A local Chrome and Edge extension that automatically selects the highest supported XiaoeTong video quality, adds YouTube-style playback shortcuts, and can keep a session active with invisible background requests.
+A local Chrome and Edge extension that automatically selects the highest supported Xiaoe Tech video quality, adds YouTube-style playback shortcuts, and can keep a session active with invisible background requests.
 
 [中文](#中文) · [English](#english)
 
 > [!NOTE]
 > 这是一个非官方社区项目，与小鹅通官方无隶属或合作关系。扩展不会绕过课程权限，也不会下载视频。
 >
-> This is an unofficial community project and is not affiliated with or endorsed by XiaoeTong. It does not bypass course access controls or download videos.
+> This is an unofficial community project and is not affiliated with or endorsed by Xiaoe Tech. It does not bypass course access controls or download videos.
 
 ## 中文
 
@@ -87,7 +87,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 ### Features
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
-- Supports both XiaoeTong's xgplayer course player and native HTML5 videos on clock-in pages.
+- Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Switches directly between native fullscreen and page fullscreen with one keystroke.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus.
 - Supports global pause and per-site pause from the extension popup.
@@ -125,7 +125,7 @@ For a merchant-owned custom domain, click the extension icon in the browser tool
 3. Enable **Developer mode**.
 4. Click **Load unpacked**.
 5. Select the `xet-plugin` directory that contains `manifest.json`.
-6. Refresh any XiaoeTong course pages that were already open.
+6. Refresh any Xiaoe Tech course pages that were already open.
 
 To update, pull or download the latest files, click **Reload** on the extension card, and then refresh the course page.
 
