@@ -12,12 +12,21 @@ const siteSection = document.querySelector("#site-section");
 const hostnameLabel = document.querySelector("#hostname");
 const siteButton = document.querySelector("#site-button");
 const hint = document.querySelector("#hint");
+const keepAliveToggle = document.querySelector("#keep-alive-toggle");
+const keepAliveTarget = document.querySelector("#keep-alive-target");
+const keepAliveTest = document.querySelector("#keep-alive-test");
+const keepAliveStatus = document.querySelector("#keep-alive-status");
 
 let activeTab = null;
 let activeUrl = null;
 let settings = {
   enabled: true,
   disabledHosts: [],
+  keepAliveEnabled: false,
+  keepAliveUrl: "",
+  keepAliveLastAttemptAt: 0,
+  keepAliveLastActivityAt: 0,
+  keepAliveLastResult: null,
 };
 let siteHasAccess = false;
 
@@ -43,6 +52,61 @@ function registrationId(hostname) {
   return `xet_custom_${hash.toString(36)}`;
 }
 
+function inferredKeepAliveUrl(url) {
+  if (!url || url.protocol !== "https:") return "";
+
+  const xiaoeMatch = url.hostname.match(
+    /^([a-z0-9-]+)\.pc\.xiaoe-tech\.com$/i,
+  );
+  if (xiaoeMatch) return `${url.origin}/bought`;
+
+  const hostedMatch = url.hostname.match(
+    /^([a-z0-9-]+)\.(?:xet-pc\.citv\.cn|h5\.xet\.pomoho\.com)$/i,
+  );
+  if (hostedMatch) {
+    return `https://${hostedMatch[1]}.pc.xiaoe-tech.com/bought`;
+  }
+
+  return "";
+}
+
+function effectiveKeepAliveUrl() {
+  return settings.keepAliveUrl || inferredKeepAliveUrl(activeUrl);
+}
+
+function formatTime(timestamp) {
+  if (!timestamp) return "";
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(timestamp));
+}
+
+function renderKeepAlive() {
+  const targetUrl = effectiveKeepAliveUrl();
+  keepAliveToggle.checked = settings.keepAliveEnabled;
+  keepAliveToggle.disabled = !targetUrl;
+  keepAliveTest.disabled = !targetUrl;
+
+  if (!targetUrl) {
+    keepAliveTarget.textContent = "请先打开支持的小鹅通课程网站";
+    keepAliveStatus.textContent = "设置后不会打开或显示标签页";
+    return;
+  }
+
+  keepAliveTarget.textContent = new URL(targetUrl).hostname;
+  const result = settings.keepAliveLastResult;
+  if (!result) {
+    keepAliveStatus.textContent = "不会打开或显示标签页";
+  } else if (result.ok) {
+    keepAliveStatus.textContent = `${formatTime(result.at)} 后台请求完成`;
+  } else {
+    keepAliveStatus.textContent = `${formatTime(result.at)} ${result.error || `请求失败 (${result.status})`}`;
+  }
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({
     active: true,
@@ -61,6 +125,7 @@ async function checkAccess() {
 
 function render() {
   globalToggle.checked = settings.enabled;
+  renderKeepAlive();
 
   if (!activeUrl || !isWebPage(activeUrl)) {
     summary.textContent = "当前页面不支持运行";
@@ -93,6 +158,16 @@ function render() {
 
   hint.textContent =
     "打开课程并播放视频后，插件会自动选择可用的“超清”画质。";
+}
+
+async function saveKeepAliveTarget() {
+  const url = effectiveKeepAliveUrl();
+  if (!url) return "";
+  if (settings.keepAliveUrl !== url) {
+    settings.keepAliveUrl = url;
+    await chrome.storage.local.set({ keepAliveUrl: url });
+  }
+  return url;
 }
 
 async function registerCurrentSite() {
@@ -132,6 +207,42 @@ globalToggle.addEventListener("change", async () => {
   render();
 });
 
+keepAliveToggle.addEventListener("change", async () => {
+  const targetUrl = await saveKeepAliveTarget();
+  if (!targetUrl) {
+    keepAliveToggle.checked = false;
+    return;
+  }
+
+  settings.keepAliveEnabled = keepAliveToggle.checked;
+  await chrome.storage.local.set({
+    keepAliveEnabled: settings.keepAliveEnabled,
+  });
+  renderKeepAlive();
+});
+
+keepAliveTest.addEventListener("click", async () => {
+  keepAliveTest.disabled = true;
+  keepAliveStatus.textContent = "正在进行无界面请求…";
+
+  try {
+    if (!(await saveKeepAliveTarget())) return;
+    const result = await chrome.runtime.sendMessage({
+      type: "xet:keep-alive-test",
+    });
+    settings.keepAliveLastResult = result?.at ? result : null;
+    if (result?.ok) {
+      keepAliveStatus.textContent = `${formatTime(result.at)} 请求完成，请检查 Cookie`;
+    } else {
+      keepAliveStatus.textContent = result?.error || "后台请求失败";
+    }
+  } catch (error) {
+    keepAliveStatus.textContent = `测试失败：${error.message}`;
+  } finally {
+    keepAliveTest.disabled = false;
+  }
+});
+
 siteButton.addEventListener("click", async () => {
   if (!activeUrl) return;
   siteButton.disabled = true;
@@ -169,6 +280,11 @@ siteButton.addEventListener("click", async () => {
   settings = await chrome.storage.local.get({
     enabled: true,
     disabledHosts: [],
+    keepAliveEnabled: false,
+    keepAliveUrl: "",
+    keepAliveLastAttemptAt: 0,
+    keepAliveLastActivityAt: 0,
+    keepAliveLastResult: null,
   });
   activeTab = await getActiveTab();
 

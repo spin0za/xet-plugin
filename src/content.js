@@ -915,6 +915,10 @@
   };
   window[INSTANCE_KEY] = api;
 
+  if (window.top === window && location.hostname.endsWith(".xiaoe-tech.com")) {
+    chrome.runtime.sendMessage({ type: "xet:natural-visit" }).catch(() => {});
+  }
+
   loadSettings().finally(() => {
     observePage();
     scheduleAttempt(0, true);

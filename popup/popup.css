@@ -126,6 +126,34 @@ small {
   margin-top: 10px;
 }
 
+.keep-alive-card {
+  margin-top: 10px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.keep-alive-card .setting {
+  border: 0;
+  border-radius: 0;
+}
+
+.keep-alive-actions {
+  display: flex;
+  min-height: 42px;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-top: 1px solid #f1f5f9;
+}
+
+.keep-alive-actions small {
+  flex: 1;
+  white-space: normal;
+  line-height: 1.35;
+}
+
 button {
   flex: 0 0 auto;
   padding: 7px 10px;
