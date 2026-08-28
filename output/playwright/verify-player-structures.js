@@ -180,6 +180,7 @@ async (page) => {
         window.__webClicks = 0;
         window.__builtInArrowEvents = 0;
         window.__builtInSpeedEvents = 0;
+        window.__escapePassThroughEvents = 0;
         const player = document.querySelector(".xgplayer-skin-default");
         const video = player.querySelector("video");
         let currentTime = 50;
@@ -226,6 +227,9 @@ async (page) => {
           }
           if (event.key === "<" || event.key === ">") {
             window.__builtInSpeedEvents++;
+          }
+          if (event.key === "Escape") {
+            window.__escapePassThroughEvents++;
           }
         });
         document
@@ -285,6 +289,35 @@ async (page) => {
         .classList.contains("xgplayer-is-cssfullscreen"),
     }));
 
+    // Escape must exit web fullscreen, then pass through normally when web
+    // fullscreen is no longer active.
+    await targetPage.keyboard.press("Escape");
+    const webAfterEscape = await targetPage.$eval(
+      ".xgplayer-skin-default",
+      (player) => player.classList.contains("xgplayer-is-cssfullscreen"),
+    );
+
+    // T must also exit web fullscreen when an editable element has focus.
+    await targetPage.keyboard.press("t");
+    await targetPage.locator("#notes").focus();
+    await targetPage.keyboard.press("t");
+    const webAfterFocusedT = await targetPage.$eval(
+      ".xgplayer-skin-default",
+      (player) => player.classList.contains("xgplayer-is-cssfullscreen"),
+    );
+    await targetPage.evaluate(() => document.activeElement.blur());
+
+    // Escape must likewise exit while an editable element has focus.
+    await targetPage.keyboard.press("t");
+    await targetPage.locator("#notes").focus();
+    await targetPage.keyboard.press("Escape");
+    const webAfterFocusedEscape = await targetPage.$eval(
+      ".xgplayer-skin-default",
+      (player) => player.classList.contains("xgplayer-is-cssfullscreen"),
+    );
+    await targetPage.evaluate(() => document.activeElement.blur());
+    await targetPage.keyboard.press("Escape");
+
     // Media navigation shortcuts.
     await targetPage.keyboard.press("ArrowLeft");
     const afterLeft = await targetPage.$eval("video", (video) => video.currentTime);
@@ -342,6 +375,7 @@ async (page) => {
       webClicks: window.__webClicks,
       builtInArrowEvents: window.__builtInArrowEvents,
       builtInSpeedEvents: window.__builtInSpeedEvents,
+      escapePassThroughEvents: window.__escapePassThroughEvents,
       currentTime: document.querySelector("video").currentTime,
       paused: document.querySelector("video").paused,
       playbackRate: document.querySelector("video").playbackRate,
@@ -351,10 +385,14 @@ async (page) => {
       webToNative.web ||
       nativeToWeb.native ||
       !nativeToWeb.web ||
+      webAfterEscape ||
+      webAfterFocusedT ||
+      webAfterFocusedEscape ||
       result.nativeClicks !== 4 ||
-      result.webClicks !== 5 ||
+      result.webClicks !== 10 ||
       result.builtInArrowEvents !== 0 ||
       result.builtInSpeedEvents !== 0 ||
+      result.escapePassThroughEvents !== 1 ||
       afterLeft !== 45 ||
       afterRight !== 50 ||
       afterJ !== 40 ||
@@ -376,6 +414,9 @@ async (page) => {
       ...result,
       webToNative,
       nativeToWeb,
+      webAfterEscape,
+      webAfterFocusedT,
+      webAfterFocusedEscape,
       media: {
         afterLeft,
         afterRight,
@@ -475,8 +516,15 @@ async (page) => {
         video.dataset.xetWebFullscreen === "true" &&
         video.style.position === "fixed",
     );
+    await targetPage.keyboard.press("Escape");
+    const webOffWithEscape = await targetPage.$eval(
+      "video",
+      (video) =>
+        !video.dataset.xetWebFullscreen && video.style.position !== "fixed",
+    );
     await targetPage.keyboard.press("t");
-    const webOff = await targetPage.$eval(
+    await targetPage.keyboard.press("t");
+    const webOffWithT = await targetPage.$eval(
       "video",
       (video) =>
         !video.dataset.xetWebFullscreen && video.style.position !== "fixed",
@@ -493,20 +541,28 @@ async (page) => {
       afterMediaAndNative.playbackRate !== 1.25 ||
       afterMediaAndNative.fullscreenTarget !== "VIDEO" ||
       !webOn ||
-      !webOff ||
+      !webOffWithEscape ||
+      !webOffWithT ||
       !cardUntouched
     ) {
       throw new Error(
         `Unexpected native-video result: ${JSON.stringify({
           ...afterMediaAndNative,
           webOn,
-          webOff,
+          webOffWithEscape,
+          webOffWithT,
           cardUntouched,
         })}`,
       );
     }
 
-    return { ...afterMediaAndNative, webOn, webOff, cardUntouched };
+    return {
+      ...afterMediaAndNative,
+      webOn,
+      webOffWithEscape,
+      webOffWithT,
+      cardUntouched,
+    };
   }
 
   const legacyPage = await page.context().newPage();
