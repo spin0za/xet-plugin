@@ -4,9 +4,9 @@
   <img src="icons/icon-128.png" width="96" height="96" alt="小鹅通播放助手图标 / XiaoeTong Player Helper icon">
 </p>
 
-一个适用于 Chrome 和 Edge 的本地扩展：自动选择小鹅通视频的“超清”画质，并提供类似 YouTube 的播放快捷键。
+一个适用于 Chrome 和 Edge 的本地扩展：自动选择小鹅通视频的“超清”画质，提供类似 YouTube 的播放快捷键，并可通过无界面请求保持登录。
 
-A local Chrome and Edge extension that automatically selects the highest supported XiaoeTong video quality and adds YouTube-style playback shortcuts.
+A local Chrome and Edge extension that automatically selects the highest supported XiaoeTong video quality, adds YouTube-style playback shortcuts, and can keep a session active with invisible background requests.
 
 [中文](#中文) · [English](#english)
 
@@ -25,6 +25,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键。
 - 可在扩展弹窗中全局暂停，或只对当前网站暂停。
 - 商家自定义课程域名可按网站单独授权。
+- 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
+- 提供“立即测试”，不会创建标签页，也不会直接读取或保存 Cookie；续期由网站的正常响应完成。
 
 ### 快捷键
 
@@ -66,12 +68,16 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 快捷键直接控制当前可见或正在播放的视频。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
+- “自动保持登录”默认关闭，只会请求弹窗中显示的商家电脑端主页。
+- 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限。请先用“立即测试”并在开发者工具中确认 `pc_user_key` 的到期时间确实延长。
+- 电脑关机、Chrome 未运行或超过网站允许的登录有效期时，扩展无法恢复已经失效的登录。
 
 ### 本地验证
 
 项目包含一个 Playwright 浏览器回归脚本，用于验证新旧播放器、原生视频、快捷键、全屏切换和自动超清逻辑：
 
 ```bash
+node tests/background-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 ```
@@ -86,6 +92,8 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus.
 - Supports global pause and per-site pause from the extension popup.
 - Allows one-site permission grants for merchant-owned custom course domains.
+- Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
+- Includes a **Test now** action that creates no tab and does not directly read or store cookies; renewal is handled by the site's normal response.
 
 ### Keyboard shortcuts
 
@@ -127,12 +135,16 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Shortcuts target the currently visible or actively playing video.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
+- Session keep-alive is off by default and requests only the merchant desktop homepage shown in the popup.
+- Background requests use the browser's existing login state without requesting cookie-reading permission. Use **Test now** first, then verify in DevTools that the `pc_user_key` expiration moved forward.
+- The extension cannot restore an expired login while the computer is off, Chrome is not running, or the site's session lifetime has already elapsed.
 
 ### Local verification
 
 The repository includes a Playwright browser regression script covering legacy and current players, native video, keyboard shortcuts, fullscreen transitions, and automatic quality selection:
 
 ```bash
+node tests/background-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 ```
@@ -148,12 +160,14 @@ src/
   content.js
 output/playwright/
   verify-player-structures.js
+tests/
+  background-smoke.js
 ```
 
 ## 版本 / Version
 
-Current version: **1.7.0**
+Current version: **1.8.0**
 
-主要变更：新增 `xet.pomoho.com` 打卡页面及原生 HTML5 视频支持，并提供自动超清、播放控制、倍速和双全屏快捷键。
+主要变更：新增可选的无界面登录保活与立即测试，并保留自动超清、播放控制、倍速和双全屏快捷键。
 
-Highlights: support for `xet.pomoho.com` clock-in pages and native HTML5 video, plus automatic quality selection, playback controls, speed controls, and two fullscreen modes.
+Highlights: optional invisible session keep-alive with a manual test action, plus automatic quality selection, playback controls, speed controls, and two fullscreen modes.
