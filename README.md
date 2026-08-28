@@ -22,7 +22,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 在原生全屏和网页全屏之间单次按键无缝切换。
-- 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键。
+- 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
 - 可在扩展弹窗中全局暂停，或只对当前网站暂停。
 - 商家自定义课程域名可按网站单独授权。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
@@ -38,6 +38,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 | `<` / `>` | 降低 / 提高播放速度（0.5～3 倍速） |
 | `F` | 切换原生全屏 |
 | `T` | 切换网页全屏 |
+| `Esc` | 退出网页全屏 |
 
 在常见键盘布局中，`<` 和 `>` 分别为 `Shift + ,` 和 `Shift + .`。
 
@@ -89,7 +90,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Switches directly between native fullscreen and page fullscreen with one keystroke.
-- Disables shortcuts while an input, search box, select control, or editable notes area has focus.
+- Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
 - Supports global pause and per-site pause from the extension popup.
 - Allows one-site permission grants for merchant-owned custom course domains.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
@@ -105,6 +106,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 | `<` / `>` | Decrease / increase playback speed (0.5x–3x) |
 | `F` | Toggle native fullscreen |
 | `T` | Toggle page fullscreen |
+| `Esc` | Exit page fullscreen |
 
 On common keyboard layouts, `<` and `>` correspond to `Shift + ,` and `Shift + .`.
 
@@ -166,8 +168,8 @@ tests/
 
 ## 版本 / Version
 
-Current version: **1.8.0**
+Current version: **1.8.1**
 
-主要变更：新增可选的无界面登录保活与立即测试，并保留自动超清、播放控制、倍速和双全屏快捷键。
+主要变更：网页全屏现在可通过 `T` 或 `Esc` 退出，并保留无界面登录保活、自动超清、播放控制、倍速和双全屏快捷键。
 
-Highlights: optional invisible session keep-alive with a manual test action, plus automatic quality selection, playback controls, speed controls, and two fullscreen modes.
+Highlights: page fullscreen can now be exited with either `T` or `Esc`, alongside invisible session keep-alive, automatic quality selection, playback controls, speed controls, and two fullscreen modes.
