@@ -162,17 +162,57 @@ async (page) => {
   async function verifyFullscreenShortcuts(targetPage) {
     await targetPage.setContent(`
       <style>
+        html, body { margin: 0; }
+        #page-ui {
+          position: fixed;
+          inset: 0;
+          z-index: 9999;
+          background: hotpink;
+        }
         .xgplayer-skin-default {
+          position: relative;
           display: block;
           width: 800px;
           height: 450px;
+          background: orange;
         }
-        video { display: block; width: 800px; height: 450px; }
+        .xgplayer-is-cssfullscreen {
+          width: 61vw;
+          height: 42vh;
+          transform: translate(90px, 60px);
+        }
+        .xgplayer-video-wrap {
+          width: 640px;
+          height: 360px;
+          background: purple;
+        }
+        video {
+          display: block;
+          width: 800px;
+          height: 450px;
+          object-fit: fill;
+        }
+        .xgplayer-controls {
+          position: absolute;
+          right: 50px;
+          bottom: -90px;
+          left: 50px;
+          height: 48px;
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transform: translateY(80px);
+          background: rgba(0, 0, 0, .8);
+        }
       </style>
+      <div id="page-ui">This page content must stay covered.</div>
       <div class="xgplayer-skin-default">
-        <video></video>
-        <button class="xgplayer-fullscreen" type="button"></button>
-        <button class="xgplayer-cssfullscreen" type="button"></button>
+        <div class="xgplayer-video-wrap"><video></video></div>
+        <xg-controls class="xgplayer-controls">
+          <button id="play-control" type="button">Play</button>
+          <button class="xgplayer-fullscreen" type="button"></button>
+          <button class="xgplayer-cssfullscreen" type="button"></button>
+        </xg-controls>
       </div>
       <input id="notes" />
       <script>
@@ -263,7 +303,76 @@ async (page) => {
     await targetPage.keyboard.press("f");
     await targetPage.keyboard.press("f");
     await targetPage.keyboard.press("t");
+
+    const webFullscreenLayouts = [];
+    for (const viewport of [
+      { width: 1280, height: 720 },
+      { width: 720, height: 900 },
+      { width: 1100, height: 500 },
+    ]) {
+      await targetPage.setViewportSize(viewport);
+      webFullscreenLayouts.push(
+        await targetPage.evaluate(() => {
+          const player = document.querySelector(".xgplayer-skin-default");
+          const video = player.querySelector("video");
+          const controls = player.querySelector(".xgplayer-controls");
+          const playerRect = player.getBoundingClientRect();
+          const videoRect = video.getBoundingClientRect();
+          const controlsRect = controls.getBoundingClientRect();
+          const controlsStyle = getComputedStyle(controls);
+          const topLayer = document.elementFromPoint(4, 4);
+
+          return {
+            viewport: { width: innerWidth, height: innerHeight },
+            player: {
+              top: playerRect.top,
+              left: playerRect.left,
+              width: playerRect.width,
+              height: playerRect.height,
+              background: getComputedStyle(player).backgroundColor,
+            },
+            video: {
+              top: videoRect.top,
+              left: videoRect.left,
+              width: videoRect.width,
+              height: videoRect.height,
+              objectFit: getComputedStyle(video).objectFit,
+            },
+            controls: {
+              left: controlsRect.left,
+              right: controlsRect.right,
+              bottom: controlsRect.bottom,
+              opacity: controlsStyle.opacity,
+              visibility: controlsStyle.visibility,
+              pointerEvents: controlsStyle.pointerEvents,
+            },
+            pageCovered: topLayer === player || player.contains(topLayer),
+            bodyOverflow: document.body.style.overflow,
+            htmlOverflow: document.documentElement.style.overflow,
+          };
+        }),
+      );
+    }
+
+    await targetPage.setViewportSize({ width: 1280, height: 720 });
     await targetPage.keyboard.press("t");
+
+    const webFullscreenRestored = await targetPage.evaluate(() => {
+      const player = document.querySelector(".xgplayer-skin-default");
+      const controlsStyle = getComputedStyle(
+        player.querySelector(".xgplayer-controls"),
+      );
+      return {
+        active: player.dataset.xetWebFullscreen === "true",
+        documentActive: document.documentElement.classList.contains(
+          "xet-web-fullscreen-active",
+        ),
+        bodyOverflow: document.body.style.overflow,
+        htmlOverflow: document.documentElement.style.overflow,
+        controlsOpacity: controlsStyle.opacity,
+        controlsVisibility: controlsStyle.visibility,
+      };
+    });
 
     // Web -> native must finish in native mode with one F press.
     await targetPage.keyboard.press("t");
@@ -388,8 +497,44 @@ async (page) => {
       webAfterEscape ||
       webAfterFocusedT ||
       webAfterFocusedEscape ||
+      webFullscreenLayouts.some(
+        ({
+          viewport,
+          player,
+          video,
+          controls,
+          pageCovered,
+          bodyOverflow,
+          htmlOverflow,
+        }) =>
+          player.top !== 0 ||
+          player.left !== 0 ||
+          player.width !== viewport.width ||
+          player.height !== viewport.height ||
+          player.background !== "rgb(0, 0, 0)" ||
+          video.top !== 0 ||
+          video.left !== 0 ||
+          video.width !== viewport.width ||
+          video.height !== viewport.height ||
+          video.objectFit !== "contain" ||
+          controls.left !== 0 ||
+          controls.right !== viewport.width ||
+          controls.bottom !== viewport.height ||
+          controls.opacity !== "1" ||
+          controls.visibility !== "visible" ||
+          controls.pointerEvents !== "auto" ||
+          !pageCovered ||
+          bodyOverflow !== "hidden" ||
+          htmlOverflow !== "hidden",
+      ) ||
+      webFullscreenRestored.active ||
+      webFullscreenRestored.documentActive ||
+      webFullscreenRestored.bodyOverflow !== "" ||
+      webFullscreenRestored.htmlOverflow !== "" ||
+      webFullscreenRestored.controlsOpacity !== "0" ||
+      webFullscreenRestored.controlsVisibility !== "hidden" ||
       result.nativeClicks !== 4 ||
-      result.webClicks !== 10 ||
+      result.webClicks !== 0 ||
       result.builtInArrowEvents !== 0 ||
       result.builtInSpeedEvents !== 0 ||
       result.escapePassThroughEvents !== 1 ||
@@ -408,7 +553,13 @@ async (page) => {
       result.paused !== true ||
       result.playbackRate !== 1
     ) {
-      throw new Error(`Unexpected shortcut result: ${JSON.stringify(result)}`);
+      throw new Error(
+        `Unexpected shortcut result: ${JSON.stringify({
+          result,
+          webFullscreenLayouts,
+          webFullscreenRestored,
+        })}`,
+      );
     }
     return {
       ...result,
@@ -417,6 +568,8 @@ async (page) => {
       webAfterEscape,
       webAfterFocusedT,
       webAfterFocusedEscape,
+      webFullscreenLayouts,
+      webFullscreenRestored,
       media: {
         afterLeft,
         afterRight,
@@ -441,7 +594,7 @@ async (page) => {
       </style>
       <article id="task-card">
         <h1>打卡课程</h1>
-        <video controls></video>
+        <video></video>
       </article>
       <script>
         const card = document.querySelector("#task-card");
@@ -510,25 +663,35 @@ async (page) => {
     });
 
     await targetPage.keyboard.press("t");
-    const webOn = await targetPage.$eval(
-      "video",
-      (video) =>
-        video.dataset.xetWebFullscreen === "true" &&
-        video.style.position === "fixed",
-    );
+    const webOn = await targetPage.$eval("video", (video) => {
+      const rect = video.getBoundingClientRect();
+      const style = getComputedStyle(video);
+      return {
+        active: video.dataset.xetWebFullscreen === "true",
+        position: style.position,
+        fillsViewport:
+          rect.top === 0 &&
+          rect.left === 0 &&
+          rect.width === innerWidth &&
+          rect.height === innerHeight,
+        objectFit: style.objectFit,
+        background: style.backgroundColor,
+        controls: video.controls,
+      };
+    });
     await targetPage.keyboard.press("Escape");
-    const webOffWithEscape = await targetPage.$eval(
-      "video",
-      (video) =>
-        !video.dataset.xetWebFullscreen && video.style.position !== "fixed",
-    );
+    const webOffWithEscape = await targetPage.$eval("video", (video) => ({
+      inactive: !video.dataset.xetWebFullscreen,
+      position: getComputedStyle(video).position,
+      controls: video.controls,
+    }));
     await targetPage.keyboard.press("t");
     await targetPage.keyboard.press("t");
-    const webOffWithT = await targetPage.$eval(
-      "video",
-      (video) =>
-        !video.dataset.xetWebFullscreen && video.style.position !== "fixed",
-    );
+    const webOffWithT = await targetPage.$eval("video", (video) => ({
+      inactive: !video.dataset.xetWebFullscreen,
+      position: getComputedStyle(video).position,
+      controls: video.controls,
+    }));
     const cardUntouched = await targetPage.$eval(
       "#task-card",
       (card) =>
@@ -540,9 +703,18 @@ async (page) => {
       afterMediaAndNative.paused !== false ||
       afterMediaAndNative.playbackRate !== 1.25 ||
       afterMediaAndNative.fullscreenTarget !== "VIDEO" ||
-      !webOn ||
-      !webOffWithEscape ||
-      !webOffWithT ||
+      !webOn.active ||
+      webOn.position !== "fixed" ||
+      !webOn.fillsViewport ||
+      webOn.objectFit !== "contain" ||
+      webOn.background !== "rgb(0, 0, 0)" ||
+      !webOn.controls ||
+      !webOffWithEscape.inactive ||
+      webOffWithEscape.position === "fixed" ||
+      webOffWithEscape.controls ||
+      !webOffWithT.inactive ||
+      webOffWithT.position === "fixed" ||
+      webOffWithT.controls ||
       !cardUntouched
     ) {
       throw new Error(

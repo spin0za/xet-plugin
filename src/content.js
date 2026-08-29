@@ -26,6 +26,8 @@
     ".xgplayer-cssfullscreen-img",
     "xg-cssfullscreen",
   ].join(",");
+  const WEB_FULLSCREEN_STYLE_ID = "xet-web-fullscreen-style";
+  const WEB_FULLSCREEN_DOCUMENT_CLASS = "xet-web-fullscreen-active";
 
   let enabled = true;
   let disabledHosts = [];
@@ -128,6 +130,108 @@
         return false;
       }
     });
+  }
+
+  function ensureWebFullscreenStyles() {
+    if (document.getElementById(WEB_FULLSCREEN_STYLE_ID)) return;
+
+    const style = document.createElement("style");
+    style.id = WEB_FULLSCREEN_STYLE_ID;
+    style.textContent = `
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS},
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS} body {
+        overflow: hidden !important;
+        background: #000 !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS} [data-xet-web-fullscreen="true"] {
+        position: fixed !important;
+        inset: 0 !important;
+        z-index: 2147483646 !important;
+        box-sizing: border-box !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+        border: 0 !important;
+        border-radius: 0 !important;
+        background: #000 !important;
+        transform: none !important;
+        aspect-ratio: auto !important;
+        isolation: isolate !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] .xgplayer-video-wrap,
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] xg-video-container,
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] .xgplayer-poster {
+        position: absolute !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        background-color: #000 !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] .xgplayer-poster {
+        background-position: center !important;
+        background-repeat: no-repeat !important;
+        background-size: contain !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        video[data-xet-web-fullscreen="true"] {
+        object-fit: contain !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] video {
+        position: absolute !important;
+        inset: 0 !important;
+        z-index: 0 !important;
+        box-sizing: border-box !important;
+        width: 100% !important;
+        height: 100% !important;
+        min-width: 0 !important;
+        min-height: 0 !important;
+        max-width: none !important;
+        max-height: none !important;
+        margin: 0 !important;
+        object-fit: contain !important;
+        background: #000 !important;
+        transform: none !important;
+      }
+
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] .xgplayer-controls,
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [data-xet-web-fullscreen="true"] xg-controls {
+        position: absolute !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        z-index: 20 !important;
+        width: 100% !important;
+        max-width: none !important;
+        margin: 0 !important;
+        opacity: 1 !important;
+        visibility: visible !important;
+        pointer-events: auto !important;
+        transform: none !important;
+      }
+    `;
+    (document.head || document.documentElement).appendChild(style);
   }
 
   function playerArea(element) {
@@ -269,35 +373,38 @@
     const isActive = root.dataset[marker] === "true";
 
     if (isActive) {
-      const originalStyle = root.dataset.xetOriginalStyle;
-      if (originalStyle) {
-        root.setAttribute("style", originalStyle);
-      } else {
-        root.removeAttribute("style");
-      }
       document.body.style.overflow = root.dataset.xetBodyOverflow || "";
+      document.documentElement.style.overflow =
+        root.dataset.xetHtmlOverflow || "";
+      if (root.tagName === "VIDEO") {
+        root.controls = root.dataset.xetOriginalControls === "true";
+      }
       delete root.dataset[marker];
-      delete root.dataset.xetOriginalStyle;
       delete root.dataset.xetBodyOverflow;
+      delete root.dataset.xetHtmlOverflow;
+      delete root.dataset.xetOriginalControls;
       root.classList.remove("xgplayer-is-cssfullscreen");
       document.body.classList.remove("xeplayer-webscreen-fix");
+      document.documentElement.classList.remove(
+        WEB_FULLSCREEN_DOCUMENT_CLASS,
+      );
       return;
     }
 
+    ensureWebFullscreenStyles();
     root.dataset[marker] = "true";
-    root.dataset.xetOriginalStyle = root.getAttribute("style") || "";
     root.dataset.xetBodyOverflow = document.body.style.overflow || "";
-    Object.assign(root.style, {
-      position: "fixed",
-      inset: "0",
-      width: "100vw",
-      height: "100vh",
-      maxWidth: "none",
-      zIndex: "2147483646",
-    });
+    root.dataset.xetHtmlOverflow =
+      document.documentElement.style.overflow || "";
+    if (root.tagName === "VIDEO") {
+      root.dataset.xetOriginalControls = String(root.controls);
+      root.controls = true;
+    }
     document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
     root.classList.add("xgplayer-is-cssfullscreen");
     document.body.classList.add("xeplayer-webscreen-fix");
+    document.documentElement.classList.add(WEB_FULLSCREEN_DOCUMENT_CLASS);
   }
 
   function clickWebFullscreenControl(root) {
@@ -322,9 +429,7 @@
   }
 
   function enterWebFullscreen(root) {
-    if (!isWebFullscreen(root) && !clickWebFullscreenControl(root)) {
-      toggleFallbackWebFullscreen(root);
-    }
+    if (!isWebFullscreen(root)) toggleFallbackWebFullscreen(root);
   }
 
   function switchNativeToWebFullscreen(root) {
@@ -370,7 +475,8 @@
       return;
     }
 
-    if (!clickWebFullscreenControl(root)) toggleFallbackWebFullscreen(root);
+    if (isWebFullscreen(root)) exitWebFullscreen(root);
+    else toggleFallbackWebFullscreen(root);
   }
 
   function playerShortcutAction(event) {
