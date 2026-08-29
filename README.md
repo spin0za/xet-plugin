@@ -1,7 +1,7 @@
 # 小鹅通播放助手 / Xiaoe Tech Player Helper
 
 <p align="center">
-  <img src="icons/icon-128.png" width="96" height="96" alt="小鹅通播放助手图标 / Xiaoe Tech Player Helper icon">
+  <img src="assets/goose-icon-master.png" width="256" height="256" alt="小鹅通播放助手图标 / Xiaoe Tech Player Helper icon">
 </p>
 
 一个适用于 Chrome 和 Edge 的本地扩展：自动选择小鹅通视频的“超清”画质，提供类似 YouTube 的播放快捷键，并可通过无界面请求保持登录。
@@ -165,6 +165,14 @@ output/playwright/
 tests/
   background-smoke.js
 ```
+
+## 图标来源 / Icon attribution
+
+本项目图标基于《Age of Empires II: Definitive Edition》中的游戏素材制作，并依照 Microsoft 的 [Game Content Usage Rules](https://www.xbox.com/en-us/developers/rules) 用于这个免费、非商业的社区项目。该图标不是无版权素材，也不表示 Microsoft 对本项目的认可或合作。
+
+The project icon is derived from game content from *Age of Empires II: Definitive Edition* and is used for this free, noncommercial community project under Microsoft's [Game Content Usage Rules](https://www.xbox.com/en-us/developers/rules). The icon is not a copyright-free asset and does not imply Microsoft's endorsement of or affiliation with this project.
+
+> Age of Empires II: Definitive Edition © Microsoft Corporation. 小鹅通播放助手 / Xiaoe Tech Player Helper was created under Microsoft's “Game Content Usage Rules” using assets from Age of Empires II: Definitive Edition, and it is not endorsed by or affiliated with Microsoft.
 
 ## 版本 / Version
 

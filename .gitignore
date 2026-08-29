@@ -4,3 +4,9 @@ tmp/
 node_modules/
 .DS_Store
 Thumbs.db
+
+# Local icon references and design drafts
+assets/Goose_AoE2DE.webp
+assets/goose-icon-watercolor-faithful-v1.png
+assets/icon-candidates-toolbar/
+assets/icon-preview-transparent/
