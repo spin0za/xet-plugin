@@ -29,17 +29,11 @@
         <label class="setting keep-alive-setting">
           <span>
             <strong>自动保持登录</strong>
-            <small id="keep-alive-target">尚未设置保活网站</small>
+            <small>延长登录状态，减少反复微信扫码</small>
           </span>
           <input id="keep-alive-toggle" type="checkbox" />
           <span class="switch" aria-hidden="true"></span>
         </label>
-        <div class="keep-alive-actions">
-          <button id="keep-alive-test" class="secondary" type="button">
-            立即测试
-          </button>
-          <small id="keep-alive-status">不会打开或显示标签页</small>
-        </div>
       </section>
 
       <section id="site-section" hidden>
@@ -55,6 +49,22 @@
       <p class="hint" id="hint">
         打开课程并播放视频后，插件会自动选择可用的超清画质。
       </p>
+
+      <details class="developer-options">
+        <summary>开发者模式</summary>
+        <div class="developer-panel">
+          <div class="developer-target">
+            <strong>保活网站</strong>
+            <small id="keep-alive-target">尚未设置保活网站</small>
+          </div>
+          <div class="keep-alive-actions">
+            <button id="keep-alive-test" class="secondary" type="button">
+              立即测试
+            </button>
+            <small id="keep-alive-status">不会打开或显示标签页</small>
+          </div>
+        </div>
+      </details>
     </main>
     <script src="popup.js"></script>
   </body>

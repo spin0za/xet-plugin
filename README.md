@@ -26,7 +26,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 可在扩展弹窗中全局暂停，或只对当前网站暂停。
 - 商家自定义课程域名可按网站单独授权。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
-- 提供“立即测试”，不会创建标签页，也不会直接读取或保存 Cookie；续期由网站的正常响应完成。
+- 开发者模式中提供“立即测试”，不会创建标签页，也不会直接读取或保存 Cookie；续期由网站的正常响应完成。
 
 ### 快捷键
 
@@ -69,8 +69,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 快捷键直接控制当前可见或正在播放的视频。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
-- “自动保持登录”默认关闭，只会请求弹窗中显示的商家电脑端主页。
-- 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限。请先用“立即测试”并在开发者工具中确认 `pc_user_key` 的到期时间确实延长。
+- “自动保持登录”默认关闭，只会请求弹窗开发者模式中显示的商家电脑端主页。
+- 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限。请在弹窗中展开开发者模式，使用“立即测试”，再在浏览器开发者工具中确认 `pc_user_key` 的到期时间确实延长。
 - 电脑关机、Chrome 未运行或超过网站允许的登录有效期时，扩展无法恢复已经失效的登录。
 
 ### 本地验证
@@ -79,6 +79,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ```bash
 node tests/background-smoke.js
+node tests/popup-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 ```
@@ -94,7 +95,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 - Supports global pause and per-site pause from the extension popup.
 - Allows one-site permission grants for merchant-owned custom course domains.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
-- Includes a **Test now** action that creates no tab and does not directly read or store cookies; renewal is handled by the site's normal response.
+- Includes a **Test now** action under Developer mode that creates no tab and does not directly read or store cookies; renewal is handled by the site's normal response.
 
 ### Keyboard shortcuts
 
@@ -137,8 +138,8 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Shortcuts target the currently visible or actively playing video.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
-- Session keep-alive is off by default and requests only the merchant desktop homepage shown in the popup.
-- Background requests use the browser's existing login state without requesting cookie-reading permission. Use **Test now** first, then verify in DevTools that the `pc_user_key` expiration moved forward.
+- Session keep-alive is off by default and requests only the merchant desktop homepage shown under Developer mode in the popup.
+- Background requests use the browser's existing login state without requesting cookie-reading permission. Expand Developer mode in the popup, use **Test now**, and then verify in browser DevTools that the `pc_user_key` expiration moved forward.
 - The extension cannot restore an expired login while the computer is off, Chrome is not running, or the site's session lifetime has already elapsed.
 
 ### Local verification
@@ -147,6 +148,7 @@ The repository includes a Playwright browser regression script covering legacy a
 
 ```bash
 node tests/background-smoke.js
+node tests/popup-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 ```

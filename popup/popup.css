@@ -139,6 +139,51 @@ small {
   border-radius: 0;
 }
 
+.developer-options {
+  margin-top: 12px;
+}
+
+.developer-options summary {
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.developer-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.developer-options summary::after {
+  display: inline-block;
+  margin-left: 5px;
+  content: "›";
+  transition: transform 0.18s;
+}
+
+.developer-options[open] summary::after {
+  transform: rotate(90deg);
+}
+
+.developer-panel {
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.developer-target {
+  padding: 10px 12px;
+}
+
+.developer-target small {
+  max-width: none;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .keep-alive-actions {
   display: flex;
   min-height: 42px;
