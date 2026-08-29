@@ -28,6 +28,7 @@
   ].join(",");
   const WEB_FULLSCREEN_STYLE_ID = "xet-web-fullscreen-style";
   const WEB_FULLSCREEN_DOCUMENT_CLASS = "xet-web-fullscreen-active";
+  const WEB_FULLSCREEN_PATH_ATTRIBUTE = "data-xet-web-fullscreen-path";
 
   let enabled = true;
   let disabledHosts = [];
@@ -39,6 +40,7 @@
   let previousLocation = location.href;
   let suppressWebFullscreenEscapeKeyup = false;
   let suppressWebFullscreenTKeyup = false;
+  const webFullscreenLayerStates = new WeakMap();
 
   function normalizeText(value) {
     return (value || "").replace(/\s+/g, "").trim();
@@ -144,6 +146,16 @@
         background: #000 !important;
       }
 
+      html.${WEB_FULLSCREEN_DOCUMENT_CLASS}
+        [${WEB_FULLSCREEN_PATH_ATTRIBUTE}="true"]
+        > :not(
+          [${WEB_FULLSCREEN_PATH_ATTRIBUTE}="true"],
+          [data-xet-web-fullscreen="true"]
+        ) {
+        visibility: hidden !important;
+        pointer-events: none !important;
+      }
+
       html.${WEB_FULLSCREEN_DOCUMENT_CLASS} [data-xet-web-fullscreen="true"] {
         position: fixed !important;
         inset: 0 !important;
@@ -232,6 +244,66 @@
       }
     `;
     (document.head || document.documentElement).appendChild(style);
+  }
+
+  function elevateWebFullscreen(root) {
+    const pathElements = [];
+    let current = composedParent(root);
+
+    while (current && current !== document.documentElement) {
+      current.setAttribute(WEB_FULLSCREEN_PATH_ATTRIBUTE, "true");
+      pathElements.push(current);
+      current = composedParent(current);
+    }
+
+    const originalPopover = root.getAttribute("popover");
+    let usesTopLayer = false;
+
+    if (
+      typeof root.showPopover === "function" &&
+      typeof root.hidePopover === "function"
+    ) {
+      try {
+        root.setAttribute("popover", "manual");
+        root.showPopover();
+        usesTopLayer = root.matches(":popover-open");
+      } catch {
+        // The marked ancestor path still hides the surrounding page when the
+        // Popover API is unavailable or the player rejects top-layer display.
+      }
+    }
+
+    if (!usesTopLayer) {
+      if (originalPopover === null) root.removeAttribute("popover");
+      else root.setAttribute("popover", originalPopover);
+    }
+
+    webFullscreenLayerStates.set(root, {
+      originalPopover,
+      pathElements,
+      usesTopLayer,
+    });
+  }
+
+  function lowerWebFullscreen(root) {
+    const state = webFullscreenLayerStates.get(root);
+    if (!state) return;
+
+    if (state.usesTopLayer) {
+      try {
+        if (root.matches(":popover-open")) root.hidePopover();
+      } catch {
+        // Continue restoring the original DOM attributes and page visibility.
+      }
+    }
+
+    if (state.originalPopover === null) root.removeAttribute("popover");
+    else root.setAttribute("popover", state.originalPopover);
+
+    for (const element of state.pathElements) {
+      element.removeAttribute(WEB_FULLSCREEN_PATH_ATTRIBUTE);
+    }
+    webFullscreenLayerStates.delete(root);
   }
 
   function playerArea(element) {
@@ -373,6 +445,7 @@
     const isActive = root.dataset[marker] === "true";
 
     if (isActive) {
+      lowerWebFullscreen(root);
       document.body.style.overflow = root.dataset.xetBodyOverflow || "";
       document.documentElement.style.overflow =
         root.dataset.xetHtmlOverflow || "";
@@ -405,6 +478,7 @@
     root.classList.add("xgplayer-is-cssfullscreen");
     document.body.classList.add("xeplayer-webscreen-fix");
     document.documentElement.classList.add(WEB_FULLSCREEN_DOCUMENT_CLASS);
+    elevateWebFullscreen(root);
   }
 
   function clickWebFullscreenControl(root) {

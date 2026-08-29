@@ -21,7 +21,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
-- 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
+- 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
 - 可在扩展弹窗中全局暂停，或只对当前网站暂停。
 - 商家自定义课程域名可按网站单独授权。
@@ -67,7 +67,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 - 扩展只选择播放器实际提供的画质；如果视频没有超清源，则无法生成更高画质。
 - 快捷键直接控制当前可见或正在播放的视频。
-- `T` 启用的网页全屏由扩展独立布局，不再依赖播放器不稳定的网页全屏样式；视频会按比例缩放，剩余区域显示为黑色。
+- `T` 启用的网页全屏由扩展独立布局，不再依赖播放器不稳定的网页全屏样式；播放器会进入页面顶层，网站导航及周围页面内容会被隐藏且无法误触，视频则按比例缩放，剩余区域显示为黑色。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
 - “自动保持登录”默认关闭，只会请求弹窗开发者模式中显示的商家电脑端主页。
@@ -91,7 +91,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
-- Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
+- Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
 - Supports global pause and per-site pause from the extension popup.
 - Allows one-site permission grants for merchant-owned custom course domains.
@@ -137,7 +137,7 @@ To update, pull or download the latest files, click **Reload** on the extension 
 
 - The extension selects only quality options exposed by the player. It cannot create a higher-quality source when one is unavailable.
 - Shortcuts target the currently visible or actively playing video.
-- Page fullscreen activated with `T` uses an extension-managed layout instead of the player's unstable page-fullscreen CSS. The video scales proportionally and any unused space stays black.
+- Page fullscreen activated with `T` uses an extension-managed layout instead of the player's unstable page-fullscreen CSS. The player enters the page's top layer, hiding and blocking accidental interaction with site navigation and surrounding content. The video scales proportionally and any unused space stays black.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
 - Session keep-alive is off by default and requests only the merchant desktop homepage shown under Developer mode in the popup.
@@ -180,8 +180,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.8.2**
+Current version: **1.8.3**
 
-主要变更：重新实现稳定的网页全屏布局。视频会在任何窗口尺寸下按比例完整显示，页面其余内容保持黑屏，底部播放控件不再丢失；仍可通过 `T` 或 `Esc` 退出。
+主要变更：网页全屏播放器现在进入页面顶层，并隐藏、禁用网站导航及周围页面控件。视频仍会在任何窗口尺寸下按比例完整显示，页面其余区域保持黑屏，底部播放控件继续可用。
 
-Highlights: page fullscreen now uses a stable extension-managed layout. The complete video remains visible at any window size, unused space stays black, and the bottom playback controls remain available. Exit with either `T` or `Esc`.
+Highlights: page fullscreen now promotes the player into the page's top layer and hides or disables the site's navigation and surrounding controls. The complete video remains visible at any window size, unused space stays black, and the bottom playback controls remain available.

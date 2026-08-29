@@ -165,9 +165,17 @@ async (page) => {
         html, body { margin: 0; }
         #page-ui {
           position: fixed;
-          inset: 0;
+          top: 0;
+          right: 0;
+          left: 0;
           z-index: 9999;
+          height: 72px;
           background: hotpink;
+        }
+        #player-shell {
+          position: relative;
+          z-index: 1;
+          transform: translateZ(0);
         }
         .xgplayer-skin-default {
           position: relative;
@@ -205,14 +213,18 @@ async (page) => {
           background: rgba(0, 0, 0, .8);
         }
       </style>
-      <div id="page-ui">This page content must stay covered.</div>
-      <div class="xgplayer-skin-default">
-        <div class="xgplayer-video-wrap"><video></video></div>
-        <xg-controls class="xgplayer-controls">
-          <button id="play-control" type="button">Play</button>
-          <button class="xgplayer-fullscreen" type="button"></button>
-          <button class="xgplayer-cssfullscreen" type="button"></button>
-        </xg-controls>
+      <header id="page-ui">
+        <button id="page-button" type="button">我的已购</button>
+      </header>
+      <div id="player-shell">
+        <div class="xgplayer-skin-default">
+          <div class="xgplayer-video-wrap"><video></video></div>
+          <xg-controls class="xgplayer-controls">
+            <button id="play-control" type="button">Play</button>
+            <button class="xgplayer-fullscreen" type="button"></button>
+            <button class="xgplayer-cssfullscreen" type="button"></button>
+          </xg-controls>
+        </div>
       </div>
       <input id="notes" />
       <script>
@@ -221,6 +233,7 @@ async (page) => {
         window.__builtInArrowEvents = 0;
         window.__builtInSpeedEvents = 0;
         window.__escapePassThroughEvents = 0;
+        window.__pageButtonClicks = 0;
         const player = document.querySelector(".xgplayer-skin-default");
         const video = player.querySelector("video");
         let currentTime = 50;
@@ -255,6 +268,9 @@ async (page) => {
           return Promise.resolve();
         };
         video.pause = () => { paused = true; };
+        document.querySelector("#page-button").addEventListener("click", () => {
+          window.__pageButtonClicks++;
+        });
         document.addEventListener("keydown", (event) => {
           if (event.target.closest?.("input, textarea, [contenteditable]")) return;
           if (event.key === "ArrowLeft") {
@@ -347,12 +363,21 @@ async (page) => {
               pointerEvents: controlsStyle.pointerEvents,
             },
             pageCovered: topLayer === player || player.contains(topLayer),
+            topLayerActive: player.matches(":popover-open"),
+            pageButtonVisibility: getComputedStyle(
+              document.querySelector("#page-button"),
+            ).visibility,
             bodyOverflow: document.body.style.overflow,
             htmlOverflow: document.documentElement.style.overflow,
           };
         }),
       );
     }
+
+    await targetPage.mouse.click(360, 24);
+    const pageButtonClicksDuringFullscreen = await targetPage.evaluate(
+      () => window.__pageButtonClicks,
+    );
 
     await targetPage.setViewportSize({ width: 1280, height: 720 });
     await targetPage.keyboard.press("t");
@@ -371,8 +396,16 @@ async (page) => {
         htmlOverflow: document.documentElement.style.overflow,
         controlsOpacity: controlsStyle.opacity,
         controlsVisibility: controlsStyle.visibility,
+        topLayerActive: player.matches(":popover-open"),
+        pageButtonVisibility: getComputedStyle(
+          document.querySelector("#page-button"),
+        ).visibility,
       };
     });
+    await targetPage.locator("#page-button").click();
+    const pageButtonClicksAfterExit = await targetPage.evaluate(
+      () => window.__pageButtonClicks,
+    );
 
     // Web -> native must finish in native mode with one F press.
     await targetPage.keyboard.press("t");
@@ -504,6 +537,8 @@ async (page) => {
           video,
           controls,
           pageCovered,
+          topLayerActive,
+          pageButtonVisibility,
           bodyOverflow,
           htmlOverflow,
         }) =>
@@ -524,6 +559,8 @@ async (page) => {
           controls.visibility !== "visible" ||
           controls.pointerEvents !== "auto" ||
           !pageCovered ||
+          !topLayerActive ||
+          pageButtonVisibility !== "hidden" ||
           bodyOverflow !== "hidden" ||
           htmlOverflow !== "hidden",
       ) ||
@@ -533,6 +570,10 @@ async (page) => {
       webFullscreenRestored.htmlOverflow !== "" ||
       webFullscreenRestored.controlsOpacity !== "0" ||
       webFullscreenRestored.controlsVisibility !== "hidden" ||
+      webFullscreenRestored.topLayerActive ||
+      webFullscreenRestored.pageButtonVisibility !== "visible" ||
+      pageButtonClicksDuringFullscreen !== 0 ||
+      pageButtonClicksAfterExit !== 1 ||
       result.nativeClicks !== 4 ||
       result.webClicks !== 0 ||
       result.builtInArrowEvents !== 0 ||
@@ -558,6 +599,8 @@ async (page) => {
           result,
           webFullscreenLayouts,
           webFullscreenRestored,
+          pageButtonClicksDuringFullscreen,
+          pageButtonClicksAfterExit,
         })}`,
       );
     }
@@ -570,6 +613,8 @@ async (page) => {
       webAfterFocusedEscape,
       webFullscreenLayouts,
       webFullscreenRestored,
+      pageButtonClicksDuringFullscreen,
+      pageButtonClicksAfterExit,
       media: {
         afterLeft,
         afterRight,
