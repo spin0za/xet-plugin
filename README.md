@@ -80,6 +80,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ```bash
 node tests/background-smoke.js
+node tests/content-structure-smoke.js
 node tests/popup-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
@@ -150,6 +151,7 @@ The repository includes a Playwright browser regression script covering legacy a
 
 ```bash
 node tests/background-smoke.js
+node tests/content-structure-smoke.js
 node tests/popup-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
@@ -164,10 +166,19 @@ popup/
 src/
   background.js
   content.js
+  content/
+    player-dom.js
+    fullscreen.js
+    fullscreen.css
+    media-shortcuts.js
+    quality.js
+    toast.js
 output/playwright/
   verify-player-structures.js
 tests/
   background-smoke.js
+  content-structure-smoke.js
+  popup-smoke.js
 ```
 
 ## 图标来源 / Icon attribution
@@ -180,8 +191,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.8.3**
+Current version: **1.8.4**
 
-主要变更：网页全屏播放器现在进入页面顶层，并隐藏、禁用网站导航及周围页面控件。视频仍会在任何窗口尺寸下按比例完整显示，页面其余区域保持黑屏，底部播放控件继续可用。
+主要变更：内容脚本已按播放器识别、全屏、快捷键、自动画质和页面提示拆分为独立模块，并为商家自定义域名加入旧动态注册的自动迁移；用户功能保持不变。
 
-Highlights: page fullscreen now promotes the player into the page's top layer and hides or disables the site's navigation and surrounding controls. The complete video remains visible at any window size, unused space stays black, and the bottom playback controls remain available.
+Highlights: the content script is now separated into player discovery, fullscreen, keyboard shortcut, automatic quality, and notification modules. Persisted registrations for merchant-owned custom domains migrate automatically, with no user-facing behavior changes.

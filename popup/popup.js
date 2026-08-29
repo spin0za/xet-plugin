@@ -52,6 +52,14 @@ function registrationId(hostname) {
   return `xet_custom_${hash.toString(36)}`;
 }
 
+function contentScriptResources() {
+  const registration = chrome.runtime.getManifest().content_scripts?.[0];
+  return {
+    css: registration?.css || [],
+    js: registration?.js || [],
+  };
+}
+
 function inferredKeepAliveUrl(url) {
   if (!url || url.protocol !== "https:") return "";
 
@@ -176,27 +184,38 @@ async function registerCurrentSite() {
   if (!granted) return false;
 
   const id = registrationId(activeUrl.hostname);
+  const resources = contentScriptResources();
   const existing = await chrome.scripting.getRegisteredContentScripts({
     ids: [id],
   });
+  const registration = {
+    id,
+    matches: [pattern],
+    js: resources.js,
+    css: resources.css,
+    allFrames: true,
+    matchOriginAsFallback: true,
+    persistAcrossSessions: true,
+    runAt: "document_idle",
+  };
 
-  if (!existing.length) {
+  if (existing.length) {
+    await chrome.scripting.updateContentScripts([registration]);
+  } else {
     await chrome.scripting.registerContentScripts([
-      {
-        id,
-        matches: [pattern],
-        js: ["src/content.js"],
-        allFrames: true,
-        matchOriginAsFallback: true,
-        persistAcrossSessions: true,
-        runAt: "document_idle",
-      },
+      registration,
     ]);
   }
 
+  if (resources.css.length) {
+    await chrome.scripting.insertCSS({
+      target: { tabId: activeTab.id, allFrames: true },
+      files: resources.css,
+    });
+  }
   await chrome.scripting.executeScript({
     target: { tabId: activeTab.id, allFrames: true },
-    files: ["src/content.js"],
+    files: resources.js,
   });
   return true;
 }

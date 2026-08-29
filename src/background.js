@@ -12,8 +12,94 @@ const KEEP_ALIVE_ALARM = "xet-keep-alive";
 const KEEP_ALIVE_INTERVAL_MINUTES = 4 * 60;
 const KEEP_ALIVE_MIN_GAP_MS = 3 * 60 * 60 * 1_000;
 const KEEP_ALIVE_TIMEOUT_MS = 20_000;
+const CUSTOM_CONTENT_SCRIPT_PREFIX = "xet_custom_";
 
 let keepAliveRequest = null;
+const contentRepairRequests = new Map();
+
+function contentScriptResources() {
+  const registration = chrome.runtime.getManifest().content_scripts?.[0];
+  return {
+    css: registration?.css || [],
+    js: registration?.js || [],
+  };
+}
+
+function customContentScriptRegistration(id, matches) {
+  const resources = contentScriptResources();
+  return {
+    id,
+    matches,
+    js: resources.js,
+    css: resources.css,
+    allFrames: true,
+    matchOriginAsFallback: true,
+    persistAcrossSessions: true,
+    runAt: "document_idle",
+  };
+}
+
+async function syncCustomContentScripts() {
+  if (!chrome.scripting) return;
+
+  const registered = await chrome.scripting.getRegisteredContentScripts();
+  const updates = registered
+    .filter((script) => script.id.startsWith(CUSTOM_CONTENT_SCRIPT_PREFIX))
+    .map((script) => customContentScriptRegistration(script.id, script.matches));
+  if (updates.length) await chrome.scripting.updateContentScripts(updates);
+}
+
+async function repairContentScripts(sender) {
+  if (!chrome.scripting || sender.tab?.id === undefined) {
+    return { ok: false, reason: "unavailable" };
+  }
+
+  const tabId = sender.tab.id;
+  if (contentRepairRequests.has(tabId)) {
+    return contentRepairRequests.get(tabId);
+  }
+
+  const repair = (async () => {
+    const url = new URL(sender.tab.url);
+    const id = `${CUSTOM_CONTENT_SCRIPT_PREFIX}${registrationHash(url.hostname)}`;
+    const existing = await chrome.scripting.getRegisteredContentScripts({
+      ids: [id],
+    });
+    if (existing.length) {
+      await chrome.scripting.updateContentScripts([
+        customContentScriptRegistration(id, [
+          `${url.protocol}//${url.hostname}/*`,
+        ]),
+      ]);
+    }
+
+    const resources = contentScriptResources();
+    const target = { tabId, allFrames: true };
+    if (resources.css.length) {
+      await chrome.scripting.insertCSS({ target, files: resources.css });
+    }
+    await chrome.scripting.executeScript({
+      target,
+      files: resources.js,
+    });
+    return { ok: true };
+  })();
+
+  contentRepairRequests.set(tabId, repair);
+  try {
+    return await repair;
+  } finally {
+    contentRepairRequests.delete(tabId);
+  }
+}
+
+function registrationHash(hostname) {
+  let hash = 0;
+  for (const character of hostname) {
+    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
+  }
+  return hash.toString(36);
+}
 
 function normalizeKeepAliveUrl(value) {
   try {
@@ -152,6 +238,7 @@ chrome.runtime.onInstalled.addListener(async () => {
   const current = await chrome.storage.local.get(DEFAULT_SETTINGS);
   await chrome.storage.local.set(current);
   await syncKeepAliveAlarm();
+  await syncCustomContentScripts();
 });
 
 chrome.runtime.onStartup.addListener(async () => {
@@ -195,7 +282,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     void recordNaturalVisit(sender);
   }
 
+  if (message?.type === "xet:repair-content-scripts") {
+    repairContentScripts(sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
+    return true;
+  }
+
   return false;
 });
 
 void syncKeepAliveAlarm();
+void syncCustomContentScripts().catch(() => {});

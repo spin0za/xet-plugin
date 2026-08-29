@@ -1,5 +1,13 @@
 async (page) => {
-  const extensionScript = "src/content.js";
+  const extensionScripts = [
+    "src/content/player-dom.js",
+    "src/content/fullscreen.js",
+    "src/content/media-shortcuts.js",
+    "src/content/quality.js",
+    "src/content/toast.js",
+    "src/content.js",
+  ];
+  const extensionStyles = ["src/content/fullscreen.css"];
 
   async function installChromeStub(targetPage) {
     await targetPage.evaluate(() => {
@@ -17,6 +25,16 @@ async (page) => {
         },
       };
     });
+  }
+
+  async function installExtension(targetPage) {
+    await installChromeStub(targetPage);
+    for (const path of extensionStyles) {
+      await targetPage.addStyleTag({ path });
+    }
+    for (const path of extensionScripts) {
+      await targetPage.addScriptTag({ path });
+    }
   }
 
   async function verifyLegacyPlayer(targetPage) {
@@ -50,8 +68,7 @@ async (page) => {
         );
       </script>
     `);
-    await installChromeStub(targetPage);
-    await targetPage.addScriptTag({ path: extensionScript });
+    await installExtension(targetPage);
     await targetPage.waitForFunction(
       () => window.__selectedQuality === "超清1080P",
     );
@@ -91,8 +108,7 @@ async (page) => {
         );
       </script>
     `);
-    await installChromeStub(targetPage);
-    await targetPage.addScriptTag({ path: extensionScript });
+    await installExtension(targetPage);
     await targetPage.waitForFunction(
       () => window.__selectedQuality === "1080p",
     );
@@ -110,8 +126,7 @@ async (page) => {
       <div id="player"></div>
       <div id="busy-region"></div>
     `);
-    await installChromeStub(targetPage);
-    await targetPage.addScriptTag({ path: extensionScript });
+    await installExtension(targetPage);
 
     await targetPage.evaluate(() => {
       const busyRegion = document.querySelector("#busy-region");
@@ -312,8 +327,11 @@ async (page) => {
           });
       </script>
     `);
-    await installChromeStub(targetPage);
-    await targetPage.addScriptTag({ path: extensionScript });
+    await installExtension(targetPage);
+    // Custom-domain permission grants can inject the registered files into an
+    // already-open page. Re-injection must wake the existing instance without
+    // duplicating keyboard listeners or controller state.
+    await installExtension(targetPage);
 
     // Ordinary on/off behavior.
     await targetPage.keyboard.press("f");
@@ -686,8 +704,7 @@ async (page) => {
         };
       </script>
     `);
-    await installChromeStub(targetPage);
-    await targetPage.addScriptTag({ path: extensionScript });
+    await installExtension(targetPage);
 
     await targetPage.keyboard.press("ArrowLeft");
     await targetPage.keyboard.press("ArrowRight");

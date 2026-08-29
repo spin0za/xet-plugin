@@ -13,6 +13,7 @@ function event() {
 }
 
 async function main() {
+  const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
   const state = {
     keepAliveEnabled: true,
     keepAliveUrl: "https://merchant.pc.xiaoe-tech.com/course?id=private",
@@ -20,6 +21,16 @@ async function main() {
   };
   const alarmState = new Map();
   const fetchCalls = [];
+  const cssInjections = [];
+  const scriptInjections = [];
+  const registeredScripts = [
+    {
+      id: "xet_custom_legacy",
+      matches: ["https://custom.example/*"],
+      js: ["src/content.js"],
+      css: [],
+    },
+  ];
 
   const runtimeOnMessage = event();
   const alarmsOnAlarm = event();
@@ -29,6 +40,9 @@ async function main() {
 
   const chrome = {
     runtime: {
+      getManifest() {
+        return manifest;
+      },
       onInstalled: runtimeOnInstalled,
       onStartup: runtimeOnStartup,
       onMessage: runtimeOnMessage,
@@ -55,6 +69,30 @@ async function main() {
         },
       },
       onChanged: storageOnChanged,
+    },
+    scripting: {
+      async executeScript(injection) {
+        scriptInjections.push(injection);
+      },
+      async getRegisteredContentScripts(filter = {}) {
+        if (!filter.ids) {
+          return registeredScripts.map((script) => ({ ...script }));
+        }
+        return registeredScripts
+          .filter((script) => filter.ids.includes(script.id))
+          .map((script) => ({ ...script }));
+      },
+      async insertCSS(injection) {
+        cssInjections.push(injection);
+      },
+      async updateContentScripts(updates) {
+        for (const update of updates) {
+          const index = registeredScripts.findIndex(
+            (script) => script.id === update.id,
+          );
+          if (index >= 0) registeredScripts[index] = { ...update };
+        }
+      },
     },
   };
 
@@ -84,6 +122,16 @@ async function main() {
 
   assert.equal(alarmState.get("xet-keep-alive").periodInMinutes, 240);
   assert.equal(runtimeOnMessage.listeners.length, 1);
+  assert.deepEqual(
+    registeredScripts[0].js,
+    manifest.content_scripts[0].js,
+    "persisted custom registrations should migrate to the module list",
+  );
+  assert.deepEqual(
+    registeredScripts[0].css,
+    manifest.content_scripts[0].css,
+    "persisted custom registrations should receive fullscreen CSS",
+  );
 
   const result = await new Promise((resolve) => {
     const keptOpen = runtimeOnMessage.listeners[0](
@@ -108,6 +156,23 @@ async function main() {
     () => {},
   );
   await new Promise((resolve) => setImmediate(resolve));
+
+  const repairResult = await new Promise((resolve) => {
+    const keptOpen = runtimeOnMessage.listeners[0](
+      { type: "xet:repair-content-scripts" },
+      {
+        tab: {
+          id: 7,
+          url: "https://custom.example/course",
+        },
+      },
+      resolve,
+    );
+    assert.equal(keptOpen, true);
+  });
+  assert.equal(repairResult.ok, true);
+  assert.deepEqual(cssInjections[0].files, manifest.content_scripts[0].css);
+  assert.deepEqual(scriptInjections[0].files, manifest.content_scripts[0].js);
 
   alarmsOnAlarm.listeners[0]({ name: "xet-keep-alive" });
   await new Promise((resolve) => setImmediate(resolve));

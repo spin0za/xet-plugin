@@ -1,0 +1,108 @@
+html.xet-web-fullscreen-active,
+html.xet-web-fullscreen-active body {
+  overflow: hidden !important;
+  background: #000 !important;
+}
+
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen-path="true"]
+  > :not(
+    [data-xet-web-fullscreen-path="true"],
+    [data-xet-web-fullscreen="true"]
+  ) {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+html.xet-web-fullscreen-active [data-xet-web-fullscreen="true"] {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483646 !important;
+  box-sizing: border-box !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #000 !important;
+  transform: none !important;
+  aspect-ratio: auto !important;
+  isolation: isolate !important;
+}
+
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  .xgplayer-video-wrap,
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  xg-video-container,
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  .xgplayer-poster {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  background-color: #000 !important;
+}
+
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  .xgplayer-poster {
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: contain !important;
+}
+
+html.xet-web-fullscreen-active video[data-xet-web-fullscreen="true"] {
+  object-fit: contain !important;
+}
+
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  video {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 0 !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
+  height: 100% !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  object-fit: contain !important;
+  background: #000 !important;
+  transform: none !important;
+}
+
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  .xgplayer-controls,
+html.xet-web-fullscreen-active
+  [data-xet-web-fullscreen="true"]
+  xg-controls {
+  position: absolute !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  z-index: 20 !important;
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  pointer-events: auto !important;
+  transform: none !important;
+}
