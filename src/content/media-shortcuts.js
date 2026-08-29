@@ -22,6 +22,7 @@
       if (event.code === "KeyJ" || key === "j") return "seek-back-10";
       if (event.code === "KeyL" || key === "l") return "seek-forward-10";
       if (event.code === "KeyK" || key === "k") return "toggle-play";
+      if (event.code === "Space" || event.key === " ") return "toggle-play";
       if (event.code === "KeyF" || key === "f") return "native-fullscreen";
       if (event.code === "KeyT" || key === "t") return "web-fullscreen";
       if (event.key === "<") return "speed-down";

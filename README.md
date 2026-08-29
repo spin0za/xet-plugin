@@ -35,6 +35,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 | `←` / `→` | 后退 / 前进 5 秒 |
 | `J` / `L` | 后退 / 前进 10 秒 |
 | `K` | 暂停 / 继续播放 |
+| `空格` | 暂停 / 继续播放 |
 | `<` / `>` | 降低 / 提高播放速度（0.5～3 倍速） |
 | `F` | 切换原生全屏 |
 | `T` | 切换网页全屏 |
@@ -106,6 +107,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 | `←` / `→` | Seek backward / forward 5 seconds |
 | `J` / `L` | Seek backward / forward 10 seconds |
 | `K` | Pause / resume playback |
+| `Space` | Pause / resume playback |
 | `<` / `>` | Decrease / increase playback speed (0.5x–3x) |
 | `F` | Toggle native fullscreen |
 | `T` | Toggle page fullscreen |
@@ -191,8 +193,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.8.4**
+Current version: **1.8.5**
 
-主要变更：内容脚本已按播放器识别、全屏、快捷键、自动画质和页面提示拆分为独立模块，并为商家自定义域名加入旧动态注册的自动迁移；用户功能保持不变。
+主要变更：插件现在统一接管空格键的播放和暂停操作，避免点击播放器按钮后，空格同时触发播放器快捷键与聚焦按钮的原生点击而连续切换两次。
 
-Highlights: the content script is now separated into player discovery, fullscreen, keyboard shortcut, automatic quality, and notification modules. Persisted registrations for merchant-owned custom domains migrate automatically, with no user-facing behavior changes.
+Highlights: the extension now handles the Space key as a single play/pause action, preventing the player shortcut and the focused button's native activation from toggling playback twice after a mouse click.

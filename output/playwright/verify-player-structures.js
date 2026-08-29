@@ -247,8 +247,10 @@ async (page) => {
         window.__webClicks = 0;
         window.__builtInArrowEvents = 0;
         window.__builtInSpeedEvents = 0;
+        window.__builtInSpaceEvents = 0;
         window.__escapePassThroughEvents = 0;
         window.__pageButtonClicks = 0;
+        window.__playControlClicks = 0;
         const player = document.querySelector(".xgplayer-skin-default");
         const video = player.querySelector("video");
         let currentTime = 50;
@@ -283,6 +285,11 @@ async (page) => {
           return Promise.resolve();
         };
         video.pause = () => { paused = true; };
+        document.querySelector("#play-control").addEventListener("click", () => {
+          window.__playControlClicks++;
+          if (video.paused) video.play();
+          else video.pause();
+        });
         document.querySelector("#page-button").addEventListener("click", () => {
           window.__pageButtonClicks++;
         });
@@ -298,6 +305,11 @@ async (page) => {
           }
           if (event.key === "<" || event.key === ">") {
             window.__builtInSpeedEvents++;
+          }
+          if (event.code === "Space") {
+            window.__builtInSpaceEvents++;
+            if (video.paused) video.play();
+            else video.pause();
           }
           if (event.key === "Escape") {
             window.__escapePassThroughEvents++;
@@ -396,6 +408,15 @@ async (page) => {
     const pageButtonClicksDuringFullscreen = await targetPage.evaluate(
       () => window.__pageButtonClicks,
     );
+    await targetPage.$eval("#play-control", (button) => {
+      button.focus();
+      button.click();
+    });
+    await targetPage.keyboard.press("Space");
+    const webSpacePaused = await targetPage.$eval(
+      "video",
+      (video) => video.paused,
+    );
 
     await targetPage.setViewportSize({ width: 1280, height: 720 });
     await targetPage.keyboard.press("t");
@@ -436,6 +457,15 @@ async (page) => {
         .querySelector(".xgplayer-skin-default")
         .classList.contains("xgplayer-is-cssfullscreen"),
     }));
+    await targetPage.$eval("#play-control", (button) => {
+      button.focus();
+      button.click();
+    });
+    await targetPage.keyboard.press("Space");
+    const nativeSpacePaused = await targetPage.$eval(
+      "video",
+      (video) => video.paused,
+    );
 
     // Native -> web must finish in web mode with one T press.
     await targetPage.keyboard.press("t");
@@ -535,7 +565,9 @@ async (page) => {
       webClicks: window.__webClicks,
       builtInArrowEvents: window.__builtInArrowEvents,
       builtInSpeedEvents: window.__builtInSpeedEvents,
+      builtInSpaceEvents: window.__builtInSpaceEvents,
       escapePassThroughEvents: window.__escapePassThroughEvents,
+      playControlClicks: window.__playControlClicks,
       currentTime: document.querySelector("video").currentTime,
       paused: document.querySelector("video").paused,
       playbackRate: document.querySelector("video").playbackRate,
@@ -592,11 +624,15 @@ async (page) => {
       webFullscreenRestored.pageButtonVisibility !== "visible" ||
       pageButtonClicksDuringFullscreen !== 0 ||
       pageButtonClicksAfterExit !== 1 ||
+      !webSpacePaused ||
+      !nativeSpacePaused ||
       result.nativeClicks !== 4 ||
       result.webClicks !== 0 ||
       result.builtInArrowEvents !== 0 ||
       result.builtInSpeedEvents !== 0 ||
+      result.builtInSpaceEvents !== 0 ||
       result.escapePassThroughEvents !== 1 ||
+      result.playControlClicks !== 2 ||
       afterLeft !== 45 ||
       afterRight !== 50 ||
       afterJ !== 40 ||
@@ -633,6 +669,8 @@ async (page) => {
       webFullscreenRestored,
       pageButtonClicksDuringFullscreen,
       pageButtonClicksAfterExit,
+      webSpacePaused,
+      nativeSpacePaused,
       media: {
         afterLeft,
         afterRight,
