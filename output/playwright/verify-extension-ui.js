@@ -24,7 +24,6 @@ async (page) => {
           disabledSites,
           keepAliveEnabled: true,
           keepAliveUrl: "https://merchant.pc.xiaoe-tech.com/bought",
-          keepAliveLastResult: null,
         };
         window.chrome = {
           runtime: {
@@ -88,6 +87,9 @@ async (page) => {
       buttonColor: getComputedStyle(siteButton).color,
       manageText: document.querySelector("#manage-sites").textContent.trim(),
       hintHidden: document.querySelector("#hint").hidden,
+      hasKeepAliveDiagnostics: Boolean(
+        document.querySelector("#keep-alive-test, #keep-alive-target"),
+      ),
     };
   });
 
@@ -116,6 +118,7 @@ async (page) => {
     popup.buttonColor !== "rgb(255, 255, 255)" ||
     !popup.manageText.includes("管理已启用的网站") ||
     !popup.hintHidden ||
+    popup.hasKeepAliveDiagnostics ||
     options.title !== "网站管理" ||
     options.authorized.join() !== "courses.example.com" ||
     options.disabled.join() !== "disabled.pc.xiaoe-tech.com" ||

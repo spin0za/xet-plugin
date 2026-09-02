@@ -144,33 +144,18 @@ async function main() {
     "persisted custom registrations should receive fullscreen CSS",
   );
 
-  const result = await new Promise((resolve) => {
-    const keptOpen = runtimeOnMessage.listeners[0](
-      { type: "xet:keep-alive-test" },
-      {},
-      resolve,
-    );
-    assert.equal(keptOpen, true);
-  });
-
-  assert.equal(result.ok, true);
+  await runtimeOnStartup.listeners[0]();
   assert.equal(fetchCalls.length, 1);
   assert.equal(fetchCalls[0].url, "https://merchant.pc.xiaoe-tech.com/bought");
   assert.equal(fetchCalls[0].options.credentials, "include");
   assert.equal(fetchCalls[0].options.cache, "no-store");
   assert.equal(fetchCalls[0].options.redirect, "follow");
-  assert.equal(state.keepAliveLastResult.status, 200);
+  assert.ok(state.keepAliveLastActivityAt > 0);
 
   state.disabledSites = ["https://merchant.pc.xiaoe-tech.com"];
-  const disabledKeepAliveResult = await new Promise((resolve) => {
-    runtimeOnMessage.listeners[0](
-      { type: "xet:keep-alive-test" },
-      {},
-      resolve,
-    );
-  });
-  assert.equal(disabledKeepAliveResult.reason, "site-disabled");
+  await runtimeOnStartup.listeners[0]();
   assert.equal(fetchCalls.length, 1, "a disabled site must not be kept alive");
+  assert.equal(alarmState.has("xet-keep-alive"), false);
   state.disabledSites = [];
 
   runtimeOnMessage.listeners[0](

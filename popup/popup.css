@@ -183,8 +183,7 @@ small {
   overflow-wrap: anywhere;
 }
 
-.developer-actions,
-.keep-alive-actions {
+.developer-actions {
   display: flex;
   min-height: 42px;
   align-items: center;
@@ -193,8 +192,7 @@ small {
   border-top: 1px solid #f1f5f9;
 }
 
-.developer-actions small,
-.keep-alive-actions small {
+.developer-actions small {
   flex: 1;
   white-space: normal;
   line-height: 1.35;

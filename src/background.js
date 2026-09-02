@@ -6,9 +6,7 @@ const DEFAULT_SETTINGS = {
   disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
-  keepAliveLastAttemptAt: 0,
   keepAliveLastActivityAt: 0,
-  keepAliveLastResult: null,
 };
 
 const KEEP_ALIVE_ALARM = "xet-keep-alive";
@@ -76,9 +74,11 @@ async function migrateLegacySettings() {
   if (!Array.isArray(stored.disabledSites) || stored.disabledHosts.length) {
     await chrome.storage.local.set({ disabledSites });
   }
-  if (stored.disabledHosts.length) {
-    await chrome.storage.local.remove?.("disabledHosts");
-  }
+  await chrome.storage.local.remove?.([
+    "disabledHosts",
+    "keepAliveLastAttemptAt",
+    "keepAliveLastResult",
+  ]);
   return { ...(await readSettings()), disabledSites };
 }
 
@@ -170,16 +170,13 @@ async function syncKeepAliveAlarm() {
   }
 }
 
-async function saveKeepAliveResult(result) {
-  const changes = {
-    keepAliveLastAttemptAt: result.at,
-    keepAliveLastResult: result,
-  };
-  if (result.ok) changes.keepAliveLastActivityAt = result.at;
-  await chrome.storage.local.set(changes);
+async function saveKeepAliveActivity(result) {
+  if (result.ok) {
+    await chrome.storage.local.set({ keepAliveLastActivityAt: result.at });
+  }
 }
 
-async function requestKeepAlive(reason, { force = false } = {}) {
+async function requestKeepAlive(reason) {
   if (keepAliveRequest) return keepAliveRequest;
 
   keepAliveRequest = (async () => {
@@ -192,12 +189,12 @@ async function requestKeepAlive(reason, { force = false } = {}) {
     if (settings.disabledSites.includes(new URL(keepAliveUrl).origin)) {
       return { ok: false, skipped: true, reason: "site-disabled" };
     }
-    if (!force && !settings.keepAliveEnabled) {
+    if (!settings.keepAliveEnabled) {
       return { ok: false, skipped: true, reason: "disabled" };
     }
 
     const lastActivityAt = Number(settings.keepAliveLastActivityAt) || 0;
-    if (!force && Date.now() - lastActivityAt < KEEP_ALIVE_MIN_GAP_MS) {
+    if (Date.now() - lastActivityAt < KEEP_ALIVE_MIN_GAP_MS) {
       return { ok: true, skipped: true, reason: "recent-activity" };
     }
 
@@ -227,7 +224,7 @@ async function requestKeepAlive(reason, { force = false } = {}) {
         reason,
         status: response.status,
       };
-      await saveKeepAliveResult(result);
+      await saveKeepAliveActivity(result);
       return result;
     } catch (error) {
       const result = {
@@ -239,7 +236,6 @@ async function requestKeepAlive(reason, { force = false } = {}) {
             ? "请求超时"
             : error?.message || "后台请求失败",
       };
-      await saveKeepAliveResult(result);
       return result;
     } finally {
       clearTimeout(timeout);
@@ -305,13 +301,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then(sendResponse)
       .catch((error) => sendResponse({ error: error.message }));
 
-    return true;
-  }
-
-  if (message?.type === "xet:keep-alive-test") {
-    requestKeepAlive("manual", { force: true })
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 

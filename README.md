@@ -26,7 +26,6 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、快捷键、全屏增强和该网站的登录保活都会停止。
 - 商家自定义课程域名可按网站单独授权，并可在独立的网站管理页中集中撤销或恢复。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
-- 开发者模式中提供“立即测试”，不会创建标签页，也不会直接读取或保存 Cookie；续期由网站的正常响应完成。
 
 ### 快捷键
 
@@ -75,8 +74,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
 - 顶部“自动切换”只控制自动画质；开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
 - 停用自定义域名时，扩展会同时撤销该域名的 Chrome 访问权限并注销自动加载内容脚本；内置支持域名则通过扩展内部状态停用。
-- “自动保持登录”默认关闭，只会请求弹窗开发者模式中显示的商家电脑端主页。
-- 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限。请在弹窗中展开开发者模式，使用“立即测试”，再在浏览器开发者工具中确认 `pc_user_key` 的到期时间确实延长。
+- “自动保持登录”默认关闭，只会请求根据受支持课程网站识别出的商家电脑端主页。
+- 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限；续期由网站的正常响应完成。
 - 电脑关机、Chrome 未运行或超过网站允许的登录有效期时，扩展无法恢复已经失效的登录。
 
 ### 本地验证
@@ -106,7 +105,6 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
 - Supports per-site grants for merchant-owned custom course domains, with a dedicated management page for revoking or restoring access.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
-- Includes a **Test now** action under Developer mode that creates no tab and does not directly read or store cookies; renewal is handled by the site's normal response.
 
 ### Keyboard shortcuts
 
@@ -155,8 +153,8 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
 - The top-level automatic-quality switch controls only quality selection. The site-level action under Developer mode controls every extension feature on that site.
 - Disabling a custom domain revokes its Chrome host permission and unregisters its automatically loaded content scripts. Built-in Xiaoe Tech domains are disabled through the extension's internal site state instead.
-- Session keep-alive is off by default and requests only the merchant desktop homepage shown under Developer mode in the popup.
-- Background requests use the browser's existing login state without requesting cookie-reading permission. Expand Developer mode in the popup, use **Test now**, and then verify in browser DevTools that the `pc_user_key` expiration moved forward.
+- Session keep-alive is off by default and requests only the merchant desktop homepage inferred from a supported course site.
+- Background requests use the browser's existing login state without requesting cookie-reading permission; renewal is handled by the site's normal response.
 - The extension cannot restore an expired login while the computer is off, Chrome is not running, or the site's session lifetime has already elapsed.
 
 ### Local verification
@@ -212,8 +210,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.9.0**
+Current version: **1.9.1**
 
-主要变更：网站级控制移入开发者模式并升级为完整的插件启用/停用开关；新增网站管理页，自定义域名停用时会同步撤销 Chrome 权限与动态内容脚本注册。
+主要变更：移除开发者模式中含义不清的保活网站、立即测试和请求状态模块；自动保持登录继续由主界面开关控制。
 
-Highlights: site controls now live under Developer mode and enable or disable every extension feature on that site. A new site-management page revokes both Chrome permissions and dynamic content-script registrations for disabled custom domains.
+Highlights: the ambiguous keep-alive target, manual test, and request-status diagnostics have been removed from Developer mode. Automatic session keep-alive remains controlled by its main popup switch.
