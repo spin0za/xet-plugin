@@ -134,6 +134,8 @@ async function checkAccess() {
 function render() {
   globalToggle.checked = settings.enabled;
   renderKeepAlive();
+  hint.hidden = true;
+  hint.textContent = "";
 
   if (!activeUrl || !isWebPage(activeUrl)) {
     summary.textContent = "当前页面不支持运行";
@@ -151,6 +153,7 @@ function render() {
     siteButton.classList.remove("secondary");
     hint.textContent =
       "小鹅通商家可使用自定义域名。授权只针对当前网站，不会读取其他网页。";
+    hint.hidden = false;
     return;
   }
 
@@ -163,9 +166,6 @@ function render() {
     siteButton.textContent = "在此网站暂停";
     siteButton.classList.add("secondary");
   }
-
-  hint.textContent =
-    "打开课程并播放视频后，插件会自动选择可用的“超清”画质。";
 }
 
 async function saveKeepAliveTarget() {

@@ -193,8 +193,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.8.5**
+Current version: **1.8.6**
 
-主要变更：插件现在统一接管空格键的播放和暂停操作，避免点击播放器按钮后，空格同时触发播放器快捷键与聚焦按钮的原生点击而连续切换两次。
+主要变更：精简弹窗的信息层级，移除与“自动切换”设置重复的常驻画质提示；仅在网站需要额外授权时显示相关说明。
 
-Highlights: the extension now handles the Space key as a single play/pause action, preventing the player shortcut and the focused button's native activation from toggling playback twice after a mouse click.
+Highlights: the popup now removes the persistent quality hint that duplicated the automatic-quality setting, while retaining contextual guidance when a website needs additional permission.

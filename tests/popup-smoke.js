@@ -4,6 +4,8 @@ const fs = require("node:fs");
 const html = fs.readFileSync("popup/popup.html", "utf8");
 
 assert.match(html, /<small>延长登录状态，减少反复微信扫码<\/small>/);
+assert.match(html, /<p class="hint" id="hint" hidden><\/p>/);
+assert.doesNotMatch(html, /打开课程并播放视频后/);
 
 const developerStart = html.indexOf('<details class="developer-options">');
 const developerEnd = html.indexOf("</details>", developerStart);
