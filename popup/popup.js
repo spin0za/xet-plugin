@@ -94,8 +94,8 @@ function render() {
       : "启用后只访问当前域名";
   } else {
     summary.textContent = settings.enabled
-      ? "自动切换已开启"
-      : "自动切换已关闭";
+      ? "自动超清已开启"
+      : "自动超清已关闭";
     siteButton.textContent = "在此网站停用";
     siteButton.classList.add("danger");
     siteStatus.textContent = "停用插件在此网站的全部功能";

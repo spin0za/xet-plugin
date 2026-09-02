@@ -72,7 +72,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 - `T` 启用的网页全屏由扩展独立布局，不再依赖播放器不稳定的网页全屏样式；播放器会进入页面顶层，网站导航及周围页面内容会被隐藏且无法误触，视频则按比例缩放，剩余区域显示为黑色。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
-- 顶部“自动切换”只控制自动画质；开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
+- 顶部“自动超清”只控制自动画质；开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
 - 停用自定义域名时，扩展会同时撤销该域名的 Chrome 访问权限并注销自动加载内容脚本；内置支持域名则通过扩展内部状态停用。
 - “自动保持登录”默认关闭，只会请求根据受支持课程网站识别出的商家电脑端主页。
 - 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限；续期由网站的正常响应完成。
@@ -210,8 +210,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.9.1**
+Current version: **1.9.2**
 
-主要变更：移除开发者模式中含义不清的保活网站、立即测试和请求状态模块；自动保持登录继续由主界面开关控制。
+主要变更：优化弹窗中的自动超清和自动保持登录文案，使功能说明更直接。
 
-Highlights: the ambiguous keep-alive target, manual test, and request-status diagnostics have been removed from Developer mode. Automatic session keep-alive remains controlled by its main popup switch.
+Highlights: popup labels for automatic Ultra HD selection and session keep-alive have been refined for clarity.

@@ -2,8 +2,15 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 
 const html = fs.readFileSync("popup/popup.html", "utf8");
+const script = fs.readFileSync("popup/popup.js", "utf8");
 
-assert.match(html, /<small>延长登录状态，减少反复微信扫码<\/small>/);
+assert.match(html, /<strong>自动超清<\/strong>/);
+assert.match(html, /<small>视频加载后自动切换至超清画质<\/small>/);
+assert.match(html, /<small>延长登录状态，免去反复扫码<\/small>/);
+assert.doesNotMatch(html, /<strong>自动切换<\/strong>|减少反复微信扫码/);
+assert.match(script, /自动超清已开启/);
+assert.match(script, /自动超清已关闭/);
+assert.doesNotMatch(script, /自动切换已开启|自动切换已关闭/);
 assert.match(html, /<p class="hint" id="hint" hidden><\/p>/);
 assert.doesNotMatch(html, /打开课程并播放视频后/);
 
