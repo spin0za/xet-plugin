@@ -23,8 +23,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
-- 可在扩展弹窗中全局暂停，或只对当前网站暂停。
-- 商家自定义课程域名可按网站单独授权。
+- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、快捷键、全屏增强和该网站的登录保活都会停止。
+- 商家自定义课程域名可按网站单独授权，并可在独立的网站管理页中集中撤销或恢复。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
 - 开发者模式中提供“立即测试”，不会创建标签页，也不会直接读取或保存 Cookie；续期由网站的正常响应完成。
 
@@ -51,7 +51,9 @@ A local Chrome and Edge extension that automatically selects the highest support
 - `*.xet-pc.citv.cn`
 - `*.xet.pomoho.com`
 
-如果课程使用其他商家域名，点击浏览器工具栏中的扩展图标，再选择“在此网站启用”。授权只针对当前域名。
+如果课程使用其他商家域名，点击浏览器工具栏中的扩展图标，展开“开发者模式”，再选择“在此网站启用”。授权只针对当前域名。启用后，同一位置会显示红色的“在此网站停用”；开发者模式中的“管理已启用的网站”可打开完整列表。
+
+网站管理页也可以从 `chrome://extensions` → 本扩展的“详情”→“扩展程序选项”打开。
 
 ### 安装
 
@@ -71,20 +73,26 @@ A local Chrome and Edge extension that automatically selects the highest support
 - `T` 启用的网页全屏由扩展独立布局，不再依赖播放器不稳定的网页全屏样式；播放器会进入页面顶层，网站导航及周围页面内容会被隐藏且无法误触，视频则按比例缩放，剩余区域显示为黑色。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
 - 自动超清开关不会影响课程权限、购买状态或打卡规则。
+- 顶部“自动切换”只控制自动画质；开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
+- 停用自定义域名时，扩展会同时撤销该域名的 Chrome 访问权限并注销自动加载内容脚本；内置支持域名则通过扩展内部状态停用。
 - “自动保持登录”默认关闭，只会请求弹窗开发者模式中显示的商家电脑端主页。
 - 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限。请在弹窗中展开开发者模式，使用“立即测试”，再在浏览器开发者工具中确认 `pc_user_key` 的到期时间确实延长。
 - 电脑关机、Chrome 未运行或超过网站允许的登录有效期时，扩展无法恢复已经失效的登录。
 
 ### 本地验证
 
-项目包含一个 Playwright 浏览器回归脚本，用于验证新旧播放器、原生视频、快捷键、全屏切换和自动超清逻辑：
+项目包含播放器和扩展界面的 Playwright 浏览器回归脚本，用于验证新旧播放器、原生视频、快捷键、全屏、网站启停、自动超清以及网站管理界面：
 
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/options-smoke.js
 node tests/popup-smoke.js
+node tests/site-access-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
+# 在另一个终端从仓库根目录运行：python3 -m http.server 4173
+playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
 
 ## English
@@ -95,8 +103,8 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
-- Supports global pause and per-site pause from the extension popup.
-- Allows one-site permission grants for merchant-owned custom course domains.
+- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
+- Supports per-site grants for merchant-owned custom course domains, with a dedicated management page for revoking or restoring access.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
 - Includes a **Test now** action under Developer mode that creates no tab and does not directly read or store cookies; renewal is handled by the site's normal response.
 
@@ -123,7 +131,9 @@ On common keyboard layouts, `<` and `>` correspond to `Shift + ,` and `Shift + .
 - `*.xet-pc.citv.cn`
 - `*.xet.pomoho.com`
 
-For a merchant-owned custom domain, click the extension icon in the browser toolbar and choose “Enable on this site.” The permission applies only to the current domain.
+For a merchant-owned custom domain, click the extension icon, expand **Developer mode**, and choose **Enable on this site**. The permission applies only to the current domain. Once enabled, the same location shows a red **Disable on this site** action; use **Manage enabled sites** for the complete list.
+
+You can also open the site manager from `chrome://extensions` → this extension's **Details** → **Extension options**.
 
 ### Installation
 
@@ -143,13 +153,15 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Page fullscreen activated with `T` uses an extension-managed layout instead of the player's unstable page-fullscreen CSS. The player enters the page's top layer, hiding and blocking accidental interaction with site navigation and surrounding content. The video scales proportionally and any unused space stays black.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
+- The top-level automatic-quality switch controls only quality selection. The site-level action under Developer mode controls every extension feature on that site.
+- Disabling a custom domain revokes its Chrome host permission and unregisters its automatically loaded content scripts. Built-in Xiaoe Tech domains are disabled through the extension's internal site state instead.
 - Session keep-alive is off by default and requests only the merchant desktop homepage shown under Developer mode in the popup.
 - Background requests use the browser's existing login state without requesting cookie-reading permission. Expand Developer mode in the popup, use **Test now**, and then verify in browser DevTools that the `pc_user_key` expiration moved forward.
 - The extension cannot restore an expired login while the computer is off, Chrome is not running, or the site's session lifetime has already elapsed.
 
 ### Local verification
 
-The repository includes a Playwright browser regression script covering legacy and current players, native video, keyboard shortcuts, fullscreen transitions, and automatic quality selection:
+The repository includes Playwright browser regressions covering legacy and current players, native video, keyboard shortcuts, fullscreen transitions, site lifecycle, automatic quality selection, and the site-management UI:
 
 ```bash
 node tests/background-smoke.js
@@ -157,6 +169,8 @@ node tests/content-structure-smoke.js
 node tests/popup-smoke.js
 playwright-cli open about:blank --browser firefox
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
+# In another terminal at the repository root: python3 -m http.server 4173
+playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
 
 ## 项目结构 / Project structure
@@ -165,9 +179,11 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 manifest.json
 icons/
 popup/
+options/
 src/
   background.js
   content.js
+  site-access.js
   content/
     player-dom.js
     fullscreen.js
@@ -176,11 +192,14 @@ src/
     quality.js
     toast.js
 output/playwright/
+  verify-extension-ui.js
   verify-player-structures.js
 tests/
   background-smoke.js
   content-structure-smoke.js
+  options-smoke.js
   popup-smoke.js
+  site-access-smoke.js
 ```
 
 ## 图标来源 / Icon attribution
@@ -193,8 +212,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.8.6**
+Current version: **1.9.0**
 
-主要变更：精简弹窗的信息层级，移除与“自动切换”设置重复的常驻画质提示；仅在网站需要额外授权时显示相关说明。
+主要变更：网站级控制移入开发者模式并升级为完整的插件启用/停用开关；新增网站管理页，自定义域名停用时会同步撤销 Chrome 权限与动态内容脚本注册。
 
-Highlights: the popup now removes the persistent quality hint that duplicated the automatic-quality setting, while retaining contextual guidance when a website needs additional permission.
+Highlights: site controls now live under Developer mode and enable or disable every extension feature on that site. A new site-management page revokes both Chrome permissions and dynamic content-script registrations for disabled custom domains.

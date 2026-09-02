@@ -38,5 +38,11 @@
     }, 1_800);
   }
 
-  modules.toast = Object.freeze({ show });
+  function hide() {
+    if (hideTimer !== null) clearTimeout(hideTimer);
+    hideTimer = null;
+    document.getElementById("xet-ultra-quality-toast")?.remove();
+  }
+
+  modules.toast = Object.freeze({ hide, show });
 })();

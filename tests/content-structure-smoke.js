@@ -4,6 +4,7 @@ const fs = require("node:fs");
 const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
 const registration = manifest.content_scripts[0];
 const expectedScripts = [
+  "src/site-access.js",
   "src/content/player-dom.js",
   "src/content/fullscreen.js",
   "src/content/media-shortcuts.js",
@@ -24,10 +25,17 @@ assert.ok(entry.split("\n").length < 150, "content.js should remain a small entr
 assert.match(entry, /createFullscreenController/);
 assert.match(entry, /createShortcutController/);
 assert.match(entry, /createQualityController/);
+assert.match(entry, /stopFeatures/);
+assert.match(entry, /disabledSites/);
 
 const popup = fs.readFileSync("popup/popup.js", "utf8");
-assert.match(popup, /runtime\.getManifest\(\)\.content_scripts/);
-assert.match(popup, /updateContentScripts/);
-assert.match(popup, /insertCSS/);
+assert.match(popup, /siteAccess\.enableSite/);
+assert.match(popup, /siteAccess\.disableSite/);
+assert.match(popup, /runtime\.openOptionsPage/);
+
+assert.equal(manifest.options_ui.page, "options/options.html");
+assert.ok(fs.existsSync(manifest.options_ui.page));
+assert.ok(fs.existsSync("options/options.js"));
+assert.ok(fs.existsSync("options/options.css"));
 
 console.log("content module structure smoke test passed");

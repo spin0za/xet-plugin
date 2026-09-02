@@ -18,6 +18,7 @@ async function main() {
     keepAliveEnabled: true,
     keepAliveUrl: "https://merchant.pc.xiaoe-tech.com/course?id=private",
     keepAliveLastActivityAt: 0,
+    disabledHosts: [],
   };
   const alarmState = new Map();
   const fetchCalls = [];
@@ -67,6 +68,11 @@ async function main() {
         async set(changes) {
           Object.assign(state, changes);
         },
+        async remove(keys) {
+          for (const key of Array.isArray(keys) ? keys : [keys]) {
+            delete state[key];
+          }
+        },
       },
       onChanged: storageOnChanged,
     },
@@ -113,9 +119,14 @@ async function main() {
         },
       };
     },
+    importScripts() {},
     setTimeout,
   };
 
+  const siteAccessSource = fs.readFileSync("src/site-access.js", "utf8");
+  vm.runInNewContext(siteAccessSource, context, {
+    filename: "src/site-access.js",
+  });
   const source = fs.readFileSync("src/background.js", "utf8");
   vm.runInNewContext(source, context, { filename: "src/background.js" });
   await new Promise((resolve) => setImmediate(resolve));
@@ -150,6 +161,18 @@ async function main() {
   assert.equal(fetchCalls[0].options.redirect, "follow");
   assert.equal(state.keepAliveLastResult.status, 200);
 
+  state.disabledSites = ["https://merchant.pc.xiaoe-tech.com"];
+  const disabledKeepAliveResult = await new Promise((resolve) => {
+    runtimeOnMessage.listeners[0](
+      { type: "xet:keep-alive-test" },
+      {},
+      resolve,
+    );
+  });
+  assert.equal(disabledKeepAliveResult.reason, "site-disabled");
+  assert.equal(fetchCalls.length, 1, "a disabled site must not be kept alive");
+  state.disabledSites = [];
+
   runtimeOnMessage.listeners[0](
     { type: "xet:natural-visit" },
     { tab: { url: "https://merchant.pc.xiaoe-tech.com/bought" } },
@@ -173,6 +196,18 @@ async function main() {
   assert.equal(repairResult.ok, true);
   assert.deepEqual(cssInjections[0].files, manifest.content_scripts[0].css);
   assert.deepEqual(scriptInjections[0].files, manifest.content_scripts[0].js);
+
+  state.disabledSites = ["https://custom.example"];
+  const disabledRepairResult = await new Promise((resolve) => {
+    runtimeOnMessage.listeners[0](
+      { type: "xet:repair-content-scripts" },
+      { tab: { id: 8, url: "https://custom.example/course" } },
+      resolve,
+    );
+  });
+  assert.equal(disabledRepairResult.reason, "site-disabled");
+  assert.equal(scriptInjections.length, 1, "disabled sites must not be repaired");
+  state.disabledSites = [];
 
   alarmsOnAlarm.listeners[0]({ name: "xet-keep-alive" });
   await new Promise((resolve) => setImmediate(resolve));

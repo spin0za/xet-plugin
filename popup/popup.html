@@ -36,21 +36,26 @@
         </label>
       </section>
 
-      <section id="site-section" hidden>
-        <div class="site-row">
-          <span>
-            <strong>当前网站</strong>
-            <small id="hostname"></small>
-          </span>
-          <button id="site-button" type="button">在此网站启用</button>
-        </div>
-      </section>
-
-      <p class="hint" id="hint" hidden></p>
-
       <details class="developer-options">
         <summary>开发者模式</summary>
         <div class="developer-panel">
+          <section id="site-section" class="developer-section" hidden>
+            <div class="developer-target">
+              <strong>当前网站</strong>
+              <small id="hostname"></small>
+            </div>
+            <div class="developer-actions">
+              <button id="site-button" type="button">在此网站启用</button>
+              <small id="site-status"></small>
+            </div>
+            <p class="hint" id="hint" hidden></p>
+          </section>
+
+          <button id="manage-sites" class="manage-sites" type="button">
+            <span>管理已启用的网站</span>
+            <span aria-hidden="true">›</span>
+          </button>
+
           <div class="developer-target">
             <strong>保活网站</strong>
             <small id="keep-alive-target">尚未设置保活网站</small>
@@ -64,6 +69,7 @@
         </div>
       </details>
     </main>
+    <script src="../src/site-access.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

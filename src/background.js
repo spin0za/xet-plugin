@@ -1,6 +1,9 @@
+importScripts("site-access.js");
+
+const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
   enabled: true,
-  disabledHosts: [],
+  disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
   keepAliveLastAttemptAt: 0,
@@ -12,17 +15,13 @@ const KEEP_ALIVE_ALARM = "xet-keep-alive";
 const KEEP_ALIVE_INTERVAL_MINUTES = 4 * 60;
 const KEEP_ALIVE_MIN_GAP_MS = 3 * 60 * 60 * 1_000;
 const KEEP_ALIVE_TIMEOUT_MS = 20_000;
-const CUSTOM_CONTENT_SCRIPT_PREFIX = "xet_custom_";
+const CUSTOM_CONTENT_SCRIPT_PREFIX = siteAccess.CUSTOM_CONTENT_SCRIPT_PREFIX;
 
 let keepAliveRequest = null;
 const contentRepairRequests = new Map();
 
 function contentScriptResources() {
-  const registration = chrome.runtime.getManifest().content_scripts?.[0];
-  return {
-    css: registration?.css || [],
-    js: registration?.js || [],
-  };
+  return siteAccess.contentScriptResources();
 }
 
 function customContentScriptRegistration(id, matches) {
@@ -49,6 +48,40 @@ async function syncCustomContentScripts() {
   if (updates.length) await chrome.scripting.updateContentScripts(updates);
 }
 
+async function readSettings() {
+  const stored = await chrome.storage.local.get({
+    ...DEFAULT_SETTINGS,
+    disabledSites: null,
+    disabledHosts: [],
+  });
+  const { disabledHosts, ...settings } = stored;
+  return {
+    ...settings,
+    disabledSites: siteAccess.normalizeDisabledSites(
+      stored.disabledSites,
+      disabledHosts,
+    ),
+  };
+}
+
+async function migrateLegacySettings() {
+  const stored = await chrome.storage.local.get({
+    disabledSites: null,
+    disabledHosts: [],
+  });
+  const disabledSites = siteAccess.normalizeDisabledSites(
+    stored.disabledSites,
+    stored.disabledHosts,
+  );
+  if (!Array.isArray(stored.disabledSites) || stored.disabledHosts.length) {
+    await chrome.storage.local.set({ disabledSites });
+  }
+  if (stored.disabledHosts.length) {
+    await chrome.storage.local.remove?.("disabledHosts");
+  }
+  return { ...(await readSettings()), disabledSites };
+}
+
 async function repairContentScripts(sender) {
   if (!chrome.scripting || sender.tab?.id === undefined) {
     return { ok: false, reason: "unavailable" };
@@ -61,7 +94,12 @@ async function repairContentScripts(sender) {
 
   const repair = (async () => {
     const url = new URL(sender.tab.url);
-    const id = `${CUSTOM_CONTENT_SCRIPT_PREFIX}${registrationHash(url.hostname)}`;
+    const settings = await readSettings();
+    if (settings.disabledSites.includes(url.origin)) {
+      return { ok: false, reason: "site-disabled" };
+    }
+
+    const id = siteAccess.registrationId(url);
     const existing = await chrome.scripting.getRegisteredContentScripts({
       ids: [id],
     });
@@ -93,14 +131,6 @@ async function repairContentScripts(sender) {
   }
 }
 
-function registrationHash(hostname) {
-  let hash = 0;
-  for (const character of hostname) {
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  }
-  return hash.toString(36);
-}
-
 function normalizeKeepAliveUrl(value) {
   try {
     const url = new URL(value);
@@ -118,10 +148,15 @@ function normalizeKeepAliveUrl(value) {
 }
 
 async function syncKeepAliveAlarm() {
-  const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const settings = await readSettings();
   const keepAliveUrl = normalizeKeepAliveUrl(settings.keepAliveUrl);
+  const keepAliveSite = siteAccess.siteInfo(keepAliveUrl);
 
-  if (!settings.keepAliveEnabled || !keepAliveUrl) {
+  if (
+    !settings.keepAliveEnabled ||
+    !keepAliveUrl ||
+    settings.disabledSites.includes(keepAliveSite?.origin)
+  ) {
     await chrome.alarms.clear(KEEP_ALIVE_ALARM);
     return;
   }
@@ -148,11 +183,14 @@ async function requestKeepAlive(reason, { force = false } = {}) {
   if (keepAliveRequest) return keepAliveRequest;
 
   keepAliveRequest = (async () => {
-    const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+    const settings = await readSettings();
     const keepAliveUrl = normalizeKeepAliveUrl(settings.keepAliveUrl);
 
     if (!keepAliveUrl) {
       return { ok: false, skipped: true, reason: "missing-url" };
+    }
+    if (settings.disabledSites.includes(new URL(keepAliveUrl).origin)) {
+      return { ok: false, skipped: true, reason: "site-disabled" };
     }
     if (!force && !settings.keepAliveEnabled) {
       return { ok: false, skipped: true, reason: "disabled" };
@@ -217,7 +255,7 @@ async function requestKeepAlive(reason, { force = false } = {}) {
 
 async function recordNaturalVisit(sender) {
   const tabUrl = sender.tab?.url;
-  const settings = await chrome.storage.local.get(DEFAULT_SETTINGS);
+  const settings = await readSettings();
   const keepAliveUrl = normalizeKeepAliveUrl(settings.keepAliveUrl);
   if (!tabUrl || !keepAliveUrl) return;
 
@@ -225,6 +263,7 @@ async function recordNaturalVisit(sender) {
     const visited = new URL(tabUrl);
     const target = new URL(keepAliveUrl);
     if (visited.hostname !== target.hostname) return;
+    if (settings.disabledSites.includes(visited.origin)) return;
 
     await chrome.storage.local.set({
       keepAliveLastActivityAt: Date.now(),
@@ -235,8 +274,7 @@ async function recordNaturalVisit(sender) {
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  const current = await chrome.storage.local.get(DEFAULT_SETTINGS);
-  await chrome.storage.local.set(current);
+  await migrateLegacySettings();
   await syncKeepAliveAlarm();
   await syncCustomContentScripts();
 });
@@ -255,7 +293,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 chrome.storage.onChanged.addListener((changes, area) => {
   if (
     area === "local" &&
-    (changes.keepAliveEnabled || changes.keepAliveUrl)
+    (changes.keepAliveEnabled || changes.keepAliveUrl || changes.disabledSites)
   ) {
     void syncKeepAliveAlarm();
   }
@@ -263,8 +301,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:get-settings") {
-    chrome.storage.local
-      .get(DEFAULT_SETTINGS)
+    readSettings()
       .then(sendResponse)
       .catch((error) => sendResponse({ error: error.message }));
 
@@ -292,5 +329,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   return false;
 });
 
-void syncKeepAliveAlarm();
+void migrateLegacySettings()
+  .then(syncKeepAliveAlarm)
+  .catch(() => {});
 void syncCustomContentScripts().catch(() => {});

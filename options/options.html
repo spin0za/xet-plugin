@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>网站管理 · 小鹅通播放助手</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <img src="../icons/icon-48.png" alt="" />
+        <div>
+          <h1>网站管理</h1>
+          <p>管理小鹅通播放助手可以运行的网站。</p>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <h2>已启用的自定义网站</h2>
+            <p>这些域名拥有单独授予的 Chrome 访问权限。</p>
+          </div>
+        </div>
+        <div id="authorized-sites" class="site-list"></div>
+      </section>
+
+      <section class="card">
+        <div class="section-heading">
+          <div>
+            <h2>已停用的网站</h2>
+            <p>插件的画质、快捷键、全屏和保活功能均不会在这些网站运行。</p>
+          </div>
+        </div>
+        <div id="disabled-sites" class="site-list"></div>
+      </section>
+
+      <p class="note">
+        小鹅通官方域名由扩展内置支持；只有被你主动停用时，才会出现在上方列表中。
+      </p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </main>
+
+    <script src="../src/site-access.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

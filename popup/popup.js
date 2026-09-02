@@ -1,17 +1,12 @@
-const DEFAULT_HOST_SUFFIXES = [
-  ".xiaoe-tech.com",
-  ".xiaoeknow.com",
-  ".eapps.cn",
-  ".xet-pc.citv.cn",
-  ".xet.pomoho.com",
-];
-
+const siteAccess = globalThis.XetSiteAccess;
 const globalToggle = document.querySelector("#global-toggle");
 const summary = document.querySelector("#summary");
 const siteSection = document.querySelector("#site-section");
 const hostnameLabel = document.querySelector("#hostname");
 const siteButton = document.querySelector("#site-button");
+const siteStatus = document.querySelector("#site-status");
 const hint = document.querySelector("#hint");
+const manageSites = document.querySelector("#manage-sites");
 const keepAliveToggle = document.querySelector("#keep-alive-toggle");
 const keepAliveTarget = document.querySelector("#keep-alive-target");
 const keepAliveTest = document.querySelector("#keep-alive-test");
@@ -21,7 +16,7 @@ let activeTab = null;
 let activeUrl = null;
 let settings = {
   enabled: true,
-  disabledHosts: [],
+  disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
   keepAliveLastAttemptAt: 0,
@@ -29,35 +24,10 @@ let settings = {
   keepAliveLastResult: null,
 };
 let siteHasAccess = false;
+let siteNotice = "";
 
 function isWebPage(url) {
   return url?.protocol === "http:" || url?.protocol === "https:";
-}
-
-function isDefaultHost(hostname) {
-  return activeUrl?.protocol === "https:" && DEFAULT_HOST_SUFFIXES.some(
-    (suffix) => hostname === suffix.slice(1) || hostname.endsWith(suffix),
-  );
-}
-
-function hostPattern(url) {
-  return `${url.protocol}//${url.hostname}/*`;
-}
-
-function registrationId(hostname) {
-  let hash = 0;
-  for (const character of hostname) {
-    hash = (hash * 31 + character.charCodeAt(0)) >>> 0;
-  }
-  return `xet_custom_${hash.toString(36)}`;
-}
-
-function contentScriptResources() {
-  const registration = chrome.runtime.getManifest().content_scripts?.[0];
-  return {
-    css: registration?.css || [],
-    js: registration?.js || [],
-  };
 }
 
 function inferredKeepAliveUrl(url) {
@@ -94,9 +64,11 @@ function formatTime(timestamp) {
 
 function renderKeepAlive() {
   const targetUrl = effectiveKeepAliveUrl();
+  const targetSite = siteAccess.siteInfo(targetUrl);
+  const targetDisabled = settings.disabledSites.includes(targetSite?.origin);
   keepAliveToggle.checked = settings.keepAliveEnabled;
   keepAliveToggle.disabled = !targetUrl;
-  keepAliveTest.disabled = !targetUrl;
+  keepAliveTest.disabled = !targetUrl || targetDisabled;
 
   if (!targetUrl) {
     keepAliveTarget.textContent = "请先打开支持的小鹅通课程网站";
@@ -105,6 +77,10 @@ function renderKeepAlive() {
   }
 
   keepAliveTarget.textContent = new URL(targetUrl).hostname;
+  if (targetDisabled) {
+    keepAliveStatus.textContent = "网站已停用，自动保持登录已暂停";
+    return;
+  }
   const result = settings.keepAliveLastResult;
   if (!result) {
     keepAliveStatus.textContent = "不会打开或显示标签页";
@@ -125,10 +101,7 @@ async function getActiveTab() {
 
 async function checkAccess() {
   if (!activeUrl || !isWebPage(activeUrl)) return false;
-  if (isDefaultHost(activeUrl.hostname)) return true;
-  return chrome.permissions.contains({
-    origins: [hostPattern(activeUrl)],
-  });
+  return siteAccess.isAuthorized(activeUrl);
 }
 
 function render() {
@@ -143,28 +116,33 @@ function render() {
     return;
   }
 
-  const hostDisabled = settings.disabledHosts.includes(activeUrl.hostname);
-  hostnameLabel.textContent = activeUrl.hostname;
+  const site = siteAccess.siteInfo(activeUrl);
+  const siteDisabled = settings.disabledSites.includes(site.origin);
+  const siteEnabled = siteHasAccess && !siteDisabled;
+  hostnameLabel.textContent = site.hostname;
   siteSection.hidden = false;
 
-  if (!siteHasAccess) {
-    summary.textContent = "需要先允许访问当前课程网站";
+  if (!siteEnabled) {
+    summary.textContent = siteDisabled
+      ? "当前网站已停用"
+      : "当前网站尚未启用";
     siteButton.textContent = "在此网站启用";
-    siteButton.classList.remove("secondary");
-    hint.textContent =
-      "小鹅通商家可使用自定义域名。授权只针对当前网站，不会读取其他网页。";
-    hint.hidden = false;
-    return;
+    siteButton.classList.remove("danger");
+    siteStatus.textContent = siteDisabled
+      ? "插件全部功能已停用"
+      : "启用后只访问当前域名";
+  } else {
+    summary.textContent = settings.enabled
+      ? "自动切换已开启"
+      : "自动切换已关闭";
+    siteButton.textContent = "在此网站停用";
+    siteButton.classList.add("danger");
+    siteStatus.textContent = "停用插件在此网站的全部功能";
   }
 
-  if (hostDisabled) {
-    summary.textContent = "当前网站已暂停";
-    siteButton.textContent = "恢复";
-    siteButton.classList.remove("secondary");
-  } else {
-    summary.textContent = settings.enabled ? "自动切换已开启" : "全局已暂停";
-    siteButton.textContent = "在此网站暂停";
-    siteButton.classList.add("secondary");
+  if (siteNotice) {
+    hint.textContent = siteNotice;
+    hint.hidden = false;
   }
 }
 
@@ -176,48 +154,6 @@ async function saveKeepAliveTarget() {
     await chrome.storage.local.set({ keepAliveUrl: url });
   }
   return url;
-}
-
-async function registerCurrentSite() {
-  const pattern = hostPattern(activeUrl);
-  const granted = await chrome.permissions.request({ origins: [pattern] });
-  if (!granted) return false;
-
-  const id = registrationId(activeUrl.hostname);
-  const resources = contentScriptResources();
-  const existing = await chrome.scripting.getRegisteredContentScripts({
-    ids: [id],
-  });
-  const registration = {
-    id,
-    matches: [pattern],
-    js: resources.js,
-    css: resources.css,
-    allFrames: true,
-    matchOriginAsFallback: true,
-    persistAcrossSessions: true,
-    runAt: "document_idle",
-  };
-
-  if (existing.length) {
-    await chrome.scripting.updateContentScripts([registration]);
-  } else {
-    await chrome.scripting.registerContentScripts([
-      registration,
-    ]);
-  }
-
-  if (resources.css.length) {
-    await chrome.scripting.insertCSS({
-      target: { tabId: activeTab.id, allFrames: true },
-      files: resources.css,
-    });
-  }
-  await chrome.scripting.executeScript({
-    target: { tabId: activeTab.id, allFrames: true },
-    files: resources.js,
-  });
-  return true;
 }
 
 globalToggle.addEventListener("change", async () => {
@@ -265,39 +201,37 @@ keepAliveTest.addEventListener("click", async () => {
 siteButton.addEventListener("click", async () => {
   if (!activeUrl) return;
   siteButton.disabled = true;
+  siteNotice = "";
 
   try {
-    if (!siteHasAccess) {
-      siteHasAccess = await registerCurrentSite();
-      if (!siteHasAccess) {
-        hint.textContent = "未获得授权，插件不会访问当前网站。";
-        return;
-      }
-    }
+    const site = siteAccess.siteInfo(activeUrl);
+    const siteDisabled = settings.disabledSites.includes(site.origin);
+    const siteEnabled = siteHasAccess && !siteDisabled;
+    const result = siteEnabled
+      ? await siteAccess.disableSite(activeUrl)
+      : await siteAccess.enableSite(activeUrl, { tabId: activeTab.id });
 
-    const hostname = activeUrl.hostname;
-    const disabled = new Set(settings.disabledHosts);
-    if (disabled.has(hostname)) {
-      disabled.delete(hostname);
-    } else if (siteButton.textContent.includes("暂停")) {
-      disabled.add(hostname);
+    if (!result.ok) {
+      siteNotice = "未获得授权，插件不会访问当前网站。";
     }
-
-    settings.disabledHosts = [...disabled];
-    await chrome.storage.local.set({
-      disabledHosts: settings.disabledHosts,
-    });
+    settings.disabledSites = await siteAccess.readDisabledSites();
+    siteHasAccess = await checkAccess();
   } catch (error) {
-    hint.textContent = `操作失败：${error.message}`;
+    siteNotice = `操作失败：${error.message}`;
   } finally {
     siteButton.disabled = false;
     render();
   }
 });
 
+manageSites.addEventListener("click", () => {
+  void chrome.runtime.openOptionsPage();
+});
+
 (async () => {
   settings = await chrome.storage.local.get({
     enabled: true,
+    disabledSites: null,
     disabledHosts: [],
     keepAliveEnabled: false,
     keepAliveUrl: "",
@@ -305,6 +239,10 @@ siteButton.addEventListener("click", async () => {
     keepAliveLastActivityAt: 0,
     keepAliveLastResult: null,
   });
+  settings.disabledSites = siteAccess.normalizeDisabledSites(
+    settings.disabledSites,
+    settings.disabledHosts,
+  );
   activeTab = await getActiveTab();
 
   try {

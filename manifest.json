@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "小鹅通播放助手",
-  "version": "1.8.6",
+  "version": "1.9.0",
   "description": "自动切换小鹅通视频超清画质，提供播放快捷键，并可无界面保持登录。",
   "icons": {
     "16": "icons/icon-16.png",
@@ -29,6 +29,10 @@
   "background": {
     "service_worker": "src/background.js"
   },
+  "options_ui": {
+    "page": "options/options.html",
+    "open_in_tab": true
+  },
   "action": {
     "default_title": "小鹅通播放助手",
     "default_popup": "popup/popup.html",
@@ -49,6 +53,7 @@
         "https://*.xet.pomoho.com/*"
       ],
       "js": [
+        "src/site-access.js",
         "src/content/player-dom.js",
         "src/content/fullscreen.js",
         "src/content/media-shortcuts.js",

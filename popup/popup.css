@@ -50,8 +50,7 @@ small {
   font-size: 12px;
 }
 
-.setting,
-.site-row {
+.setting {
   display: flex;
   min-height: 62px;
   align-items: center;
@@ -122,10 +121,6 @@ small {
   transform: translateX(16px);
 }
 
-#site-section {
-  margin-top: 10px;
-}
-
 .keep-alive-card {
   margin-top: 10px;
   overflow: hidden;
@@ -178,12 +173,17 @@ small {
   padding: 10px 12px;
 }
 
+.developer-section {
+  border-bottom: 1px solid #f1f5f9;
+}
+
 .developer-target small {
   max-width: none;
   white-space: normal;
   overflow-wrap: anywhere;
 }
 
+.developer-actions,
 .keep-alive-actions {
   display: flex;
   min-height: 42px;
@@ -193,10 +193,30 @@ small {
   border-top: 1px solid #f1f5f9;
 }
 
+.developer-actions small,
 .keep-alive-actions small {
   flex: 1;
   white-space: normal;
   line-height: 1.35;
+}
+
+.manage-sites {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-radius: 0;
+  border-bottom: 1px solid #f1f5f9;
+  color: #475569;
+  background: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+}
+
+.manage-sites:hover {
+  background: #f8fafc;
 }
 
 button {
@@ -217,13 +237,19 @@ button.secondary {
   background: #e2e8f0;
 }
 
+button.danger {
+  color: #fff;
+  background: #dc2626;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.65;
 }
 
 .hint {
-  margin: 12px 2px 0;
+  margin: 0;
+  padding: 0 12px 10px;
   font-size: 11px;
   line-height: 1.55;
 }

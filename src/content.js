@@ -3,8 +3,10 @@
   // tab cannot create duplicate observers or keyboard listeners.
   const INSTANCE_KEY = "__xetUltraQualityInstance";
   const modules = globalThis.__xetPlayerHelperModules;
+  const siteAccess = globalThis.XetSiteAccess;
 
   if (
+    !siteAccess ||
     !modules?.playerDom ||
     !modules.fullscreen ||
     !modules.mediaShortcuts ||
@@ -25,14 +27,17 @@
 
   const settings = {
     enabled: true,
-    disabledHosts: [],
+    disabledSites: [],
   };
+  let featuresStarted = false;
+  let naturalVisitRecorded = false;
 
-  function isEnabledForCurrentHost() {
-    return (
-      settings.enabled &&
-      !settings.disabledHosts.includes(location.hostname)
-    );
+  function isSiteEnabled() {
+    return !settings.disabledSites.includes(location.origin);
+  }
+
+  function isQualityEnabled() {
+    return settings.enabled && isSiteEnabled();
   }
 
   async function loadSettings() {
@@ -41,16 +46,21 @@
         type: "xet:get-settings",
       });
       settings.enabled = stored?.enabled !== false;
-      settings.disabledHosts = Array.isArray(stored?.disabledHosts)
-        ? stored.disabledHosts
-        : [];
+      settings.disabledSites = siteAccess.normalizeDisabledSites(
+        stored?.disabledSites,
+        stored?.disabledHosts,
+      );
     } catch {
       const stored = await chrome.storage.local.get({
         enabled: true,
+        disabledSites: null,
         disabledHosts: [],
       });
       settings.enabled = stored.enabled !== false;
-      settings.disabledHosts = stored.disabledHosts;
+      settings.disabledSites = siteAccess.normalizeDisabledSites(
+        stored.disabledSites,
+        stored.disabledHosts,
+      );
     }
   }
 
@@ -62,33 +72,67 @@
     playerDom: modules.playerDom,
   });
   const quality = modules.quality.createQualityController({
-    isEnabled: isEnabledForCurrentHost,
+    isEnabled: isQualityEnabled,
     notify: modules.toast.show,
     playerDom: modules.playerDom,
   });
 
+  function startFeatures() {
+    if (featuresStarted) {
+      quality.wake();
+      return;
+    }
+    featuresStarted = true;
+    shortcuts.start();
+    quality.start();
+
+    if (
+      !naturalVisitRecorded &&
+      window.top === window &&
+      location.hostname.endsWith(".xiaoe-tech.com")
+    ) {
+      naturalVisitRecorded = true;
+      chrome.runtime.sendMessage({ type: "xet:natural-visit" }).catch(() => {});
+    }
+  }
+
+  function stopFeatures() {
+    if (!featuresStarted) return;
+    featuresStarted = false;
+
+    const player = modules.playerDom.findActivePlayer();
+    if (player && fullscreen.isWebFullscreen(player)) {
+      fullscreen.exitWebFullscreen(player);
+    }
+    shortcuts.stop();
+    quality.stop();
+    modules.toast.hide?.();
+  }
+
+  function applySiteState() {
+    if (isSiteEnabled()) startFeatures();
+    else stopFeatures();
+  }
+
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.enabled) settings.enabled = changes.enabled.newValue !== false;
-    if (changes.disabledHosts) {
-      settings.disabledHosts = changes.disabledHosts.newValue || [];
+    if (changes.disabledSites || changes.disabledHosts) {
+      settings.disabledSites = siteAccess.normalizeDisabledSites(
+        changes.disabledSites?.newValue ?? settings.disabledSites,
+        changes.disabledHosts?.newValue,
+      );
     }
-    quality.wake();
+    applySiteState();
   });
 
   const api = Object.freeze({
     wake() {
-      quality.wake();
+      void loadSettings().finally(applySiteState);
     },
+    stop: stopFeatures,
   });
   window[INSTANCE_KEY] = api;
 
-  if (window.top === window && location.hostname.endsWith(".xiaoe-tech.com")) {
-    chrome.runtime.sendMessage({ type: "xet:natural-visit" }).catch(() => {});
-  }
-
-  loadSettings().finally(() => {
-    shortcuts.start();
-    quality.start();
-  });
+  loadSettings().finally(applySiteState);
 })();

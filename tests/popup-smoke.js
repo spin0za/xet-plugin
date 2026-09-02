@@ -16,6 +16,13 @@ assert.match(developerMarkup, /<summary>开发者模式<\/summary>/);
 assert.match(developerMarkup, /id="keep-alive-target"/);
 assert.match(developerMarkup, /id="keep-alive-test"/);
 assert.match(developerMarkup, /id="keep-alive-status"/);
+assert.match(developerMarkup, /id="site-section"/);
+assert.match(developerMarkup, /id="site-button"/);
+assert.match(developerMarkup, /id="manage-sites"/);
+assert.ok(
+  html.indexOf('id="site-section"') > developerStart,
+  "current-site controls should live inside developer mode",
+);
 
 const keepAliveCardStart = html.indexOf('<section class="keep-alive-card">');
 const keepAliveCardEnd = html.indexOf("</section>", keepAliveCardStart);

@@ -1,5 +1,6 @@
 async (page) => {
   const extensionScripts = [
+    "src/site-access.js",
     "src/content/player-dom.js",
     "src/content/fullscreen.js",
     "src/content/media-shortcuts.js",
@@ -11,16 +12,31 @@ async (page) => {
 
   async function installChromeStub(targetPage) {
     await targetPage.evaluate(() => {
+      if (window.chrome?.__xetTestStub) return;
+      const settings = { enabled: true, disabledSites: [] };
+      const storageListeners = [];
       window.chrome = {
+        __xetTestStub: true,
         runtime: {
-          sendMessage: async () => ({ enabled: true, disabledHosts: [] }),
+          sendMessage: async (message) =>
+            message?.type === "xet:get-settings" ? { ...settings } : {},
         },
         storage: {
           local: {
-            get: async () => ({ enabled: true, disabledHosts: [] }),
+            get: async (defaults) => ({ ...defaults, ...settings }),
+            set: async (changes) => {
+              const events = {};
+              for (const [key, newValue] of Object.entries(changes)) {
+                events[key] = { oldValue: settings[key], newValue };
+                settings[key] = newValue;
+              }
+              storageListeners.forEach((listener) => listener(events, "local"));
+            },
           },
           onChanged: {
-            addListener() {},
+            addListener(listener) {
+              storageListeners.push(listener);
+            },
           },
         },
       };
@@ -837,21 +853,124 @@ async (page) => {
     };
   }
 
+  async function verifySiteLifecycle(targetPage) {
+    await targetPage.route("https://merchant.pc.xiaoe-tech.com/**", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `
+          <video></video>
+          <script>
+            const video = document.querySelector("video");
+            let paused = true;
+            Object.defineProperties(video, {
+              paused: { configurable: true, get: () => paused },
+              ended: { configurable: true, get: () => false },
+            });
+            video.play = () => { paused = false; return Promise.resolve(); };
+            video.pause = () => { paused = true; };
+          </script>
+        `,
+      }),
+    );
+    await targetPage.goto("https://merchant.pc.xiaoe-tech.com/course");
+    await installExtension(targetPage);
+
+    await targetPage.keyboard.press("k");
+    const beforeDisable = await targetPage.$eval("video", (video) => video.paused);
+    await targetPage.evaluate(() =>
+      chrome.storage.local.set({
+        disabledSites: [location.origin],
+      }),
+    );
+    await targetPage.keyboard.press("k");
+    const whileDisabled = await targetPage.$eval("video", (video) => video.paused);
+    await targetPage.keyboard.press("t");
+    const fullscreenWhileDisabled = await targetPage.$eval(
+      "video",
+      (video) => video.dataset.xetWebFullscreen === "true",
+    );
+    await targetPage.evaluate(() => {
+      const quality = document.createElement("div");
+      quality.className = "xgplayer-definition";
+      quality.innerHTML = `
+        <ul>
+          <li cname="超清1080P">超清1080P</li>
+          <li class="selected" cname="高清720P">高清720P</li>
+        </ul>
+      `;
+      quality.addEventListener("click", (event) => {
+        if (event.target.closest("li")?.getAttribute("cname") === "超清1080P") {
+          window.__disabledQualityClicks =
+            (window.__disabledQualityClicks || 0) + 1;
+        }
+      });
+      document.body.append(quality);
+    });
+    await targetPage.waitForTimeout(100);
+    const qualityClicksWhileDisabled = await targetPage.evaluate(
+      () => window.__disabledQualityClicks || 0,
+    );
+    await targetPage.evaluate(() =>
+      chrome.storage.local.set({ disabledSites: [] }),
+    );
+    await targetPage.waitForFunction(() => window.__disabledQualityClicks === 1);
+    await targetPage.keyboard.press("k");
+    const afterReenable = await targetPage.$eval("video", (video) => video.paused);
+    await targetPage.keyboard.press("t");
+    const fullscreenAfterReenable = await targetPage.$eval(
+      "video",
+      (video) => video.dataset.xetWebFullscreen === "true",
+    );
+    await targetPage.keyboard.press("Escape");
+
+    if (
+      beforeDisable ||
+      whileDisabled ||
+      fullscreenWhileDisabled ||
+      qualityClicksWhileDisabled !== 0 ||
+      !afterReenable ||
+      !fullscreenAfterReenable
+    ) {
+      throw new Error(
+        `Unexpected site lifecycle: ${JSON.stringify({
+          beforeDisable,
+          whileDisabled,
+          fullscreenWhileDisabled,
+          qualityClicksWhileDisabled,
+          afterReenable,
+          fullscreenAfterReenable,
+        })}`,
+      );
+    }
+
+    return {
+      beforeDisable,
+      whileDisabled,
+      fullscreenWhileDisabled,
+      qualityClicksWhileDisabled,
+      afterReenable,
+      fullscreenAfterReenable,
+    };
+  }
+
   const legacyPage = await page.context().newPage();
   const currentPage = await page.context().newPage();
   const timingPage = await page.context().newPage();
   const keyboardPage = await page.context().newPage();
   const nativeVideoPage = await page.context().newPage();
+  const siteLifecyclePage = await page.context().newPage();
   const legacy = await verifyLegacyPlayer(legacyPage);
   const current = await verifyCurrentPlayer(currentPage);
   const latencyMs = await verifyImmediateDuringMutationStorm(timingPage);
   const shortcuts = await verifyFullscreenShortcuts(keyboardPage);
   const nativeVideo = await verifyNativeVideoShortcuts(nativeVideoPage);
+  const siteLifecycle = await verifySiteLifecycle(siteLifecyclePage);
   await legacyPage.close();
   await currentPage.close();
   await timingPage.close();
   await keyboardPage.close();
   await nativeVideoPage.close();
+  await siteLifecyclePage.close();
 
-  return { legacy, current, latencyMs, shortcuts, nativeVideo };
+  return { legacy, current, latencyMs, shortcuts, nativeVideo, siteLifecycle };
 }
