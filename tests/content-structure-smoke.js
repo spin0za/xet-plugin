@@ -6,6 +6,7 @@ const registration = manifest.content_scripts[0];
 const expectedScripts = [
   "src/site-access.js",
   "src/content/player-dom.js",
+  "src/content/analysis-layout.js",
   "src/content/fullscreen.js",
   "src/content/media-shortcuts.js",
   "src/content/quality.js",

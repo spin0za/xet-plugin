@@ -16,8 +16,11 @@
   const WEB_FULLSCREEN_PATH_ATTRIBUTE = "data-xet-web-fullscreen-path";
 
   function createFullscreenController({ playerDom }) {
-    const { composedParent, findPlayerControl } = playerDom;
+    const { composedParent, findPlayerControl, findPlayerRoot } = playerDom;
     const webFullscreenLayerStates = new WeakMap();
+    const managedPlayers = new Set();
+    let started = false;
+    let clickingFallbackControl = false;
 
     function elevateWebFullscreen(root) {
       const pathElements = [];
@@ -109,6 +112,14 @@
 
     function isNativeFullscreen(root) {
       const fullscreenElement = nativeFullscreenElement();
+      if (managedPlayers.has(root)) {
+        // Player classes can lag one fullscreenchange behind the browser.
+        // Managed requests use the browser's state as the source of truth.
+        return Boolean(
+          root === fullscreenElement ||
+            (fullscreenElement && root.contains(fullscreenElement)),
+        );
+      }
       return Boolean(
         root.classList.contains("xgplayer-is-fullscreen") ||
           root.classList.contains("xgplayer-rotate-fullscreen") ||
@@ -128,12 +139,43 @@
       const control = findPlayerControl(root, NATIVE_FULLSCREEN_SELECTOR);
       if (!control) return false;
 
-      control.click();
+      clickingFallbackControl = true;
+      try {
+        control.click();
+      } finally {
+        clickingFallbackControl = false;
+      }
       return true;
     }
 
+    function manageNativePlayer(root) {
+      if (root.tagName === "VIDEO") return;
+      managedPlayers.add(root);
+      root.setAttribute("data-xet-native-managed", "true");
+    }
+
     function enterNativeFullscreen(root) {
-      if (!clickNativeFullscreenControl(root)) requestNativeFullscreen(root);
+      const canRequest = Boolean(
+        root.requestFullscreen ||
+          root.webkitRequestFullscreen ||
+          root.mozRequestFullScreen ||
+          root.msRequestFullscreen,
+      );
+      if (!canRequest) {
+        clickNativeFullscreenControl(root);
+        return;
+      }
+
+      // Always fullscreen the whole player, not just its <video>. This keeps
+      // custom controls in the fullscreen subtree and bypasses mobile skins'
+      // rotate/overlay implementations. xgplayer still receives fullscreenchange.
+      manageNativePlayer(root);
+      try {
+        const result = requestNativeFullscreen(root);
+        result?.catch?.(() => {});
+      } catch {
+        // A rejected request must not leave an unhandled error in the page.
+      }
     }
 
     function toggleNativeFullscreen(root) {
@@ -146,10 +188,64 @@
         return;
       }
 
-      if (!clickNativeFullscreenControl(root)) {
-        if (nativeFullscreenElement()) exitNativeFullscreen();
-        else requestNativeFullscreen(root);
+      if (nativeFullscreenElement()) {
+        const result = exitNativeFullscreen();
+        result?.catch?.(() => {});
+      } else if (isNativeFullscreen(root)) {
+        // Compatibility fallback for players emulating native fullscreen.
+        clickNativeFullscreenControl(root);
+      } else {
+        enterNativeFullscreen(root);
       }
+    }
+
+    function handleFullscreenClick(event) {
+      if (clickingFallbackControl || event.defaultPrevented) return;
+      const control = event.composedPath().find(
+        (element) =>
+          element instanceof Element &&
+          element.matches(NATIVE_FULLSCREEN_SELECTOR),
+      );
+      if (!control) return;
+      const root = findPlayerRoot(control);
+      if (!root?.querySelector("video")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      toggleNativeFullscreen(root);
+    }
+
+    function handleFullscreenChange() {
+      for (const root of managedPlayers) {
+        if (!root.isConnected) {
+          managedPlayers.delete(root);
+          continue;
+        }
+        // Clear stale inactive state after native exit. The managed control
+        // strip remains visible, including while the preview is paused.
+        if (!nativeFullscreenElement()) {
+          root.classList.remove("xgplayer-inactive");
+        }
+      }
+    }
+
+    function start() {
+      if (started) return;
+      started = true;
+      window.addEventListener("click", handleFullscreenClick, true);
+      document.addEventListener("fullscreenchange", handleFullscreenChange);
+      document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
+    }
+
+    function stop() {
+      if (!started) return;
+      started = false;
+      window.removeEventListener("click", handleFullscreenClick, true);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
+      for (const root of managedPlayers) {
+        root.removeAttribute("data-xet-native-managed");
+      }
+      managedPlayers.clear();
     }
 
     function toggleManagedWebFullscreen(root) {
@@ -264,6 +360,8 @@
     }
 
     return Object.freeze({
+      start,
+      stop,
       exitWebFullscreen,
       isWebFullscreen,
       toggleNativeFullscreen,

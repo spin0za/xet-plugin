@@ -2,7 +2,16 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.playerDom) return;
 
-  const PLAYER_ROOT_SELECTOR = "xg-player, .xgplayer-skin-default";
+  const PLAYER_ROOT_SELECTOR = "xg-player, .xgplayer, .xgplayer-skin-default";
+
+  function findPlayerRoot(element) {
+    let current = element;
+    while (current instanceof Element) {
+      if (current.matches(PLAYER_ROOT_SELECTOR)) return current;
+      current = composedParent(current);
+    }
+    return null;
+  }
 
   function normalizeText(value) {
     return (value || "").replace(/\s+/g, "").trim();
@@ -168,6 +177,7 @@
     deepQueryAll,
     findActivePlayer,
     findPlayerControl,
+    findPlayerRoot,
     findPlayerVideo,
     isEditableTarget,
     isVisible,

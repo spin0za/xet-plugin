@@ -2,6 +2,7 @@ async (page) => {
   const extensionScripts = [
     "src/site-access.js",
     "src/content/player-dom.js",
+    "src/content/analysis-layout.js",
     "src/content/fullscreen.js",
     "src/content/media-shortcuts.js",
     "src/content/quality.js",
@@ -191,6 +192,7 @@ async (page) => {
   }
 
   async function verifyFullscreenShortcuts(targetPage) {
+    await targetPage.bringToFront();
     await targetPage.setContent(`
       <style>
         html, body { margin: 0; }
@@ -343,6 +345,11 @@ async (page) => {
             }
             player.classList.toggle("xgplayer-is-fullscreen");
           });
+        document.addEventListener("fullscreenchange", () => {
+          player.classList.toggle(
+            "xgplayer-is-fullscreen", document.fullscreenElement === player
+          );
+        });
         document
           .querySelector(".xgplayer-cssfullscreen")
           .addEventListener("click", () => {
@@ -363,7 +370,9 @@ async (page) => {
 
     // Ordinary on/off behavior.
     await targetPage.keyboard.press("f");
+    await targetPage.waitForFunction(() => document.fullscreenElement);
     await targetPage.keyboard.press("f");
+    await targetPage.waitForFunction(() => !document.fullscreenElement);
     await targetPage.keyboard.press("t");
 
     const webFullscreenLayouts = [];
@@ -465,10 +474,9 @@ async (page) => {
     // Web -> native must finish in native mode with one F press.
     await targetPage.keyboard.press("t");
     await targetPage.keyboard.press("f");
+    await targetPage.waitForFunction(() => document.fullscreenElement);
     const webToNative = await targetPage.evaluate(() => ({
-      native: document
-        .querySelector(".xgplayer-skin-default")
-        .classList.contains("xgplayer-is-fullscreen"),
+      native: document.fullscreenElement === document.querySelector(".xgplayer-skin-default"),
       web: document
         .querySelector(".xgplayer-skin-default")
         .classList.contains("xgplayer-is-cssfullscreen"),
@@ -487,9 +495,7 @@ async (page) => {
     await targetPage.keyboard.press("t");
     await targetPage.waitForTimeout(50);
     const nativeToWeb = await targetPage.evaluate(() => ({
-      native: document
-        .querySelector(".xgplayer-skin-default")
-        .classList.contains("xgplayer-is-fullscreen"),
+      native: document.fullscreenElement === document.querySelector(".xgplayer-skin-default"),
       web: document
         .querySelector(".xgplayer-skin-default")
         .classList.contains("xgplayer-is-cssfullscreen"),
@@ -634,15 +640,15 @@ async (page) => {
       webFullscreenRestored.documentActive ||
       webFullscreenRestored.bodyOverflow !== "" ||
       webFullscreenRestored.htmlOverflow !== "" ||
-      webFullscreenRestored.controlsOpacity !== "0" ||
-      webFullscreenRestored.controlsVisibility !== "hidden" ||
+      webFullscreenRestored.controlsOpacity !== "1" ||
+      webFullscreenRestored.controlsVisibility !== "visible" ||
       webFullscreenRestored.topLayerActive ||
       webFullscreenRestored.pageButtonVisibility !== "visible" ||
       pageButtonClicksDuringFullscreen !== 0 ||
       pageButtonClicksAfterExit !== 1 ||
       !webSpacePaused ||
       !nativeSpacePaused ||
-      result.nativeClicks !== 4 ||
+      result.nativeClicks !== 0 ||
       result.webClicks !== 0 ||
       result.builtInArrowEvents !== 0 ||
       result.builtInSpeedEvents !== 0 ||
@@ -667,6 +673,13 @@ async (page) => {
       throw new Error(
         `Unexpected shortcut result: ${JSON.stringify({
           result,
+          webToNative,
+          nativeToWeb,
+          webAfterEscape,
+          webAfterFocusedT,
+          webAfterFocusedEscape,
+          webSpacePaused,
+          nativeSpacePaused,
           webFullscreenLayouts,
           webFullscreenRestored,
           pageButtonClicksDuringFullscreen,

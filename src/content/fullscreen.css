@@ -14,7 +14,8 @@ html.xet-web-fullscreen-active
   pointer-events: none !important;
 }
 
-html.xet-web-fullscreen-active [data-xet-web-fullscreen="true"] {
+html.xet-web-fullscreen-active [data-xet-web-fullscreen="true"],
+[data-xet-native-managed="true"]:fullscreen {
   position: fixed !important;
   inset: 0 !important;
   z-index: 2147483646 !important;
@@ -40,12 +41,15 @@ html.xet-web-fullscreen-active [data-xet-web-fullscreen="true"] {
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
   .xgplayer-video-wrap,
+[data-xet-native-managed="true"]:fullscreen .xgplayer-video-wrap,
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
   xg-video-container,
+[data-xet-native-managed="true"]:fullscreen xg-video-container,
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
-  .xgplayer-poster {
+  .xgplayer-poster,
+[data-xet-native-managed="true"]:fullscreen .xgplayer-poster {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
@@ -58,7 +62,8 @@ html.xet-web-fullscreen-active
 
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
-  .xgplayer-poster {
+  .xgplayer-poster,
+[data-xet-native-managed="true"]:fullscreen .xgplayer-poster {
   background-position: center !important;
   background-repeat: no-repeat !important;
   background-size: contain !important;
@@ -70,7 +75,8 @@ html.xet-web-fullscreen-active video[data-xet-web-fullscreen="true"] {
 
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
-  video {
+  video,
+[data-xet-native-managed="true"]:fullscreen video {
   position: absolute !important;
   inset: 0 !important;
   z-index: 0 !important;
@@ -92,7 +98,10 @@ html.xet-web-fullscreen-active
   .xgplayer-controls,
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
-  xg-controls {
+  xg-controls,
+[data-xet-native-managed="true"] .xgplayer-controls,
+[data-xet-native-managed="true"] xg-controls {
+  display: block !important;
   position: absolute !important;
   right: 0 !important;
   bottom: 0 !important;
@@ -105,4 +114,54 @@ html.xet-web-fullscreen-active
   visibility: visible !important;
   pointer-events: auto !important;
   transform: none !important;
+  transition: none !important;
+}
+
+/* The mobile trigger's gradient otherwise darkens the entire video. Keep
+   contrast behind the short playback strip instead of across the picture. */
+[data-xet-native-managed="true"] .gradient,
+[data-xet-web-fullscreen="true"] .gradient {
+  display: none !important;
+  background: none !important;
+  pointer-events: none !important;
+}
+
+[data-xet-native-managed="true"] .xgplayer-controls,
+[data-xet-web-fullscreen="true"] .xgplayer-controls {
+  height: 48px !important;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .75)) !important;
+}
+
+/* Rich-text embeds carry inconsistent width/height attributes. Scope the
+   correction to evaluation analysis so genuine portrait courses keep theirs. */
+html[data-xet-analysis-layout] .xiaoe-iframe-outside,
+html[data-xet-analysis-layout] .xiaoe-iframe-video,
+html[data-xet-analysis-layout] #detail_div .xiaoe-iframe-outside,
+html[data-xet-analysis-layout] #detail_div .xiaoe-iframe-video,
+html[data-xet-analysis-layout] #xePreview .xiaoe-iframe-outside,
+html[data-xet-analysis-layout] #xePreview .xiaoe-iframe-video,
+html[data-xet-analysis-layout] :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) {
+  box-sizing: border-box !important;
+  width: min(100%, 800px) !important;
+  height: auto !important;
+  aspect-ratio: 16 / 9 !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  padding: 0 !important;
+  background-color: #000 !important;
+}
+
+html[data-xet-analysis-layout] .xiaoe-iframe-outside iframe {
+  display: block !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
+  border: 0 !important;
+}
+
+html[data-xet-analysis-layout] :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) :is(video, .xgplayer-video-wrap, xg-video-container, .xgplayer-poster) {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  background-size: contain !important;
 }

@@ -8,6 +8,7 @@
   if (
     !siteAccess ||
     !modules?.playerDom ||
+    !modules.analysisLayout ||
     !modules.fullscreen ||
     !modules.mediaShortcuts ||
     !modules.quality ||
@@ -67,6 +68,7 @@
   const fullscreen = modules.fullscreen.createFullscreenController({
     playerDom: modules.playerDom,
   });
+  const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -83,6 +85,8 @@
       return;
     }
     featuresStarted = true;
+    analysisLayout.start();
+    fullscreen.start();
     shortcuts.start();
     quality.start();
 
@@ -105,6 +109,8 @@
       fullscreen.exitWebFullscreen(player);
     }
     shortcuts.stop();
+    fullscreen.stop();
+    analysisLayout.stop();
     quality.stop();
     modules.toast.hide?.();
   }
