@@ -21,7 +21,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
-- 在线练习与考试解析中的视频预览统一为 16:9 横屏，并随可用宽度缩放。
+- 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
+- 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 播放器全屏按钮与 `F` 使用相同的原生全屏入口；移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
@@ -103,7 +104,8 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
-- Normalizes video previews in practice and exam analysis to a responsive 16:9 landscape layout.
+- Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
+- Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the player's fullscreen button and `F` use the same native fullscreen entry point, removes the mobile skin's full-picture gradient overlay, and keeps playback controls visible after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
@@ -191,6 +193,7 @@ src/
   content/
     player-dom.js
     analysis-layout.js
+    player-interactions.js
     fullscreen.js
     fullscreen.css
     media-shortcuts.js
@@ -218,8 +221,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.0**
+Current version: **1.10.1**
 
-主要变更：统一练习及考试解析的视频横屏预览、全屏按钮与 F 快捷键；修复全屏遮罩及退出后控件消失的问题。
+主要变更：扩大解析视频预览并裁切细黑边；支持点击画面播放/暂停，恢复播放控件的空闲自动隐藏。
 
-Highlights: landscape video previews for practice and exam analysis, consistent button/F fullscreen behavior, and fixes for fullscreen shading and disappearing controls after exit.
+Highlights: larger analysis previews with thin-edge cropping, picture-click playback toggling, and idle auto-hiding playback controls.

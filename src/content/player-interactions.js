@@ -1,0 +1,162 @@
+(() => {
+  const modules = (globalThis.__xetPlayerHelperModules ||= {});
+  if (modules.playerInteractions) return;
+
+  const CONTROL_SELECTOR = [
+    ".xgplayer-controls", "xg-controls", "xg-icon",
+    "button", "a", "input", "select", "textarea", "[role=button]",
+    ".xgplayer-start", ".xgplayer-replay",
+    ".xgplayer-backward", ".xgplayer-forward",
+    ".xgplayer-fullscreen", ".xgplayer-cssfullscreen",
+  ].join(",");
+  const HIDE_DELAY = 3_000;
+
+  function createPlayerInteractionController({ playerDom }) {
+    const { deepElements, findPlayerRoot, findPlayerVideo, findActivePlayer } = playerDom;
+    const players = new Map();
+    let observer = null;
+
+    function release(root, state) {
+      clearTimeout(state.timer);
+      root.removeAttribute("data-xet-interactions");
+      root.removeAttribute("data-xet-controls-hidden");
+      players.delete(root);
+    }
+
+    function show(root, overControls = false) {
+      if (!root || root.tagName === "VIDEO") return;
+      let state = players.get(root);
+      if (!state) {
+        state = { timer: null, overControls: false };
+        players.set(root, state);
+        root.setAttribute("data-xet-interactions", "true");
+      }
+      state.overControls = overControls;
+      clearTimeout(state.timer);
+      root.setAttribute("data-xet-controls-hidden", "false");
+      const video = findPlayerVideo(root);
+      if (!video || video.paused || video.ended || overControls) return;
+      state.timer = setTimeout(() => {
+        if (!root.isConnected) return release(root, state);
+        if (!video.paused && !video.ended && !state.overControls) {
+          root.setAttribute("data-xet-controls-hidden", "true");
+        }
+      }, HIDE_DELAY);
+    }
+
+    function handlePointer(event) {
+      const root = findPlayerRoot(event.target);
+      if (!root) return;
+      const target = event.type === "pointerout" ? event.relatedTarget : event.target;
+      show(root, target instanceof Element && root.contains(target) &&
+        Boolean(target.closest(".xgplayer-controls, xg-controls")));
+    }
+
+    function handleMedia(event) {
+      const root = findPlayerRoot(event.target);
+      show(root, players.get(root)?.overControls);
+    }
+
+    function pictureRoot(event) {
+      if (event.defaultPrevented || event.button !== 0 || event.sourceCapabilities?.firesTouchEvents) return null;
+      const root = findPlayerRoot(event.target);
+      if (!root) return null;
+      if (event.composedPath().some((node) => node instanceof Element &&
+          node !== root && node.matches(CONTROL_SELECTOR))) return null;
+      return root;
+    }
+
+    function handleMouseDown(event) {
+      // The mobile skin recognizes desktop taps from mousedown/mouseup and
+      // schedules its own delayed toggle BEFORE the ordinary click arrives.
+      // Claim picture-only mouse gestures at their start; sliders/buttons and
+      // touch swipes remain owned by the SDK.
+      if (pictureRoot(event)) event.stopImmediatePropagation();
+    }
+
+    function handleClick(event) {
+      const root = pictureRoot(event);
+      if (!root) return;
+      const video = findPlayerVideo(root);
+      // Some mobile embeds do not create <video> until the initial start action.
+      // Forward a picture click to that action without touching private SDK state.
+      const startControl = !video && root.querySelector(".xgplayer-start");
+      if (!video && !startControl) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if (event.detail > 1) return;
+      if (startControl) startControl.click();
+      else if (video.paused || video.ended) {
+        if (video.ended) video.currentTime = 0;
+        video.play()?.catch?.(() => {});
+      } else video.pause();
+      show(root);
+    }
+
+    function handleKey() {
+      show(findActivePlayer());
+    }
+
+    function discover(scope = document) {
+      for (const [root, state] of players) {
+        if (!root.isConnected) release(root, state);
+      }
+      const elements = deepElements(scope);
+      if (scope instanceof Element) elements.push(scope);
+      for (const node of elements) {
+        if (node.matches("xg-player, .xgplayer, .xgplayer-skin-default") &&
+            !players.has(node)) show(node);
+      }
+    }
+
+    function handleModeChange(records) {
+      for (const record of records) {
+        if (record.type === "attributes") show(findPlayerRoot(record.target));
+        else for (const node of record.addedNodes) {
+          if (node instanceof Element) discover(node);
+        }
+      }
+    }
+
+    function start() {
+      if (observer) return;
+      window.addEventListener("click", handleClick, true);
+      window.addEventListener("mousedown", handleMouseDown, true);
+      window.addEventListener("pointermove", handlePointer, true);
+      window.addEventListener("pointerout", handlePointer, true);
+      window.addEventListener("focusin", handleMedia, true);
+      window.addEventListener("keydown", handleKey, true);
+      window.addEventListener("play", handleMedia, true);
+      window.addEventListener("pause", handleMedia, true);
+      window.addEventListener("ended", handleMedia, true);
+      document.addEventListener("fullscreenchange", handleKey);
+      observer = new MutationObserver(handleModeChange);
+      observer.observe(document.documentElement, {
+        subtree: true, childList: true, attributes: true,
+        attributeFilter: ["data-xet-web-fullscreen", "data-xet-native-managed"],
+      });
+      discover();
+    }
+
+    function stop() {
+      if (!observer) return;
+      observer.disconnect();
+      observer = null;
+      window.removeEventListener("click", handleClick, true);
+      window.removeEventListener("mousedown", handleMouseDown, true);
+      window.removeEventListener("pointermove", handlePointer, true);
+      window.removeEventListener("pointerout", handlePointer, true);
+      window.removeEventListener("focusin", handleMedia, true);
+      window.removeEventListener("keydown", handleKey, true);
+      window.removeEventListener("play", handleMedia, true);
+      window.removeEventListener("pause", handleMedia, true);
+      window.removeEventListener("ended", handleMedia, true);
+      document.removeEventListener("fullscreenchange", handleKey);
+      for (const [root, state] of players) release(root, state);
+    }
+
+    return Object.freeze({ start, stop });
+  }
+
+  modules.playerInteractions = Object.freeze({ createPlayerInteractionController });
+})();

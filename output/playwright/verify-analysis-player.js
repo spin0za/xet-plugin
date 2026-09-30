@@ -15,6 +15,7 @@ async (page) => {
     "src/site-access.js",
     "src/content/player-dom.js",
     "src/content/analysis-layout.js",
+    "src/content/player-interactions.js",
     "src/content/fullscreen.js",
     "src/content/media-shortcuts.js",
     "src/content/quality.js",
@@ -27,9 +28,14 @@ async (page) => {
       contentType: "text/html",
       body: `<!doctype html><style>
         body { margin: 0; padding: 20px; background: #eee; }
+        #_flag4unlimit { display: flex; }
+        .image-text-box { width: 450px; max-width: 100%; }
+        .xe-preview__content .preview-paragraph { width: 450px; max-width: 100%; }
         #detail_div .xiaoe-iframe-outside,
         #detail_div .xiaoe-iframe-video { height: 470px !important; }
       </style><header>我的已购 / 练习记录</header><div id="detail_div">
+        <div id="_flag4unlimit"><div class="image-text-box"><div id="xePreview">
+        <div class="xe-preview__container"><div class="xe-preview__content"><div class="preview-paragraph">
         <div class="xiaoe-iframe-outside" style="width:360px;height:470px">
           <iframe class="xiaoe-iframe-video" src="https://embedded.example/portrait"
             width="360" height="470" allow="fullscreen" allowfullscreen></iframe>
@@ -37,7 +43,7 @@ async (page) => {
         <div class="xiaoe-iframe-outside" style="width:800px;height:450px">
           <iframe class="xiaoe-iframe-video" src="https://embedded.example/landscape"
             width="800" height="450" allow="fullscreen" allowfullscreen></iframe>
-        </div></div>`,
+        </div></div></div></div></div></div></div></div>`,
     }));
     await testPage.route("https://embedded.example/**", (route) => route.fulfill({
       contentType: "text/html",
@@ -96,6 +102,9 @@ async (page) => {
           context.fillStyle = "#111";
           context.font = "48px sans-serif";
           context.fillText("Landscape analysis video — 16:9", 100, 300);
+          context.fillRect(0, 718, 1280, 2);
+          context.fillRect(0, 0, 3, 3);
+          context.fillRect(1277, 0, 3, 3);
           requestAnimationFrame(draw);
         }
         draw();
@@ -117,17 +126,78 @@ async (page) => {
       if (sizes.some(({ width, height }) => Math.abs(width / height - 16 / 9) > .01)) {
         throw new Error(`Previews are not landscape: ${JSON.stringify(sizes)}`);
       }
+      const expectedWidth = Math.min(960, viewport.width - 40);
+      if (sizes.some(({ width }) => Math.abs(width - expectedWidth) > 1)) {
+        throw new Error(`Rich-text width still limits previews: ${JSON.stringify(sizes)}`);
+      }
       layouts.push({ viewport, sizes });
     }
     await testPage.setViewportSize({ width: 1280, height: 900 });
     const frame = frames[0];
     const player = frame.locator("#player");
     const button = frame.locator(".xgplayer-fullscreen");
+    await frame.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    const previewCrop = await frame.evaluate(() => ({
+      transform: getComputedStyle(player.video).transform,
+      overflow: getComputedStyle(document.querySelector("#player")).overflow,
+      fit: getComputedStyle(player.video).objectFit,
+    }));
+    if (previewCrop.transform !== "matrix(1.02, 0, 0, 1.02, 0, 0)" ||
+        previewCrop.overflow !== "hidden" || previewCrop.fit !== "cover") {
+      throw new Error(`Preview rim not cropped: ${JSON.stringify(previewCrop)}`);
+    }
+    const pictureClicks = [];
+    async function verifyPictureClicks(mode) {
+      await frame.evaluate(() => {
+        window.mediaEvents = [];
+        if (!window.mediaEventsInstalled) {
+          for (const name of ["play", "pause"]) {
+            player.video.addEventListener(name, () => mediaEvents.push(name));
+          }
+          window.mediaEventsInstalled = true;
+        }
+      });
+      for (const x of [.3, .7]) {
+        const before = await frame.evaluate(() => player.video.paused);
+        const size = await player.boundingBox();
+        await player.click({ position: { x: size.width * x, y: size.height * .35 } });
+        await frame.waitForFunction((paused) => player.video.paused !== paused, before);
+        await frame.waitForTimeout(250);
+        if (await frame.evaluate(() => player.video.paused) === before) {
+          throw new Error(`${mode} picture click toggled playback twice`);
+        }
+      }
+      const events = await frame.evaluate(() => mediaEvents);
+      if (events.join(",") !== "pause,play") throw new Error(`${mode} unexpected events: ${events}`);
+      pictureClicks.push({ mode, events });
+    }
+    async function verifyAutoHide(mode) {
+      const size = await player.boundingBox();
+      await player.hover({ position: { x: size.width * .6, y: size.height * .4 } });
+      await frame.waitForFunction(() => player.root.dataset.xetControlsHidden === "true", null, { timeout: 5000 });
+      const hidden = await fullscreenState();
+      if (hidden.controlsVisible || hidden.controlOpacity !== "0") {
+        throw new Error(`${mode} controls did not hide: ${JSON.stringify(hidden)}`);
+      }
+      if (mode === "preview" || mode === "native fullscreen") {
+        await player.screenshot({ path: `output/playwright/analysis-${mode === "preview" ? "preview" : "fullscreen"}.png` });
+      }
+      await player.hover({ position: { x: size.width * .65, y: size.height * .4 } });
+      if (!(await fullscreenState()).controlsVisible) throw new Error(`${mode} movement did not restore controls`);
+      return { mode, hidden: !hidden.controlsVisible };
+    }
+    await verifyPictureClicks("preview");
+    await verifyAutoHide("preview");
+    await frame.locator(".xgplayer-play").click();
+    await frame.waitForFunction(() => player.video.paused);
+    await testPage.keyboard.press("Space");
+    await frame.waitForFunction(() => !player.video.paused);
     await frame.locator(".xgplayer-controls").hover();
     await button.click();
     await frame.waitForFunction(() => document.fullscreenElement?.id === "player");
 
     async function fullscreenState() {
+      await frame.waitForTimeout(180); // Allow the short control-strip fade to finish.
       return frame.evaluate(() => {
         const root = document.querySelector("#player");
         const controls = root.querySelector(".xgplayer-controls");
@@ -165,6 +235,11 @@ async (page) => {
         buttonFullscreen.controlHeight !== 48 || buttonFullscreen.videoFit !== "contain") {
       throw new Error(`Different or obscured fullscreen: ${JSON.stringify({buttonFullscreen, keyboardFullscreen})}`);
     }
+    await verifyPictureClicks("native fullscreen");
+    const autoHide = [await verifyAutoHide("native fullscreen")];
+    await frame.locator(".xgplayer-controls").hover();
+    await frame.waitForTimeout(3300);
+    if (!(await fullscreenState()).controlsVisible) throw new Error("Hovered controls disappeared");
     await button.click();
     await frame.waitForFunction(() => !document.fullscreenElement);
 
@@ -176,6 +251,8 @@ async (page) => {
     await frame.waitForFunction(() => !document.fullscreenElement);
     await testPage.keyboard.press("t");
     await frame.waitForFunction(() => document.querySelector("#player").dataset.xetWebFullscreen === "true");
+    await verifyPictureClicks("page fullscreen");
+    autoHide.push(await verifyAutoHide("page fullscreen"));
     await button.click();
     await frame.waitForFunction(() => document.fullscreenElement?.id === "player");
     await testPage.keyboard.press("t");
@@ -184,10 +261,12 @@ async (page) => {
     await testPage.keyboard.press("Escape");
     await frame.waitForFunction(() => !document.querySelector("#player").dataset.xetWebFullscreen);
 
+    await frame.evaluate(() => player.video.pause());
+    await frame.waitForFunction(() => player.root.dataset.xetControlsHidden === "false");
+    await frame.waitForTimeout(3300);
     const restored = await frame.evaluate(() => {
       const root = document.querySelector("#player");
       const controls = root.querySelector(".xgplayer-controls");
-      player.video.pause();
       root.classList.add("xgplayer-inactive");
       const style = getComputedStyle(controls);
       const rect = controls.getBoundingClientRect();
@@ -207,10 +286,28 @@ async (page) => {
       throw new Error(`Preview did not recover: ${JSON.stringify(restored)}`);
     }
 
+    // Initial mobile posters may not contain a <video> at all. A picture click
+    // should still initiate the SDK's normal start action, outside its icon.
+    const deferredFrame = frames[1];
+    await deferredFrame.evaluate(() => {
+      player.destroy();
+      document.body.innerHTML = "<div id=deferred></div>";
+      window.deferred = new Player({
+        id: "deferred", url: "", width: "100%", height: "100%",
+        isMobileSimulateMode: "mobile", videoInit: false,
+      });
+    });
+    await deferredFrame.locator("#deferred").click({ position: { x: 70, y: 70 } });
+    await deferredFrame.waitForFunction(() => Boolean(document.querySelector("#deferred video")), null, { timeout: 4000 });
+
     // Route changes should restore other pages and cover subsequently inserted
     // embeds without requiring a fresh extension injection.
     await testPage.evaluate(() => history.pushState({}, "", "/course/portrait"));
     await testPage.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-layout"));
+    await frame.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    if (await frame.evaluate(() => getComputedStyle(player.video).transform) !== "none") {
+      throw new Error("Preview crop leaked onto a non-analysis page");
+    }
     const otherPageSize = await testPage.locator("iframe").first().boundingBox();
     if (otherPageSize.width !== originalPreviewSize.width ||
         otherPageSize.height !== originalPreviewSize.height) {
@@ -232,9 +329,11 @@ async (page) => {
     await testPage.evaluate(() => chrome.storage.local.set({ disabledSites: [location.origin] }));
     await frame.evaluate(() => chrome.storage.local.set({ disabledSites: [location.origin] }));
     const disabled = await testPage.evaluate(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
-    const nativeManagedAfterDisable = await player.getAttribute("data-xet-native-managed");
-    if (disabled || nativeManagedAfterDisable) throw new Error("Site disable did not restore original styling");
-    return { layouts, buttonFullscreen, keyboardFullscreen, restored, disabled };
+    const remainingMarkers = await player.evaluate((root) => Array.from(root.attributes)
+      .filter((attribute) => attribute.name.startsWith("data-xet-"))
+      .map((attribute) => attribute.name));
+    if (disabled || remainingMarkers.length) throw new Error(`Site disable did not restore original styling: ${remainingMarkers}`);
+    return { layouts, previewCrop, pictureClicks, autoHide, buttonFullscreen, keyboardFullscreen, restored, disabled };
   } finally {
     await testPage.close();
   }

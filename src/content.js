@@ -9,6 +9,7 @@
     !siteAccess ||
     !modules?.playerDom ||
     !modules.analysisLayout ||
+    !modules.playerInteractions ||
     !modules.fullscreen ||
     !modules.mediaShortcuts ||
     !modules.quality ||

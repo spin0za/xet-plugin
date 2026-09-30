@@ -3,6 +3,7 @@ async (page) => {
     "src/site-access.js",
     "src/content/player-dom.js",
     "src/content/analysis-layout.js",
+    "src/content/player-interactions.js",
     "src/content/fullscreen.js",
     "src/content/media-shortcuts.js",
     "src/content/quality.js",
@@ -382,6 +383,9 @@ async (page) => {
       { width: 1100, height: 500 },
     ]) {
       await targetPage.setViewportSize(viewport);
+      await targetPage.waitForFunction(() =>
+        getComputedStyle(document.querySelector(".xgplayer-controls")).opacity === "1",
+      );
       webFullscreenLayouts.push(
         await targetPage.evaluate(() => {
           const player = document.querySelector(".xgplayer-skin-default");
@@ -433,6 +437,9 @@ async (page) => {
     const pageButtonClicksDuringFullscreen = await targetPage.evaluate(
       () => window.__pageButtonClicks,
     );
+    // That coordinate now belongs to the clickable video picture, so restore
+    // the paused baseline before checking button-focus + Space behavior.
+    await targetPage.$eval("video", (video) => video.pause());
     await targetPage.$eval("#play-control", (button) => {
       button.focus();
       button.click();
@@ -445,6 +452,10 @@ async (page) => {
 
     await targetPage.setViewportSize({ width: 1280, height: 720 });
     await targetPage.keyboard.press("t");
+
+    await targetPage.waitForFunction(() =>
+      getComputedStyle(document.querySelector(".xgplayer-controls")).opacity === "1",
+    );
 
     const webFullscreenRestored = await targetPage.evaluate(() => {
       const player = document.querySelector(".xgplayer-skin-default");

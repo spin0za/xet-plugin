@@ -99,8 +99,8 @@ html.xet-web-fullscreen-active
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
   xg-controls,
-[data-xet-native-managed="true"] .xgplayer-controls,
-[data-xet-native-managed="true"] xg-controls {
+[data-xet-interactions="true"] .xgplayer-controls,
+[data-xet-interactions="true"] xg-controls {
   display: block !important;
   position: absolute !important;
   right: 0 !important;
@@ -114,12 +114,27 @@ html.xet-web-fullscreen-active
   visibility: visible !important;
   pointer-events: auto !important;
   transform: none !important;
-  transition: none !important;
+  transition: opacity .15s ease !important;
+}
+
+/* Do not confuse a focused/previously clicked button with mouse activity.
+   The controller keeps paused/hovered controls visible and times out playback. */
+html [data-xet-interactions="true"][data-xet-controls-hidden="true"] .xgplayer-controls,
+html [data-xet-interactions="true"][data-xet-controls-hidden="true"] xg-controls {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+[data-xet-controls-hidden="true"]:fullscreen,
+[data-xet-controls-hidden="true"][data-xet-web-fullscreen="true"] {
+  cursor: none !important;
 }
 
 /* The mobile trigger's gradient otherwise darkens the entire video. Keep
    contrast behind the short playback strip instead of across the picture. */
 [data-xet-native-managed="true"] .gradient,
+[data-xet-interactions="true"] .gradient,
 [data-xet-web-fullscreen="true"] .gradient {
   display: none !important;
   background: none !important;
@@ -127,6 +142,7 @@ html.xet-web-fullscreen-active
 }
 
 [data-xet-native-managed="true"] .xgplayer-controls,
+[data-xet-interactions="true"] .xgplayer-controls,
 [data-xet-web-fullscreen="true"] .xgplayer-controls {
   height: 48px !important;
   background: linear-gradient(transparent, rgba(0, 0, 0, .75)) !important;
@@ -134,6 +150,15 @@ html.xet-web-fullscreen-active
 
 /* Rich-text embeds carry inconsistent width/height attributes. Scope the
    correction to evaluation analysis so genuine portrait courses keep theirs. */
+html[data-xet-analysis-layout] [data-xet-analysis-container],
+html[data-xet-analysis-layout] #xePreview .xe-preview__container .xe-preview__content [data-xet-analysis-container] {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  flex: 1 1 auto !important;
+}
+
 html[data-xet-analysis-layout] .xiaoe-iframe-outside,
 html[data-xet-analysis-layout] .xiaoe-iframe-video,
 html[data-xet-analysis-layout] #detail_div .xiaoe-iframe-outside,
@@ -142,13 +167,16 @@ html[data-xet-analysis-layout] #xePreview .xiaoe-iframe-outside,
 html[data-xet-analysis-layout] #xePreview .xiaoe-iframe-video,
 html[data-xet-analysis-layout] :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) {
   box-sizing: border-box !important;
-  width: min(100%, 800px) !important;
+  width: min(100%, 960px) !important;
   height: auto !important;
   aspect-ratio: 16 / 9 !important;
   min-height: 0 !important;
   max-height: none !important;
   padding: 0 !important;
   background-color: #000 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
 }
 
 html[data-xet-analysis-layout] .xiaoe-iframe-outside iframe {
@@ -164,4 +192,24 @@ html[data-xet-analysis-layout] :is(.xgplayer, .xgplayer-skin-default, xg-player)
   height: 100% !important;
   object-fit: contain !important;
   background-size: contain !important;
+}
+
+/* Crop only a 1% rim on each side of analysis previews, never the controls or
+   the fullscreen picture. This removes thin encoded edges and rounded gaps
+   without stretching the landscape slide or changing its 16:9 viewport. */
+html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) {
+  border: 0 !important;
+  border-radius: 0 !important;
+  overflow: hidden !important;
+}
+
+html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) :is(video, .xgplayer-poster) {
+  width: 100% !important;
+  height: 100% !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  object-fit: cover !important;
+  background-size: cover !important;
+  transform-origin: center !important;
+  transform: scale(1.02) !important;
 }

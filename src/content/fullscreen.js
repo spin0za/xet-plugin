@@ -19,6 +19,7 @@
     const { composedParent, findPlayerControl, findPlayerRoot } = playerDom;
     const webFullscreenLayerStates = new WeakMap();
     const managedPlayers = new Set();
+    const interactions = modules.playerInteractions.createPlayerInteractionController({ playerDom });
     let started = false;
     let clickingFallbackControl = false;
 
@@ -220,8 +221,8 @@
           managedPlayers.delete(root);
           continue;
         }
-        // Clear stale inactive state after native exit. The managed control
-        // strip remains visible, including while the preview is paused.
+        // Clear stale SDK state; the interaction controller subsequently owns
+        // pause/hover visibility and the normal idle timeout.
         if (!nativeFullscreenElement()) {
           root.classList.remove("xgplayer-inactive");
         }
@@ -231,6 +232,7 @@
     function start() {
       if (started) return;
       started = true;
+      interactions.start();
       window.addEventListener("click", handleFullscreenClick, true);
       document.addEventListener("fullscreenchange", handleFullscreenChange);
       document.addEventListener("webkitfullscreenchange", handleFullscreenChange);
@@ -239,6 +241,7 @@
     function stop() {
       if (!started) return;
       started = false;
+      interactions.stop();
       window.removeEventListener("click", handleFullscreenClick, true);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
