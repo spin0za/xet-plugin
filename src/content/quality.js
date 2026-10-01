@@ -402,6 +402,10 @@
             if (record.target.matches(MEDIA_SELECTOR)) {
               mediaNodes.add(record.target);
               changed = true;
+            } else if (record.target.closest("xg-player, .xgplayer, .xgplayer-skin-default, .xgplayer-definition")) {
+              // Some SDKs reveal an existing quality control using only CSS.
+              // Preserve prompt detection even while idle polling is reduced.
+              changed = true;
             }
           } else {
             for (const node of record.addedNodes) {
@@ -422,7 +426,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["src", "class"],
+        attributeFilter: ["src", "class", "style", "hidden"],
       });
 
       for (const eventName of mediaEvents) {

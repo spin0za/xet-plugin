@@ -40,7 +40,11 @@ async (page) => {
         document.querySelector("#options").hidden = false;
         setTimeout(() => { enabled = false; controller.stop(); }, 40);
       });
-      document.querySelector("#target").addEventListener("click", () => clicks++);
+      document.querySelector("#target").addEventListener("click", () => {
+        clicks++;
+        document.querySelector("#current").textContent = "超清";
+        document.querySelector("#options").hidden = true;
+      });
       controller = __xetPlayerHelperModules.quality.createQualityController({
         isEnabled: () => enabled, notify() {}, playerDom: __xetPlayerHelperModules.playerDom,
       });
@@ -61,6 +65,7 @@ async (page) => {
       document.querySelector("#options").hidden = true;
       const old = document.querySelector("#current");
       const button = old.cloneNode(true);
+      button.textContent = "高清";
       old.replaceWith(button);
       button.addEventListener("click", () => {
         document.querySelector("#options").hidden = false;
@@ -71,6 +76,24 @@ async (page) => {
     await fixture.waitForTimeout(350);
     const overlappingRestart = await fixture.evaluate(() => { controller.stop(); return clicks; });
     if (overlappingRestart !== 1) throw new Error(`Obsolete task survived restart: ${overlappingRestart}`);
-    return { idle, canceled, restarted, overlappingRestart };
+    await fixture.evaluate(() => {
+      clicks = 0;
+      enabled = true;
+      document.querySelector("#options").hidden = true;
+      const old = document.querySelector("#current");
+      const button = old.cloneNode(true);
+      button.textContent = "高清";
+      old.replaceWith(button);
+      button.style.display = "none";
+      button.addEventListener("click", () => { document.querySelector("#options").hidden = false; });
+      controller.start();
+    });
+    await fixture.waitForTimeout(100);
+    const revealAt = Date.now();
+    await fixture.evaluate(() => { document.querySelector("#current").style.display = "block"; });
+    await fixture.waitForFunction(() => clicks === 1, null, { timeout: 1200 });
+    const cssRevealLatencyMs = Date.now() - revealAt;
+    await fixture.evaluate(() => controller.stop());
+    return { idle, canceled, restarted, overlappingRestart, cssRevealLatencyMs };
   } finally { await fixture.close(); }
 }

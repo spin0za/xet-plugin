@@ -248,8 +248,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.6**
+Current version: **1.10.7**
 
-主要变更：跨域播放器统一启停与网页全屏；取消过期画质任务，减少全页扫描；完善键盘焦点与对比度；声明 Chrome 119+；保活结果区分请求完成与无法确认的续期状态，并记录本地错误。
+主要变更：跨域播放器统一启停与网页全屏；取消过期画质任务，减少全页扫描，并快速响应仅通过样式显示的画质菜单；完善键盘焦点与对比度；声明 Chrome 119+；保活结果区分请求完成与无法确认的续期状态，并记录本地错误。
 
-Highlights: coordinated cross-origin player policy and page fullscreen; cancelable, scoped quality detection; accessible keyboard focus and contrast; Chrome 119+ compatibility; local keep-alive diagnostics that distinguish completed requests from unverified renewal.
+Highlights: coordinated cross-origin player policy and page fullscreen; cancelable, scoped quality detection with prompt CSS-only menu discovery; accessible keyboard focus and contrast; Chrome 119+ compatibility; local keep-alive diagnostics that distinguish completed requests from unverified renewal.
