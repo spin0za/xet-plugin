@@ -117,8 +117,8 @@ html.xet-web-fullscreen-active
   transition: opacity .15s ease !important;
 }
 
-/* Do not confuse a focused/previously clicked button with mouse activity.
-   The controller keeps paused/hovered controls visible and times out playback. */
+/* Mouse focus must not prevent idle hiding. Keyboard-visible focus, unlike
+   a previously clicked button, is held visible by the interaction controller. */
 html [data-xet-interactions="true"][data-xet-controls-hidden="true"] .xgplayer-controls,
 html [data-xet-interactions="true"][data-xet-controls-hidden="true"] xg-controls {
   opacity: 0 !important;
@@ -212,4 +212,10 @@ html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .x
   background-size: cover !important;
   transform-origin: center !important;
   transform: scale(1.02) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-xet-interactions="true"] :is(.xgplayer-controls, xg-controls) {
+    transition: none !important;
+  }
 }

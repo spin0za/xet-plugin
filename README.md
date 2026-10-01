@@ -97,6 +97,7 @@ playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 # 在另一个终端从仓库根目录运行：python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```

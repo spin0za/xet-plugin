@@ -22,6 +22,7 @@ function siteRow(site, { action, danger = false, label }) {
   const button = document.createElement("button");
   button.type = "button";
   button.textContent = label;
+  button.setAttribute("aria-label", `${label} ${site.hostname}`);
   button.classList.toggle("danger", danger);
   button.addEventListener("click", async () => {
     button.disabled = true;

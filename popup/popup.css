@@ -87,6 +87,10 @@ small {
 
 .setting input {
   position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  clip-path: inset(50%);
   opacity: 0;
 }
 
@@ -96,7 +100,7 @@ small {
   height: 22px;
   flex: 0 0 auto;
   border-radius: 99px;
-  background: #cbd5e1;
+  background: #64748b;
   transition: background 0.18s;
 }
 
@@ -121,6 +125,21 @@ small {
   transform: translateX(16px);
 }
 
+.setting input:focus-visible + .switch,
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #4338ca;
+  outline-offset: 3px;
+}
+
+.setting input:disabled + .switch {
+  opacity: 0.45;
+}
+
+.setting:has(input:disabled) {
+  cursor: not-allowed;
+}
+
 .keep-alive-card {
   margin-top: 10px;
   overflow: hidden;
@@ -139,7 +158,7 @@ small {
 }
 
 .developer-options summary {
-  color: #94a3b8;
+  color: #64748b;
   font-size: 11px;
   cursor: pointer;
   list-style: none;
@@ -250,4 +269,12 @@ button:disabled {
   padding: 0 12px 10px;
   font-size: 11px;
   line-height: 1.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch,
+  .switch::after,
+  .developer-options summary::after {
+    transition: none;
+  }
 }

@@ -17,6 +17,11 @@
     let observer = null;
     let pointerFrame = null;
     const pointerUpdates = new Map();
+    const focusFrames = new Set();
+
+    function keyboardFocus(root) {
+      return Boolean(root.querySelector(".xgplayer-controls :focus-visible, xg-controls :focus-visible"));
+    }
 
     function release(root, state) {
       clearTimeout(state.timer);
@@ -37,10 +42,10 @@
       clearTimeout(state.timer);
       root.setAttribute("data-xet-controls-hidden", "false");
       const video = findPlayerVideo(root);
-      if (!video || video.paused || video.ended || overControls) return;
+      if (!video || video.paused || video.ended || overControls || keyboardFocus(root)) return;
       state.timer = setTimeout(() => {
         if (!root.isConnected) return release(root, state);
-        if (!video.paused && !video.ended && !state.overControls) {
+        if (!video.paused && !video.ended && !state.overControls && !keyboardFocus(root)) {
           root.setAttribute("data-xet-controls-hidden", "true");
         }
       }, HIDE_DELAY);
@@ -62,6 +67,21 @@
     function handleMedia(event) {
       const root = findPlayerRoot(event.target);
       show(root, players.get(root)?.overControls);
+    }
+
+    function handleFocusOut(event) {
+      const root = findPlayerRoot(event.target);
+      if (!root) return;
+      // focusout fires before document.activeElement has reached its new target.
+      const id = requestAnimationFrame(() => {
+        focusFrames.delete(id);
+        // Hiding a mouse-focused control can itself blur that control. That
+        // automatic blur must not immediately reveal it again in a loop.
+        if (observer && root.dataset.xetControlsHidden !== "true") {
+          show(root, players.get(root)?.overControls);
+        }
+      });
+      focusFrames.add(id);
     }
 
     function pictureRoot(event) {
@@ -135,6 +155,7 @@
       window.addEventListener("pointermove", handlePointer, true);
       window.addEventListener("pointerout", handlePointer, true);
       window.addEventListener("focusin", handleMedia, true);
+      window.addEventListener("focusout", handleFocusOut, true);
       window.addEventListener("keydown", handleKey, true);
       window.addEventListener("play", handleMedia, true);
       window.addEventListener("pause", handleMedia, true);
@@ -155,11 +176,14 @@
       if (pointerFrame !== null) cancelAnimationFrame(pointerFrame);
       pointerFrame = null;
       pointerUpdates.clear();
+      for (const id of focusFrames) cancelAnimationFrame(id);
+      focusFrames.clear();
       window.removeEventListener("click", handleClick, true);
       window.removeEventListener("mousedown", handleMouseDown, true);
       window.removeEventListener("pointermove", handlePointer, true);
       window.removeEventListener("pointerout", handlePointer, true);
       window.removeEventListener("focusin", handleMedia, true);
+      window.removeEventListener("focusout", handleFocusOut, true);
       window.removeEventListener("keydown", handleKey, true);
       window.removeEventListener("play", handleMedia, true);
       window.removeEventListener("pause", handleMedia, true);

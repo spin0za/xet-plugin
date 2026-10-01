@@ -115,6 +115,11 @@ button.danger {
   background: #dc2626;
 }
 
+button:focus-visible {
+  outline: 3px solid #4338ca;
+  outline-offset: 3px;
+}
+
 button:disabled {
   cursor: wait;
   opacity: 0.65;

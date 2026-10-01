@@ -74,6 +74,36 @@ async (page) => {
     disabledSites: [],
   });
   await popupPage.goto(`${fixtureBaseUrl}/popup/popup.html`);
+  await popupPage.keyboard.press("Tab");
+  const keyboardFocus = await popupPage.evaluate(() => {
+    const input = document.querySelector("#global-toggle");
+    const style = getComputedStyle(input.nextElementSibling);
+    return document.activeElement === input && style.outlineStyle !== "none" && parseFloat(style.outlineWidth) >= 2;
+  });
+  if (!keyboardFocus) throw new Error("Popup toggle has no visible keyboard focus");
+  await popupPage.keyboard.press("Space");
+  if (await popupPage.locator("#global-toggle").isChecked()) throw new Error("Keyboard toggle did not turn off");
+  await popupPage.keyboard.press("Space");
+  await popupPage.emulateMedia({ reducedMotion: "reduce" });
+  const accessibility = await popupPage.evaluate(() => {
+    const summary = document.querySelector(".developer-options > summary");
+    function luminance(color) {
+      const channels = color.match(/[\d.]+/g).slice(0, 3).map(Number).map((n) => {
+        const value = n / 255;
+        return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      });
+      return channels[0] * .2126 + channels[1] * .7152 + channels[2] * .0722;
+    }
+    const foreground = luminance(getComputedStyle(summary).color);
+    const background = luminance(getComputedStyle(document.body).backgroundColor);
+    return {
+      contrast: (Math.max(foreground, background) + .05) / (Math.min(foreground, background) + .05),
+      transition: getComputedStyle(document.querySelector(".switch")).transitionDuration,
+    };
+  });
+  if (accessibility.contrast < 4.5 || accessibility.transition !== "0s") {
+    throw new Error(`Popup accessibility regression: ${JSON.stringify(accessibility)}`);
+  }
   await popupPage.locator(".developer-options > summary").click();
   const popup = await popupPage.evaluate(() => {
     const details = document.querySelector(".developer-options");
@@ -130,5 +160,5 @@ async (page) => {
 
   await popupPage.close();
   await optionsPage.close();
-  return { popup, options };
+  return { popup, options, keyboardFocus, accessibility };
 }
