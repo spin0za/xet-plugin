@@ -154,11 +154,19 @@
 
   const api = Object.freeze({
     wake() {
-      void loadSettings().finally(applySiteState);
+      void refreshSettings();
     },
     stop: stopFeatures,
   });
   window[INSTANCE_KEY] = api;
 
-  loadSettings().finally(applySiteState);
+  async function refreshSettings() {
+    try { await loadSettings(); applySiteState(); }
+    catch (error) {
+      settingsLoaded = false;
+      stopFeatures();
+      console.warn("[Xet] Settings could not be loaded", error.message);
+    }
+  }
+  void refreshSettings();
 })();

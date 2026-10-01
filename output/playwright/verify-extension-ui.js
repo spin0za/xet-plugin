@@ -10,9 +10,12 @@ async (page) => {
     host_permissions: ["https://*.xiaoe-tech.com/*"],
   };
 
-  async function installChromeStub(targetPage, { activeUrl, disabledSites }) {
+  async function installChromeStub(targetPage, { activeUrl, disabledSites, failStorageRead = false }) {
+    // Local HTTP files may receive heuristic freshness caching. Routing disables
+    // that cache so repeated regression runs always load the current sources.
+    await targetPage.route(`${fixtureBaseUrl}/**`, (route) => route.continue());
     await targetPage.addInitScript(
-      ({ activeUrl, disabledSites, manifest }) => {
+      ({ activeUrl, disabledSites, manifest, failStorageRead }) => {
         const registrations = [
           {
             id: "xet_custom_demo",
@@ -36,7 +39,10 @@ async (page) => {
           },
           storage: {
             local: {
-              get: async (defaults) => ({ ...defaults, ...settings }),
+              get: async (defaults) => {
+                if (failStorageRead) throw new Error("storage unavailable");
+                return { ...defaults, ...settings };
+              },
               set: async (changes) => Object.assign(settings, changes),
             },
           },
@@ -64,7 +70,7 @@ async (page) => {
           },
         };
       },
-      { activeUrl, disabledSites, manifest },
+      { activeUrl, disabledSites, manifest, failStorageRead },
     );
   }
 
@@ -158,7 +164,30 @@ async (page) => {
     throw new Error(`Unexpected extension UI: ${JSON.stringify({ popup, options })}`);
   }
 
+  await popupPage.evaluate(() => {
+    chrome.storage.local.set = async () => { throw new Error("storage unavailable"); };
+  });
+  await popupPage.locator("#global-toggle").focus();
+  await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => document.querySelector("#summary").textContent.includes("保存失败"));
+  const failedSaveRolledBack = await popupPage.locator("#global-toggle").isChecked();
+  if (!failedSaveRolledBack) throw new Error("Failed storage write left a false toggle state");
+  await popupPage.locator("#keep-alive-toggle").focus();
+  await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => document.querySelector("#keep-alive-toggle").checked &&
+    !document.querySelector("#keep-alive-toggle").disabled);
+
+  const failedPopup = await page.context().newPage();
+  await installChromeStub(failedPopup, {
+    activeUrl: "https://merchant.pc.xiaoe-tech.com/course", disabledSites: [], failStorageRead: true,
+  });
+  await failedPopup.goto(`${fixtureBaseUrl}/popup/popup.html`);
+  await failedPopup.waitForFunction(() => document.querySelector("#summary").textContent.includes("无法读取设置"));
+  const failedInitDisabled = await failedPopup.locator("#global-toggle").isDisabled();
+  if (!failedInitDisabled) throw new Error("Failed initialization enabled the settings controls");
+  await failedPopup.close();
+
   await popupPage.close();
   await optionsPage.close();
-  return { popup, options, keyboardFocus, accessibility };
+  return { popup, options, keyboardFocus, accessibility, failedSaveRolledBack, failedInitDisabled };
 }

@@ -19,6 +19,8 @@ let settings = {
 };
 let siteHasAccess = false;
 let siteNotice = "";
+let ready = false;
+let saving = false;
 
 function isWebPage(url) {
   return url?.protocol === "http:" || url?.protocol === "https:";
@@ -49,7 +51,8 @@ function effectiveKeepAliveUrl() {
 function renderKeepAlive() {
   const targetUrl = effectiveKeepAliveUrl();
   keepAliveToggle.checked = settings.keepAliveEnabled;
-  keepAliveToggle.disabled = !targetUrl;
+  keepAliveToggle.disabled = !ready || saving || !targetUrl;
+  keepAliveToggle.title = targetUrl ? "" : "请先打开受支持的小鹅通商家课程页面";
 }
 
 async function getActiveTab() {
@@ -67,6 +70,7 @@ async function checkAccess() {
 
 function render() {
   globalToggle.checked = settings.enabled;
+  globalToggle.disabled = !ready || saving;
   renderKeepAlive();
   hint.hidden = true;
   hint.textContent = "";
@@ -107,34 +111,48 @@ function render() {
   }
 }
 
-async function saveKeepAliveTarget() {
-  const url = effectiveKeepAliveUrl();
-  if (!url) return "";
-  if (settings.keepAliveUrl !== url) {
-    settings.keepAliveUrl = url;
-    await chrome.storage.local.set({ keepAliveUrl: url });
+async function saveSettings(changes) {
+  if (!ready || saving) return;
+  const previous = { ...settings };
+  const focused = document.activeElement;
+  settings = { ...settings, ...changes };
+  saving = true;
+  render();
+  let failed = false;
+  try {
+    await chrome.storage.local.set(changes);
+  } catch (error) {
+    settings = previous;
+    failed = true;
+    console.warn("[Xet] Settings save failed", error.message);
+  } finally {
+    saving = false;
+    render();
+    // Native disabled controls lose focus. Restore it after saving only if the
+    // user has not moved elsewhere, so repeated keyboard toggles keep working.
+    if (document.activeElement === document.body &&
+        (focused === globalToggle || focused === keepAliveToggle) && !focused.disabled) {
+      focused.focus();
+    }
+    if (failed) summary.textContent = "设置保存失败，请重试";
   }
-  return url;
 }
 
 globalToggle.addEventListener("change", async () => {
-  settings.enabled = globalToggle.checked;
-  await chrome.storage.local.set({ enabled: settings.enabled });
-  render();
+  await saveSettings({ enabled: globalToggle.checked });
 });
 
 keepAliveToggle.addEventListener("change", async () => {
-  const targetUrl = await saveKeepAliveTarget();
+  const targetUrl = effectiveKeepAliveUrl();
   if (!targetUrl) {
     keepAliveToggle.checked = false;
     return;
   }
 
-  settings.keepAliveEnabled = keepAliveToggle.checked;
-  await chrome.storage.local.set({
-    keepAliveEnabled: settings.keepAliveEnabled,
+  await saveSettings({
+    keepAliveUrl: targetUrl,
+    keepAliveEnabled: keepAliveToggle.checked,
   });
-  renderKeepAlive();
 });
 
 siteButton.addEventListener("click", async () => {
@@ -157,6 +175,11 @@ siteButton.addEventListener("click", async () => {
     siteHasAccess = await checkAccess();
   } catch (error) {
     siteNotice = `操作失败：${error.message}`;
+    // A policy may already have been persisted before permission removal fails.
+    try {
+      settings.disabledSites = await siteAccess.readDisabledSites();
+      siteHasAccess = await checkAccess();
+    } catch { /* Keep the failure notice when even the state cannot be read. */ }
   } finally {
     siteButton.disabled = false;
     render();
@@ -164,29 +187,42 @@ siteButton.addEventListener("click", async () => {
 });
 
 manageSites.addEventListener("click", () => {
-  void chrome.runtime.openOptionsPage();
+  void chrome.runtime.openOptionsPage().catch(() => {
+    summary.textContent = "无法打开网站管理页，请重试";
+  });
 });
 
 (async () => {
-  settings = await chrome.storage.local.get({
-    enabled: true,
-    disabledSites: null,
-    disabledHosts: [],
-    keepAliveEnabled: false,
-    keepAliveUrl: "",
-  });
-  settings.disabledSites = siteAccess.normalizeDisabledSites(
-    settings.disabledSites,
-    settings.disabledHosts,
-  );
-  activeTab = await getActiveTab();
-
-  try {
-    activeUrl = new URL(activeTab?.url);
-  } catch {
-    activeUrl = null;
-  }
-
-  siteHasAccess = await checkAccess();
   render();
+  try {
+    settings = await chrome.storage.local.get({
+      enabled: true,
+      disabledSites: null,
+      disabledHosts: [],
+      keepAliveEnabled: false,
+      keepAliveUrl: "",
+    });
+    settings.disabledSites = siteAccess.normalizeDisabledSites(
+      settings.disabledSites,
+      settings.disabledHosts,
+    );
+    activeTab = await getActiveTab();
+
+    try {
+      activeUrl = new URL(activeTab?.url);
+    } catch {
+      activeUrl = null;
+    }
+
+    siteHasAccess = await checkAccess();
+    ready = true;
+    render();
+  } catch (error) {
+    ready = false;
+    globalToggle.disabled = true;
+    keepAliveToggle.disabled = true;
+    siteSection.hidden = true;
+    summary.textContent = "无法读取设置，请重新打开扩展";
+    console.warn("[Xet] Popup initialization failed", error.message);
+  }
 })();

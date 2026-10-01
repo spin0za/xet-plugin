@@ -16,7 +16,38 @@ const KEEP_ALIVE_TIMEOUT_MS = 20_000;
 const CUSTOM_CONTENT_SCRIPT_PREFIX = siteAccess.CUSTOM_CONTENT_SCRIPT_PREFIX;
 
 let keepAliveRequest = null;
+let keepAliveController = null;
+let keepAliveGeneration = 0;
 const contentRepairRequests = new Map();
+
+async function recordBackgroundError(operation, error) {
+  const message = String(error?.message || "Background operation failed")
+    .replace(/https?:\/\/\S+/g, "[URL]").slice(0, 200);
+  console.warn(`[Xet] ${operation}: ${message}`);
+  try {
+    await chrome.storage.local.set({ backgroundLastError: {
+      at: Date.now(), operation, name: error?.name || "Error", message,
+    } });
+  } catch {
+    // Storage can be the failing API; never recurse while reporting that error.
+  }
+}
+
+async function runBackgroundTask(operation, task) {
+  try { return await task(); }
+  catch (error) {
+    await recordBackgroundError(operation, error);
+    return { ok: false, error: error?.message || "后台操作失败" };
+  }
+}
+
+function respond(sendResponse, operation, task) {
+  void (async () => {
+    const response = await runBackgroundTask(operation, task);
+    try { sendResponse(response); } catch { /* The requesting tab may have closed. */ }
+  })();
+  return true;
+}
 
 function contentScriptResources() {
   return siteAccess.contentScriptResources();
@@ -109,7 +140,6 @@ async function migrateLegacySettings() {
   await chrome.storage.local.remove?.([
     "disabledHosts",
     "keepAliveLastAttemptAt",
-    "keepAliveLastResult",
   ]);
   return { ...(await readSettings()), disabledSites };
 }
@@ -202,14 +232,30 @@ async function syncKeepAliveAlarm() {
   }
 }
 
-async function saveKeepAliveActivity(result) {
-  if (result.ok) {
-    await chrome.storage.local.set({ keepAliveLastActivityAt: result.at });
-  }
+function responseSessionState(response) {
+  if (response.status === 401 || response.status === 403) return "unauthenticated";
+  try {
+    if (/\/(?:login|sign-?in|wechat_login)(?:\/|$)/i.test(new URL(response.url).pathname)) {
+      return "unauthenticated";
+    }
+  } catch { /* A missing response URL supplies no session evidence. */ }
+  // A public app shell and a logged-in page can both return HTTP 200. Without
+  // an authenticated endpoint or cookie access, renewal cannot be verified.
+  return "unknown";
+}
+
+async function saveKeepAliveResult(result) {
+  await chrome.storage.local.set({
+    keepAliveLastRequestAt: result.at,
+    keepAliveLastResult: result,
+    ...(result.ok && result.sessionState !== "unauthenticated"
+      ? { keepAliveLastActivityAt: result.at } : {}),
+  });
 }
 
 async function requestKeepAlive(reason) {
   if (keepAliveRequest) return keepAliveRequest;
+  const generation = keepAliveGeneration;
 
   keepAliveRequest = (async () => {
     const settings = await readSettings();
@@ -229,10 +275,15 @@ async function requestKeepAlive(reason) {
     if (Date.now() - lastActivityAt < KEEP_ALIVE_MIN_GAP_MS) {
       return { ok: true, skipped: true, reason: "recent-activity" };
     }
+    if (generation !== keepAliveGeneration) {
+      return { ok: false, skipped: true, reason: "settings-changed" };
+    }
 
     const at = Date.now();
     const controller = new AbortController();
+    keepAliveController = controller;
     const timeout = setTimeout(() => controller.abort(), KEEP_ALIVE_TIMEOUT_MS);
+    let result;
 
     try {
       const response = await fetch(keepAliveUrl, {
@@ -250,28 +301,41 @@ async function requestKeepAlive(reason) {
       // headers before the service worker becomes idle.
       await response.text();
 
-      const result = {
+      result = {
         ok: response.ok,
+        requestCompleted: true,
+        sessionState: responseSessionState(response),
+        sessionRenewed: null,
         at,
         reason,
         status: response.status,
       };
-      await saveKeepAliveActivity(result);
-      return result;
     } catch (error) {
-      const result = {
+      const canceled = controller.signal.reason === "settings-changed";
+      result = {
         ok: false,
+        requestCompleted: false,
+        sessionState: "unknown",
+        sessionRenewed: null,
         at,
-        reason,
+        reason: canceled ? "settings-changed" : reason,
+        skipped: canceled,
         error:
-          error?.name === "AbortError"
+          canceled ? "设置已变更，请求已取消" : error?.name === "AbortError"
             ? "请求超时"
             : error?.message || "后台请求失败",
       };
-      return result;
     } finally {
       clearTimeout(timeout);
+      if (keepAliveController === controller) keepAliveController = null;
     }
+    if (generation !== keepAliveGeneration) {
+      result = { ...result, ok: false, skipped: true, reason: "settings-changed" };
+    }
+    // Persistence failures are reported as storage failures, not mislabeled as
+    // network failures after an otherwise completed HTTP request.
+    await saveKeepAliveResult(result);
+    return result;
   })();
 
   try {
@@ -282,39 +346,37 @@ async function requestKeepAlive(reason) {
 }
 
 async function recordNaturalVisit(sender) {
+  if (sender.frameId > 0) return;
   const tabUrl = sender.tab?.url;
   const settings = await readSettings();
   const keepAliveUrl = normalizeKeepAliveUrl(settings.keepAliveUrl);
   if (!tabUrl || !keepAliveUrl) return;
 
-  try {
-    const visited = new URL(tabUrl);
-    const target = new URL(keepAliveUrl);
-    if (visited.hostname !== target.hostname) return;
-    if (settings.disabledSites.includes(visited.origin)) return;
-
-    await chrome.storage.local.set({
-      keepAliveLastActivityAt: Date.now(),
-    });
-  } catch {
-    // Ignore malformed or unavailable tab URLs.
-  }
+  const visited = siteAccess.siteInfo(tabUrl);
+  const target = siteAccess.siteInfo(keepAliveUrl);
+  if (!visited || visited.origin !== target?.origin) return;
+  if (settings.disabledSites.includes(visited.origin)) return;
+  const at = Date.now();
+  await chrome.storage.local.set({
+    keepAliveLastActivityAt: at,
+    keepAliveLastVisit: { at, sessionState: "unknown", sessionRenewed: null },
+  });
 }
 
 chrome.runtime.onInstalled.addListener(async () => {
-  await migrateLegacySettings();
-  await syncKeepAliveAlarm();
-  await syncCustomContentScripts();
+  await runBackgroundTask("migrate-settings", migrateLegacySettings);
+  await runBackgroundTask("sync-keep-alive-alarm", syncKeepAliveAlarm);
+  await runBackgroundTask("sync-content-scripts", syncCustomContentScripts);
 });
 
 chrome.runtime.onStartup.addListener(async () => {
-  await syncKeepAliveAlarm();
-  await requestKeepAlive("startup");
+  await runBackgroundTask("sync-keep-alive-alarm", syncKeepAliveAlarm);
+  await runBackgroundTask("startup-keep-alive", () => requestKeepAlive("startup"));
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === KEEP_ALIVE_ALARM) {
-    void requestKeepAlive("alarm");
+    return runBackgroundTask("alarm-keep-alive", () => requestKeepAlive("alarm"));
   }
 });
 
@@ -323,41 +385,36 @@ chrome.storage.onChanged.addListener((changes, area) => {
     area === "local" &&
     (changes.keepAliveEnabled || changes.keepAliveUrl || changes.disabledSites)
   ) {
-    void syncKeepAliveAlarm();
+    // Settings changes cancel a request already in flight, including revoking
+    // the entire site's access while the fetch is waiting for a response.
+    keepAliveGeneration++;
+    keepAliveController?.abort("settings-changed");
+    return runBackgroundTask("sync-keep-alive-alarm", syncKeepAliveAlarm);
   }
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:get-settings") {
-    frameSettings(sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ error: error.message }));
-
-    return true;
+    return respond(sendResponse, "read-frame-settings", () => frameSettings(sender));
   }
 
   if (message?.type === "xet:authorize-frame-web") {
-    authorizeFrameWebFullscreen(message, sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
+    return respond(sendResponse, "authorize-frame-web", () => authorizeFrameWebFullscreen(message, sender));
   }
 
   if (message?.type === "xet:natural-visit") {
-    void recordNaturalVisit(sender);
+    void runBackgroundTask("record-natural-visit", () => recordNaturalVisit(sender));
   }
 
   if (message?.type === "xet:repair-content-scripts") {
-    repairContentScripts(sender)
-      .then(sendResponse)
-      .catch((error) => sendResponse({ ok: false, error: error.message }));
-    return true;
+    return respond(sendResponse, "repair-content-scripts", () => repairContentScripts(sender));
   }
 
   return false;
 });
 
-void migrateLegacySettings()
-  .then(syncKeepAliveAlarm)
-  .catch(() => {});
-void syncCustomContentScripts().catch(() => {});
+void runBackgroundTask("initialize-settings", async () => {
+  await migrateLegacySettings();
+  await syncKeepAliveAlarm();
+});
+void runBackgroundTask("sync-content-scripts", syncCustomContentScripts);

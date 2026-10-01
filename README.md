@@ -82,6 +82,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 停用自定义域名时，扩展会同时撤销该域名的 Chrome 访问权限并注销自动加载内容脚本；内置支持域名则通过扩展内部状态停用。
 - “自动保持登录”默认关闭，只会请求根据受支持课程网站识别出的商家电脑端主页。
 - 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限；续期由网站的正常响应完成。
+- HTTP 请求完成不等于登录已续期。内部诊断会分别记录请求结果、明确的未登录响应与“无法确认”的登录状态，不保存响应正文或 Cookie。
 - 电脑关机、Chrome 未运行或超过网站允许的登录有效期时，扩展无法恢复已经失效的登录。
 
 ### 本地验证
@@ -171,6 +172,7 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Disabling a custom domain revokes its Chrome host permission and unregisters its automatically loaded content scripts. Built-in Xiaoe Tech domains are disabled through the extension's internal site state instead.
 - Session keep-alive is off by default and requests only the merchant desktop homepage inferred from a supported course site.
 - Background requests use the browser's existing login state without requesting cookie-reading permission; renewal is handled by the site's normal response.
+- A completed HTTP request does not prove session renewal. Local diagnostics distinguish request results, explicit unauthenticated responses, and unknown session state; they do not store response bodies or cookies.
 - The extension cannot restore an expired login while the computer is off, Chrome is not running, or the site's session lifetime has already elapsed.
 
 ### Local verification
@@ -180,10 +182,15 @@ The repository includes Playwright browser regressions covering legacy and curre
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/frame-policy-smoke.js
+node tests/options-smoke.js
 node tests/popup-smoke.js
+node tests/site-access-smoke.js
 playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
+playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 # In another terminal at the repository root: python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
@@ -204,6 +211,7 @@ src/
     analysis-layout.js
     player-interactions.js
     fullscreen.js
+    frame-coordinator.js
     fullscreen.css
     media-shortcuts.js
     quality.js
@@ -212,13 +220,23 @@ output/playwright/
   verify-extension-ui.js
   verify-player-structures.js
   verify-analysis-player.js
+  verify-quality-lifecycle.js
+  verify-player-focus.js
+  verify-mv3-integration.js
 tests/
   background-smoke.js
   content-structure-smoke.js
+  frame-policy-smoke.js
   options-smoke.js
   popup-smoke.js
   site-access-smoke.js
 ```
+
+## 真实扩展集成测试 / Real extension integration test
+
+`verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe，需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
+
+`verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. Use a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
 
 ## 图标来源 / Icon attribution
 
@@ -230,8 +248,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.1**
+Current version: **1.10.6**
 
-主要变更：扩大解析视频预览并裁切细黑边；支持点击画面播放/暂停，恢复播放控件的空闲自动隐藏。
+主要变更：跨域播放器统一启停与网页全屏；取消过期画质任务，减少全页扫描；完善键盘焦点与对比度；声明 Chrome 119+；保活结果区分请求完成与无法确认的续期状态，并记录本地错误。
 
-Highlights: larger analysis previews with thin-edge cropping, picture-click playback toggling, and idle auto-hiding playback controls.
+Highlights: coordinated cross-origin player policy and page fullscreen; cancelable, scoped quality detection; accessible keyboard focus and contrast; Chrome 119+ compatibility; local keep-alive diagnostics that distinguish completed requests from unverified renewal.

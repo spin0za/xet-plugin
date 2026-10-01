@@ -25,6 +25,10 @@ async function main() {
   const cssInjections = [];
   const scriptInjections = [];
   const frameMessages = [];
+  let responseStatus = 200;
+  let responseUrl = "";
+  let fetchError = null;
+  let failStorageRead = false;
   const registeredScripts = [
     {
       id: "xet_custom_legacy",
@@ -65,6 +69,7 @@ async function main() {
     storage: {
       local: {
         async get(defaults) {
+          if (failStorageRead) throw new Error("storage read failed");
           return { ...defaults, ...state };
         },
         async set(changes) {
@@ -112,10 +117,11 @@ async function main() {
     console,
     fetch: async (url, options) => {
       fetchCalls.push({ url, options });
+      if (fetchError) throw fetchError;
       return {
-        ok: true,
-        status: 200,
-        url,
+        ok: responseStatus >= 200 && responseStatus < 300,
+        status: responseStatus,
+        url: responseUrl || url,
         async text() {
           return "ok";
         },
@@ -153,6 +159,10 @@ async function main() {
   assert.equal(fetchCalls[0].options.cache, "no-store");
   assert.equal(fetchCalls[0].options.redirect, "follow");
   assert.ok(state.keepAliveLastActivityAt > 0);
+  assert.equal(state.keepAliveLastResult.requestCompleted, true);
+  assert.equal(state.keepAliveLastResult.sessionState, "unknown");
+  assert.equal(state.keepAliveLastResult.sessionRenewed, null,
+    "HTTP 200 alone must not claim renewal");
 
   state.disabledSites = ["https://merchant.pc.xiaoe-tech.com"];
   await runtimeOnStartup.listeners[0]();
@@ -214,6 +224,54 @@ async function main() {
   assert.equal((await send(authorization)).ok, false);
   assert.equal(frameMessages.length, 1, "disabled outer pages must not authorize fullscreen");
   assert.equal((await send({ ...authorization, token: "forged" })).ok, false);
+
+  state.keepAliveLastActivityAt = 0;
+  responseStatus = 401;
+  await runtimeOnStartup.listeners[0]();
+  assert.equal(state.keepAliveLastResult.sessionState, "unauthenticated");
+  assert.equal(state.keepAliveLastResult.requestCompleted, true);
+  assert.equal(state.keepAliveLastResult.ok, false);
+  assert.equal(state.keepAliveLastActivityAt, 0);
+
+  responseStatus = 200;
+  responseUrl = "https://merchant.pc.xiaoe-tech.com/login";
+  await runtimeOnStartup.listeners[0]();
+  assert.equal(state.keepAliveLastResult.ok, true, "login HTML is still a completed HTTP 200 request");
+  assert.equal(state.keepAliveLastResult.sessionState, "unauthenticated");
+  assert.equal(state.keepAliveLastActivityAt, 0, "a login redirect must not suppress a later request");
+
+  fetchError = new TypeError("network unavailable");
+  await runtimeOnStartup.listeners[0]();
+  assert.equal(state.keepAliveLastResult.requestCompleted, false);
+  assert.equal(state.keepAliveLastResult.error, "network unavailable");
+  fetchError = Object.assign(new Error("abort"), { name: "AbortError" });
+  await runtimeOnStartup.listeners[0]();
+  assert.equal(state.keepAliveLastResult.error, "请求超时");
+  assert.ok(!("body" in state.keepAliveLastResult) && !("cookies" in state.keepAliveLastResult));
+
+  failStorageRead = true;
+  await runtimeOnStartup.listeners[0]();
+  assert.equal(state.backgroundLastError.operation, "startup-keep-alive");
+  assert.equal((await send({ type: "xet:get-settings" })).error, "storage read failed");
+  assert.equal(state.backgroundLastError.operation, "read-frame-settings");
+  failStorageRead = false;
+  fetchError = null;
+  responseUrl = "";
+  state.keepAliveLastActivityAt = 0;
+  let fetched;
+  const fetchStarted = new Promise((resolve) => { fetched = resolve; });
+  context.fetch = async (_url, options) => new Promise((_resolve, reject) => {
+    options.signal.addEventListener("abort", () => reject(Object.assign(new Error("canceled"), { name: "AbortError" })));
+    fetched();
+  });
+  const pendingStartup = runtimeOnStartup.listeners[0]();
+  await fetchStarted;
+  state.keepAliveEnabled = false;
+  await storageOnChanged.listeners[0]({ keepAliveEnabled: { newValue: false } }, "local");
+  await pendingStartup;
+  assert.equal(state.keepAliveLastResult.reason, "settings-changed");
+  assert.equal(state.keepAliveLastResult.skipped, true);
+  assert.equal(state.keepAliveLastActivityAt, 0, "canceled requests must not advance activity");
   console.log("background keep-alive smoke test passed");
 }
 
