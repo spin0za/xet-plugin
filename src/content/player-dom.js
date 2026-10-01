@@ -102,12 +102,13 @@
     return rect.width * rect.height;
   }
 
-  function findActivePlayer() {
-    const roots = deepQueryAll(PLAYER_ROOT_SELECTOR).filter((root) => {
+  function findActivePlayer(knownRoots = null) {
+    const roots = (knownRoots || deepQueryAll(PLAYER_ROOT_SELECTOR)).filter((root) => {
       return isVisible(root) && root.querySelector("video");
     });
 
     if (!roots.length) {
+      if (knownRoots) return null;
       const videos = deepQueryAll("video")
         .filter(isVisible)
         .sort((a, b) => playerArea(b) - playerArea(a));

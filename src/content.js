@@ -98,7 +98,8 @@
 
   function startFeatures() {
     if (featuresStarted) {
-      quality.wake();
+      if (settings.enabled) { quality.start(); quality.wake(); }
+      else quality.stop();
       return;
     }
     featuresStarted = true;
@@ -106,7 +107,7 @@
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
-    quality.start();
+    if (settings.enabled) quality.start();
 
     if (
       !naturalVisitRecorded &&

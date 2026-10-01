@@ -5,6 +5,8 @@
   const TARGET_LABELS = ["超清", "1080P", "1080p", "蓝光"];
   const CURRENT_LABELS = ["高清", "标清", "流畅", "自动"];
   const RETRY_INTERVAL_MS = 1_000;
+  const IDLE_RETRY_MS = 15_000;
+  const MEDIA_SELECTOR = "video, .xgplayer-definition, xg-player, .xgplayer, .xgplayer-skin-default";
   const MENU_SETTLE_MS = 160;
   const RECLICK_GUARD_MS = 800;
   const MAX_CONTROL_WIDTH = 180;
@@ -13,7 +15,6 @@
   function createQualityController({ isEnabled, notify, playerDom }) {
     const {
       deepElements,
-      deepQueryAll,
       isVisible,
       normalizeText,
     } = playerDom;
@@ -21,10 +22,46 @@
     let observer = null;
     let retryInterval = null;
     let lastTargetClicks = new WeakMap();
-    let attemptRunning = false;
+    let attemptRunning = null;
     let rerunRequested = false;
     let previousLocation = location.href;
     let started = false;
+    let generation = 0;
+    let nextRetryAt = 0;
+    let scopedElements = null;
+    let videoRects = null;
+    let preferenceRemembered = false;
+    const mediaNodes = new Set();
+
+    function indexMedia(scope = document) {
+      const elements = deepElements(scope);
+      if (scope instanceof Element) elements.push(scope);
+      for (const element of elements) {
+        if (element.matches(MEDIA_SELECTOR)) mediaNodes.add(element);
+      }
+      scopedElements = null;
+    }
+
+    function currentMedia() {
+      for (const element of mediaNodes) {
+        if (!element.isConnected || !element.matches(MEDIA_SELECTOR)) mediaNodes.delete(element);
+      }
+      return [...mediaNodes];
+    }
+
+    function qualityElements() {
+      if (scopedElements) return scopedElements;
+      const scopes = new Set(currentMedia().map((element) =>
+        element.closest("xg-player, .xgplayer, .xgplayer-skin-default") ||
+        (element.tagName === "VIDEO" ? element.parentElement : element),
+      ).filter(Boolean));
+      // Collapse nested scopes so one player is never traversed repeatedly.
+      const outerScopes = [...scopes].filter((scope) =>
+        ![...scopes].some((other) => other !== scope && other.contains(scope)),
+      );
+      scopedElements = [...new Set(outerScopes.flatMap((scope) => [scope, ...deepElements(scope)]))];
+      return scopedElements;
+    }
 
     function isSmallControl(element) {
       const rect = element.getBoundingClientRect();
@@ -37,31 +74,31 @@
     function exactLabelElements(labels) {
       const accepted = new Set(labels);
 
-      return deepElements().filter((element) => {
-        if (!isVisible(element) || !isSmallControl(element)) return false;
+      return qualityElements().filter((element) => {
+        // Reject ordinary text before any style/layout reads.
         if (!accepted.has(normalizeText(element.textContent))) return false;
+        if (!isVisible(element) || !isSmallControl(element)) return false;
 
         // Prefer the deepest clickable-looking node rather than a wrapper
         // whose child carries the same text.
         return !Array.from(element.children).some(
           (child) =>
-            isVisible(child) &&
-            accepted.has(normalizeText(child.textContent)),
+            accepted.has(normalizeText(child.textContent)) && isVisible(child),
         );
       });
     }
 
     function nearestVideoDistance(element) {
-      const videos = deepElements().filter((item) => item.tagName === "VIDEO");
-      if (!videos.length) return 0;
+      videoRects ||= currentMedia().filter((item) => item.tagName === "VIDEO")
+        .map((video) => video.getBoundingClientRect());
+      if (!videoRects.length) return 0;
 
       const rect = element.getBoundingClientRect();
       const centerX = rect.left + rect.width / 2;
       const centerY = rect.top + rect.height / 2;
 
       return Math.min(
-        ...videos.map((video) => {
-          const videoRect = video.getBoundingClientRect();
+        ...videoRects.map((videoRect) => {
           const dx =
             centerX < videoRect.left
               ? videoRect.left - centerX
@@ -164,6 +201,7 @@
     }
 
     function rememberUltraPreference() {
+      if (preferenceRemembered) return;
       // Both the legacy and current course players read
       // `${USERID}_definitionType` when choosing their initial source.
       try {
@@ -172,14 +210,17 @@
           const key = localStorage.key(index);
           if (key?.endsWith("_definitionType")) keys.push(key);
         }
-        keys.forEach((key) => localStorage.setItem(key, "超清"));
+        keys.forEach((key) => {
+          if (localStorage.getItem(key) !== "超清") localStorage.setItem(key, "超清");
+        });
+        preferenceRemembered = true;
       } catch {
         // Course playback still works when localStorage is unavailable.
       }
     }
 
     function findKnownPlayerTarget() {
-      const roots = deepQueryAll(".xgplayer-definition");
+      const roots = currentMedia().filter((element) => element.matches(".xgplayer-definition"));
 
       for (const root of roots) {
         const options = Array.from(root.querySelectorAll("li")).filter(
@@ -250,15 +291,20 @@
     }
 
     async function trySelectUltra() {
-      if (attemptRunning) {
+      if (attemptRunning !== null) {
         rerunRequested = true;
         return;
       }
-      if (!isEnabled()) return;
+      if (!started || !isEnabled()) return;
 
-      attemptRunning = true;
+      const token = generation;
+      const isCurrent = () => started && generation === token && isEnabled();
+      attemptRunning = token;
+      videoRects = null;
+      nextRetryAt = Date.now() + IDLE_RETRY_MS;
 
       try {
+        if (!currentMedia().length) return;
         if (selectFromKnownPlayer()) return;
 
         if (targetAlreadySelected()) {
@@ -285,6 +331,8 @@
         dispatchHover(current.closest(".xgplayer-definition") || current);
         dispatchClick(current);
         await new Promise((resolve) => setTimeout(resolve, MENU_SETTLE_MS));
+        if (!isCurrent()) return;
+        scopedElements = null;
 
         target = bestCandidate(
           exactLabelElements(TARGET_LABELS),
@@ -296,15 +344,19 @@
         rememberUltraPreference();
         notify("已自动切换为超清");
       } finally {
-        attemptRunning = false;
-        if (rerunRequested) {
-          rerunRequested = false;
-          scheduleAttempt(0);
+        // An obsolete task must not reset the state of a restarted controller.
+        if (generation === token && attemptRunning === token) {
+          attemptRunning = null;
+          if (rerunRequested) {
+            rerunRequested = false;
+            scheduleAttempt(0);
+          }
         }
       }
     }
 
     function scheduleAttempt(delay = 0, force = false) {
+      if (!started || !isEnabled()) return;
       if (force && timer !== null) {
         clearTimeout(timer);
         timer = null;
@@ -313,7 +365,7 @@
 
       timer = setTimeout(() => {
         timer = null;
-        void trySelectUltra();
+        void trySelectUltra().catch((error) => console.warn("[Xet] Quality detection failed", error.message));
       }, delay);
     }
 
@@ -322,7 +374,10 @@
 
       if (event.type === "loadstart" || event.type === "emptied") {
         lastTargetClicks = new WeakMap();
+        preferenceRemembered = false;
       }
+      if (!mediaNodes.has(event.target)) indexMedia(event.target.parentElement || event.target);
+      scopedElements = null;
       scheduleAttempt(0, true);
     }
 
@@ -337,13 +392,37 @@
     function start() {
       if (started) return;
       started = true;
+      generation++;
+      indexMedia();
 
-      observer = new MutationObserver(() => scheduleAttempt(0));
+      observer = new MutationObserver((records) => {
+        let changed = false;
+        for (const record of records) {
+          if (record.type === "attributes") {
+            if (record.target.matches(MEDIA_SELECTOR)) {
+              mediaNodes.add(record.target);
+              changed = true;
+            }
+          } else {
+            for (const node of record.addedNodes) {
+              if (!(node instanceof Element)) continue;
+              // Incremental discovery, never a fresh full-document scan.
+              indexMedia(node);
+              changed = true;
+            }
+            if (mediaNodes.size) changed = true;
+          }
+        }
+        if (changed && currentMedia().length) {
+          scopedElements = null;
+          scheduleAttempt(32);
+        }
+      });
       observer.observe(document.documentElement, {
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["src"],
+        attributeFilter: ["src", "class"],
       });
 
       for (const eventName of mediaEvents) {
@@ -357,7 +436,7 @@
           scheduleAttempt(0, true);
           return;
         }
-        void trySelectUltra();
+        if (Date.now() >= nextRetryAt) scheduleAttempt();
       }, RETRY_INTERVAL_MS);
 
       scheduleAttempt(0, true);
@@ -366,6 +445,7 @@
     function stop() {
       if (!started) return;
       started = false;
+      generation++;
       observer?.disconnect();
       observer = null;
 
@@ -376,12 +456,20 @@
       if (timer !== null) clearTimeout(timer);
       retryInterval = null;
       timer = null;
-      attemptRunning = false;
+      attemptRunning = null;
       rerunRequested = false;
+      mediaNodes.clear();
+      scopedElements = null;
     }
 
     function wake() {
+      if (!started) return;
+      generation++;
+      attemptRunning = null;
+      rerunRequested = false;
       lastTargetClicks = new WeakMap();
+      preferenceRemembered = false;
+      scopedElements = null;
       scheduleAttempt(0, true);
     }
 

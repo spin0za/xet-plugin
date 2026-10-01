@@ -14,6 +14,8 @@
     let timer = null;
     let originalMarker = null;
     let observer = null;
+    let pendingFrame = null;
+    let previousPath = "";
     const containers = new Set();
     const frames = new Set();
 
@@ -40,7 +42,9 @@
 
     function update() {
       const active = ANALYSIS_PATH.test(location.pathname);
-      document.documentElement.toggleAttribute(MARKER, active);
+      if (document.documentElement.hasAttribute(MARKER) !== active) {
+        document.documentElement.toggleAttribute(MARKER, active);
+      }
       const nextContainers = new Set();
       const nextFrames = new Set();
       if (active) {
@@ -55,13 +59,15 @@
         }
         for (const frame of document.querySelectorAll(FRAME_SELECTOR)) {
           nextFrames.add(frame);
-          notifyFrame(frame, true);
+          if (!frames.has(frame)) notifyFrame(frame, true);
         }
       }
       for (const node of containers) {
         if (!nextContainers.has(node)) node.removeAttribute(CONTAINER_MARKER);
       }
-      for (const node of nextContainers) node.setAttribute(CONTAINER_MARKER, "");
+      for (const node of nextContainers) {
+        if (!containers.has(node)) node.setAttribute(CONTAINER_MARKER, "");
+      }
       containers.clear();
       nextContainers.forEach((node) => containers.add(node));
       for (const frame of frames) {
@@ -71,27 +77,60 @@
       nextFrames.forEach((frame) => frames.add(frame));
     }
 
+    function scheduleUpdate() {
+      if (timer === null || pendingFrame !== null) return;
+      pendingFrame = requestAnimationFrame(() => {
+        pendingFrame = null;
+        update();
+      });
+    }
+
+    function checkRoute() {
+      if (previousPath === location.pathname) return;
+      previousPath = location.pathname;
+      scheduleUpdate();
+    }
+
+    function handleLoad(event) {
+      if (frames.has(event.target)) notifyFrame(event.target, true);
+    }
+
     function start() {
       if (timer !== null) return;
       originalMarker = document.documentElement.getAttribute(MARKER);
+      previousPath = location.pathname;
+      // Poll only the route string; DOM work is event-driven and coalesced.
+      timer = setInterval(checkRoute, 1_000);
       window.addEventListener("message", handleMessage);
+      window.addEventListener("load", handleLoad, true);
+      window.addEventListener("popstate", checkRoute);
+      window.addEventListener("hashchange", checkRoute);
       if (window.parent !== window) {
         // The parent may have loaded before the embed's content script.
         window.parent.postMessage({ type: `${FRAME_MESSAGE}-ready` }, "*");
       }
       update();
-      observer = new MutationObserver(update);
+      observer = new MutationObserver((records) => {
+        checkRoute();
+        if (!ANALYSIS_PATH.test(location.pathname)) return;
+        if (records.some((record) => [...record.addedNodes, ...record.removedNodes].some(
+          (node) => node instanceof Element && (node.matches(EMBEDS) || node.querySelector(EMBEDS)),
+        ))) scheduleUpdate();
+      });
       observer.observe(document.documentElement, { childList: true, subtree: true });
-      // The evaluation app also changes routes without reloading the page.
-      timer = setInterval(update, 1_000);
     }
 
     function stop() {
       if (timer === null) return;
       clearInterval(timer);
       timer = null;
+      if (pendingFrame !== null) cancelAnimationFrame(pendingFrame);
+      pendingFrame = null;
       observer.disconnect();
       window.removeEventListener("message", handleMessage);
+      window.removeEventListener("load", handleLoad, true);
+      window.removeEventListener("popstate", checkRoute);
+      window.removeEventListener("hashchange", checkRoute);
       for (const node of containers) node.removeAttribute(CONTAINER_MARKER);
       for (const frame of frames) notifyFrame(frame, false);
       containers.clear();

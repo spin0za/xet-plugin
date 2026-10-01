@@ -12,9 +12,11 @@
   const HIDE_DELAY = 3_000;
 
   function createPlayerInteractionController({ playerDom }) {
-    const { deepElements, findPlayerRoot, findPlayerVideo, findActivePlayer } = playerDom;
+    const { deepElements, findPlayerRoot, findPlayerVideo, findActivePlayer, isEditableTarget } = playerDom;
     const players = new Map();
     let observer = null;
+    let pointerFrame = null;
+    const pointerUpdates = new Map();
 
     function release(root, state) {
       clearTimeout(state.timer);
@@ -48,8 +50,13 @@
       const root = findPlayerRoot(event.target);
       if (!root) return;
       const target = event.type === "pointerout" ? event.relatedTarget : event.target;
-      show(root, target instanceof Element && root.contains(target) &&
+      pointerUpdates.set(root, target instanceof Element && root.contains(target) &&
         Boolean(target.closest(".xgplayer-controls, xg-controls")));
+      if (pointerFrame === null) pointerFrame = requestAnimationFrame(() => {
+        pointerFrame = null;
+        for (const [player, overControls] of pointerUpdates) show(player, overControls);
+        pointerUpdates.clear();
+      });
     }
 
     function handleMedia(event) {
@@ -93,8 +100,11 @@
       show(root);
     }
 
-    function handleKey() {
-      show(findActivePlayer());
+    function handleKey(event) {
+      if (event.type === "keydown" && (isEditableTarget(event.target) ||
+          ![" ", "Spacebar", "k", "K", "j", "J", "l", "L", "f", "F", "t", "T",
+            "Escape", "ArrowLeft", "ArrowRight", "<", ">", "Tab"].includes(event.key))) return;
+      show(findPlayerRoot(event.target) || findActivePlayer([...players.keys()]));
     }
 
     function discover(scope = document) {
@@ -142,6 +152,9 @@
       if (!observer) return;
       observer.disconnect();
       observer = null;
+      if (pointerFrame !== null) cancelAnimationFrame(pointerFrame);
+      pointerFrame = null;
+      pointerUpdates.clear();
       window.removeEventListener("click", handleClick, true);
       window.removeEventListener("mousedown", handleMouseDown, true);
       window.removeEventListener("pointermove", handlePointer, true);
