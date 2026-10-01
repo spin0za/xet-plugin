@@ -24,6 +24,7 @@ async function main() {
   const fetchCalls = [];
   const cssInjections = [];
   const scriptInjections = [];
+  const frameMessages = [];
   const registeredScripts = [
     {
       id: "xet_custom_legacy",
@@ -40,6 +41,7 @@ async function main() {
   const runtimeOnStartup = event();
 
   const chrome = {
+    tabs: { async sendMessage(tabId, message) { frameMessages.push({ tabId, message }); } },
     runtime: {
       getManifest() {
         return manifest;
@@ -198,7 +200,20 @@ async function main() {
   await new Promise((resolve) => setImmediate(resolve));
   assert.equal(fetchCalls.length, 1, "recent activity should skip the alarm request");
 
-  assert.equal("tabs" in chrome, false, "keep-alive must not depend on tabs");
+  assert.equal(frameMessages.length, 0, "keep-alive must not contact tabs");
+  const sender = { tab: { id: 7, url: "https://custom.example/course" }, frameId: 3,
+    url: "https://player.xiaoeknow.com/video" };
+  const send = (message) => new Promise((resolve) => runtimeOnMessage.listeners[0](message, sender, resolve));
+  const policy = await send({ type: "xet:get-settings" });
+  assert.equal(policy.topOrigin, "https://custom.example");
+  const authorization = { type: "xet:authorize-frame-web", active: true,
+    token: "00000000-0000-4000-8000-000000000001" };
+  assert.equal((await send(authorization)).ok, true);
+  assert.equal(frameMessages[0].message.frameId, 3);
+  state.disabledSites = [policy.topOrigin];
+  assert.equal((await send(authorization)).ok, false);
+  assert.equal(frameMessages.length, 1, "disabled outer pages must not authorize fullscreen");
+  assert.equal((await send({ ...authorization, token: "forged" })).ok, false);
   console.log("background keep-alive smoke test passed");
 }
 

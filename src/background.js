@@ -62,6 +62,38 @@ async function readSettings() {
   };
 }
 
+async function frameSettings(sender) {
+  const settings = await readSettings();
+  // MessageSender.tab describes the outer page, even for a cross-origin
+  // content script. Do not trust a URL supplied by the page or the message.
+  return { ...settings, topOrigin: siteAccess.siteInfo(sender.tab?.url)?.origin || "" };
+}
+
+async function authorizeFrameWebFullscreen(message, sender) {
+  if (!Number.isInteger(sender.tab?.id) || !(sender.frameId > 0) ||
+      typeof message.active !== "boolean" ||
+      typeof message.token !== "string" || !/^[a-f0-9-]{36}$/.test(message.token)) {
+    return { ok: false, reason: "invalid-frame" };
+  }
+  const settings = await frameSettings(sender);
+  const ownOrigin = siteAccess.siteInfo(sender.url)?.origin;
+  if (message.active && (!settings.topOrigin ||
+      settings.disabledSites.includes(settings.topOrigin) ||
+      settings.disabledSites.includes(ownOrigin))) {
+    return { ok: false, reason: "site-disabled" };
+  }
+  // Authenticate a short-lived, one-use DOM handshake in every authorized
+  // ancestor. postMessage then identifies the hosting iframe without adding
+  // webNavigation permission or exposing extension APIs to the web page.
+  await chrome.tabs.sendMessage(sender.tab.id, {
+    type: "xet:arm-frame-web",
+    active: message.active,
+    token: message.token,
+    frameId: sender.frameId,
+  });
+  return { ok: true };
+}
+
 async function migrateLegacySettings() {
   const stored = await chrome.storage.local.get({
     disabledSites: null,
@@ -297,10 +329,17 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:get-settings") {
-    readSettings()
+    frameSettings(sender)
       .then(sendResponse)
       .catch((error) => sendResponse({ error: error.message }));
 
+    return true;
+  }
+
+  if (message?.type === "xet:authorize-frame-web") {
+    authorizeFrameWebFullscreen(message, sender)
+      .then(sendResponse)
+      .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
   }
 

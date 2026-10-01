@@ -15,10 +15,12 @@
   const WEB_FULLSCREEN_DOCUMENT_CLASS = "xet-web-fullscreen-active";
   const WEB_FULLSCREEN_PATH_ATTRIBUTE = "data-xet-web-fullscreen-path";
 
-  function createFullscreenController({ playerDom }) {
+  function createFullscreenController({ playerDom, onWebModeChange = () => {} }) {
     const { composedParent, findPlayerControl, findPlayerRoot } = playerDom;
     const webFullscreenLayerStates = new WeakMap();
     const managedPlayers = new Set();
+    const webPlayers = new Set();
+    const frameStyles = new WeakMap();
     const interactions = modules.playerInteractions.createPlayerInteractionController({ playerDom });
     let started = false;
     let clickingFallbackControl = false;
@@ -242,6 +244,7 @@
       if (!started) return;
       started = false;
       interactions.stop();
+      for (const root of [...webPlayers]) toggleManagedWebFullscreen(root, root.tagName !== "IFRAME");
       window.removeEventListener("click", handleFullscreenClick, true);
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
       document.removeEventListener("webkitfullscreenchange", handleFullscreenChange);
@@ -251,12 +254,21 @@
       managedPlayers.clear();
     }
 
-    function toggleManagedWebFullscreen(root) {
+    function toggleManagedWebFullscreen(root, notifyAncestors = true) {
       const marker = "xetWebFullscreen";
       const isActive = root.dataset[marker] === "true";
 
       if (isActive) {
+        webPlayers.delete(root);
         lowerWebFullscreen(root);
+        const styles = frameStyles.get(root);
+        if (styles) {
+          for (const [property, value, priority] of styles) {
+            if (value) root.style.setProperty(property, value, priority);
+            else root.style.removeProperty(property);
+          }
+          frameStyles.delete(root);
+        }
         document.body.style.overflow = root.dataset.xetBodyOverflow || "";
         document.documentElement.style.overflow =
           root.dataset.xetHtmlOverflow || "";
@@ -272,9 +284,14 @@
         document.documentElement.classList.remove(
           WEB_FULLSCREEN_DOCUMENT_CLASS,
         );
+        if (notifyAncestors) onWebModeChange(false);
         return;
       }
 
+      for (const previous of [...webPlayers]) {
+        toggleManagedWebFullscreen(previous, previous.tagName !== "IFRAME");
+      }
+      webPlayers.add(root);
       root.dataset[marker] = "true";
       root.dataset.xetBodyOverflow = document.body.style.overflow || "";
       root.dataset.xetHtmlOverflow =
@@ -289,6 +306,26 @@
       document.body.classList.add("xeplayer-webscreen-fix");
       document.documentElement.classList.add(WEB_FULLSCREEN_DOCUMENT_CLASS);
       elevateWebFullscreen(root);
+      if (root.tagName === "IFRAME") {
+        // Rich-text embeds have ID-qualified !important dimensions. Override
+        // only these properties and restore their exact inline values on exit.
+        const dimensions = {
+          width: "100vw", height: "100dvh", "max-width": "none", "max-height": "none",
+        };
+        frameStyles.set(root, Object.keys(dimensions).map((property) =>
+          [property, root.style.getPropertyValue(property), root.style.getPropertyPriority(property)],
+        ));
+        for (const [property, value] of Object.entries(dimensions)) {
+          root.style.setProperty(property, value, "important");
+        }
+      }
+      if (notifyAncestors) onWebModeChange(true);
+    }
+
+    function setFrameFullscreen(frame, active) {
+      if ((frame.dataset.xetWebFullscreen === "true") !== active) {
+        toggleManagedWebFullscreen(frame, false);
+      }
     }
 
     function clickWebFullscreenControl(root) {
@@ -369,6 +406,7 @@
       isWebFullscreen,
       toggleNativeFullscreen,
       toggleWebFullscreen,
+      setFrameFullscreen,
     });
   }
 

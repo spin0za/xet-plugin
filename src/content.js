@@ -11,6 +11,7 @@
     !modules.analysisLayout ||
     !modules.playerInteractions ||
     !modules.fullscreen ||
+    !modules.frameCoordinator ||
     !modules.mediaShortcuts ||
     !modules.quality ||
     !modules.toast
@@ -30,12 +31,16 @@
   const settings = {
     enabled: true,
     disabledSites: [],
+    topOrigin: "",
   };
+  let settingsLoaded = false;
+  let frameCoordinator = null;
   let featuresStarted = false;
   let naturalVisitRecorded = false;
 
   function isSiteEnabled() {
-    return !settings.disabledSites.includes(location.origin);
+    return settingsLoaded && !settings.disabledSites.includes(location.origin) &&
+      !settings.disabledSites.includes(settings.topOrigin);
   }
 
   function isQualityEnabled() {
@@ -47,12 +52,17 @@
       const stored = await chrome.runtime.sendMessage({
         type: "xet:get-settings",
       });
+      if (!stored || stored.error) throw new Error(stored?.error || "Settings unavailable");
+      settings.topOrigin = stored.topOrigin || (window.top === window ? location.origin : "");
       settings.enabled = stored?.enabled !== false;
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         stored?.disabledSites,
         stored?.disabledHosts,
       );
+      settingsLoaded = window.top === window || Boolean(settings.topOrigin);
     } catch {
+      // Embedded players fail closed when the outer-page policy is unknown.
+      if (window.top !== window && !settings.topOrigin) return;
       const stored = await chrome.storage.local.get({
         enabled: true,
         disabledSites: null,
@@ -63,11 +73,17 @@
         stored.disabledSites,
         stored.disabledHosts,
       );
+      settings.topOrigin ||= location.origin;
+      settingsLoaded = true;
     }
   }
 
   const fullscreen = modules.fullscreen.createFullscreenController({
     playerDom: modules.playerDom,
+    onWebModeChange: (active) => frameCoordinator?.publish(active),
+  });
+  frameCoordinator = modules.frameCoordinator.createFrameCoordinator({
+    fullscreen, isEnabled: isSiteEnabled,
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
@@ -87,6 +103,7 @@
     }
     featuresStarted = true;
     analysisLayout.start();
+    frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
     quality.start();
@@ -110,6 +127,7 @@
       fullscreen.exitWebFullscreen(player);
     }
     shortcuts.stop();
+    frameCoordinator.stop();
     fullscreen.stop();
     analysisLayout.stop();
     quality.stop();

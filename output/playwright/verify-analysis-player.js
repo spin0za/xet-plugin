@@ -17,6 +17,7 @@ async (page) => {
     "src/content/analysis-layout.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",
+    "src/content/frame-coordinator.js",
     "src/content/media-shortcuts.js",
     "src/content/quality.js",
     "src/content/toast.js",
@@ -52,25 +53,46 @@ async (page) => {
     await testPage.goto("https://analysis.example/p/t_pc/pc_evaluation/practice_analysis/fixture");
     const originalPreviewSize = await testPage.locator("iframe").first().boundingBox();
 
+    const settings = { enabled: true, disabledSites: [], topOrigin: "https://analysis.example" };
+    await testPage.exposeBinding("__xetSendMessage", async ({ frame }, message) => {
+      if (message.type === "xet:get-settings") return settings;
+      if (message.type === "xet:authorize-frame-web") {
+        if (message.active && settings.disabledSites.includes(settings.topOrigin)) return { ok: false };
+        for (const target of testPage.frames()) {
+          await target.evaluate((authorization) => {
+            for (const listener of window.runtimeListeners || []) listener(authorization, {}, () => {});
+          }, { ...message, type: "xet:arm-frame-web" });
+        }
+        return { ok: true };
+      }
+      if (message.type === "xet:test-write") {
+        Object.assign(settings, message.changes);
+        for (const target of testPage.frames()) {
+          await target.evaluate((changes) => {
+            for (const listener of window.storageListeners || []) listener(
+              Object.fromEntries(Object.entries(changes).map(([key, newValue]) => [key, { newValue }])), "local",
+            );
+          }, message.changes);
+        }
+      }
+      return { ok: true };
+    });
+
     async function installExtension(frame) {
       await frame.evaluate(() => {
-        const settings = { enabled: true, disabledSites: [] };
-        const listeners = [];
+        window.runtimeListeners = [];
+        window.storageListeners = [];
         window.chrome = {
-          runtime: { sendMessage: async () => settings },
+          runtime: {
+            sendMessage: (message) => window.__xetSendMessage(message),
+            onMessage: { addListener: (listener) => runtimeListeners.push(listener) },
+          },
           storage: {
             local: {
-              get: async () => settings,
-              set: async (changes) => {
-                Object.assign(settings, changes);
-                listeners.forEach((listener) => listener(
-                  Object.fromEntries(Object.entries(changes).map(
-                    ([key, newValue]) => [key, { newValue }],
-                  )), "local",
-                ));
-              },
+              get: () => window.__xetSendMessage({ type: "xet:get-settings" }),
+              set: (changes) => window.__xetSendMessage({ type: "xet:test-write", changes }),
             },
-            onChanged: { addListener: (listener) => listeners.push(listener) },
+            onChanged: { addListener: (listener) => storageListeners.push(listener) },
           },
         };
       });
@@ -251,6 +273,20 @@ async (page) => {
     await frame.waitForFunction(() => !document.fullscreenElement);
     await testPage.keyboard.press("t");
     await frame.waitForFunction(() => document.querySelector("#player").dataset.xetWebFullscreen === "true");
+    await testPage.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
+    const embeddedWeb = [];
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 720, height: 600 }]) {
+      await testPage.setViewportSize(viewport);
+      await frame.waitForFunction(({ width, height }) => innerWidth === width && innerHeight === height, viewport);
+      const dimensions = await player.boundingBox();
+      const headerVisible = await testPage.locator("header").isVisible();
+      if (Math.abs(dimensions.width - viewport.width) > 1 ||
+          Math.abs(dimensions.height - viewport.height) > 1 || headerVisible) {
+        throw new Error(`Iframe did not fill outer page: ${JSON.stringify({viewport, dimensions, headerVisible})}`);
+      }
+      embeddedWeb.push({ viewport, dimensions, headerVisible });
+    }
+    await testPage.setViewportSize({ width: 1280, height: 900 });
     await verifyPictureClicks("page fullscreen");
     autoHide.push(await verifyAutoHide("page fullscreen"));
     await button.click();
@@ -260,6 +296,21 @@ async (page) => {
       document.querySelector("#player").dataset.xetWebFullscreen === "true");
     await testPage.keyboard.press("Escape");
     await frame.waitForFunction(() => !document.querySelector("#player").dataset.xetWebFullscreen);
+    await testPage.waitForFunction(() => !document.querySelector("iframe").dataset.xetWebFullscreen);
+
+    await frame.evaluate(() => window.parent.postMessage({
+      type: "xet:frame-web", active: true, token: "00000000-0000-4000-8000-000000000000",
+    }, "*"));
+    await testPage.waitForTimeout(80);
+    if (await testPage.locator("iframe").first().getAttribute("data-xet-web-fullscreen")) {
+      throw new Error("Unauthenticated page message elevated an iframe");
+    }
+    await player.press("t");
+    await testPage.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
+    await testPage.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
+    await testPage.keyboard.press("Escape");
+    await frame.waitForFunction(() => !document.querySelector("#player").dataset.xetWebFullscreen);
+    await testPage.waitForFunction(() => !document.querySelector("iframe").dataset.xetWebFullscreen);
 
     await frame.evaluate(() => player.video.pause());
     await frame.waitForFunction(() => player.root.dataset.xetControlsHidden === "false");
@@ -327,13 +378,12 @@ async (page) => {
 
     // Disabling the site must release both layout and fullscreen enhancement.
     await testPage.evaluate(() => chrome.storage.local.set({ disabledSites: [location.origin] }));
-    await frame.evaluate(() => chrome.storage.local.set({ disabledSites: [location.origin] }));
     const disabled = await testPage.evaluate(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
     const remainingMarkers = await player.evaluate((root) => Array.from(root.attributes)
       .filter((attribute) => attribute.name.startsWith("data-xet-"))
       .map((attribute) => attribute.name));
     if (disabled || remainingMarkers.length) throw new Error(`Site disable did not restore original styling: ${remainingMarkers}`);
-    return { layouts, previewCrop, pictureClicks, autoHide, buttonFullscreen, keyboardFullscreen, restored, disabled };
+    return { layouts, previewCrop, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
   } finally {
     await testPage.close();
   }

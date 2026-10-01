@@ -5,6 +5,7 @@ async (page) => {
     "src/content/analysis-layout.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",
+    "src/content/frame-coordinator.js",
     "src/content/media-shortcuts.js",
     "src/content/quality.js",
     "src/content/toast.js",
@@ -20,6 +21,7 @@ async (page) => {
       window.chrome = {
         __xetTestStub: true,
         runtime: {
+          onMessage: { addListener() {} },
           sendMessage: async (message) =>
             message?.type === "xet:get-settings" ? { ...settings } : {},
         },

@@ -21,6 +21,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
+- 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 播放器全屏按钮与 `F` 使用相同的原生全屏入口；移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
@@ -88,6 +89,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/frame-policy-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
 node tests/site-access-smoke.js
@@ -104,6 +106,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
+- Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the player's fullscreen button and `F` use the same native fullscreen entry point, removes the mobile skin's full-picture gradient overlay, and keeps playback controls visible after exiting.
