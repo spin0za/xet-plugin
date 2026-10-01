@@ -3,6 +3,7 @@ const fs = require("node:fs");
 
 const manifest = JSON.parse(fs.readFileSync("manifest.json", "utf8"));
 const registration = manifest.content_scripts[0];
+assert.equal(manifest.minimum_chrome_version, "119", "matchOriginAsFallback requires Chrome 119+");
 const expectedScripts = [
   "src/site-access.js",
   "src/content/player-dom.js",

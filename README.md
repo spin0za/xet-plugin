@@ -60,6 +60,8 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ### 安装
 
+需要 Chrome 119 或更新版本，或基于 Chromium 119+ 的 Edge。
+
 1. 下载或克隆本仓库。
 2. 打开 Chrome 的 `chrome://extensions/`，或 Edge 的 `edge://extensions/`。
 3. 开启右上角的“开发者模式”。
@@ -146,6 +148,8 @@ For a merchant-owned custom domain, click the extension icon, expand **Developer
 You can also open the site manager from `chrome://extensions` → this extension's **Details** → **Extension options**.
 
 ### Installation
+
+Requires Chrome 119+ or Edge based on Chromium 119 or later.
 
 1. Download or clone this repository.
 2. Open `chrome://extensions/` in Chrome or `edge://extensions/` in Edge.
