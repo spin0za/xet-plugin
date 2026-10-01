@@ -20,6 +20,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 ### 功能
 
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
+- 所有受支持页面的视频默认音量为 100%；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
@@ -27,7 +28,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 - 播放器全屏按钮与 `F` 使用相同的原生全屏入口；移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
-- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、快捷键、全屏增强和该网站的登录保活都会停止。
+- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强和该网站的登录保活都会停止。
 - 商家自定义课程域名可按网站单独授权，并可在独立的网站管理页中集中撤销或恢复。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
 
@@ -93,6 +94,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
+node tests/volume-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
 node tests/site-access-smoke.js
@@ -101,6 +103,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
+playwright-cli run-code "$(<output/playwright/verify-volume.js)"
 # 在另一个终端从仓库根目录运行：python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
@@ -110,6 +113,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ### Features
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
+- Sets videos on supported pages to 100% volume by default. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
@@ -117,7 +121,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Makes the player's fullscreen button and `F` use the same native fullscreen entry point, removes the mobile skin's full-picture gradient overlay, and keeps playback controls visible after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
-- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
+- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
 - Supports per-site grants for merchant-owned custom course domains, with a dedicated management page for revoking or restoring access.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
 
@@ -183,6 +187,7 @@ The repository includes Playwright browser regressions covering legacy and curre
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
+node tests/volume-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
 node tests/site-access-smoke.js
@@ -191,6 +196,7 @@ playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
+playwright-cli run-code "$(<output/playwright/verify-volume.js)"
 # In another terminal at the repository root: python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
@@ -208,6 +214,7 @@ src/
   site-access.js
   content/
     player-dom.js
+    volume.js
     analysis-layout.js
     player-interactions.js
     fullscreen.js
@@ -222,11 +229,13 @@ output/playwright/
   verify-analysis-player.js
   verify-quality-lifecycle.js
   verify-player-focus.js
+  verify-volume.js
   verify-mv3-integration.js
 tests/
   background-smoke.js
   content-structure-smoke.js
   frame-policy-smoke.js
+  volume-smoke.js
   options-smoke.js
   popup-smoke.js
   site-access-smoke.js
@@ -248,8 +257,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.7**
+Current version: **1.10.8**
 
-主要变更：跨域播放器统一启停与网页全屏；取消过期画质任务，减少全页扫描，并快速响应仅通过样式显示的画质菜单；完善键盘焦点与对比度；声明 Chrome 119+；保活结果区分请求完成与无法确认的续期状态，并记录本地错误。
+主要变更：新增独立的默认音量模块，课程、解析页和原生视频加载时默认 100%，保留后续手动调节、静音和网站级启停。
 
-Highlights: coordinated cross-origin player policy and page fullscreen; cancelable, scoped quality detection with prompt CSS-only menu discovery; accessible keyboard focus and contrast; Chrome 119+ compatibility; local keep-alive diagnostics that distinguish completed requests from unverified renewal.
+Highlights: a dedicated default-volume module initializes course, analysis, and native videos to 100%, while preserving subsequent manual volume changes, mute state, and per-site lifecycle controls.

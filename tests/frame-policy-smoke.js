@@ -17,6 +17,7 @@ async function main() {
     frameCoordinator: { createFrameCoordinator: () => ({ ...controller(), publish() {} }) },
     mediaShortcuts: { createShortcutController: controller },
     quality: { createQualityController: controller },
+    volume: { createVolumeController: controller },
     toast: { show() {}, hide() {} },
   };
   const window = { top: {} };
@@ -34,13 +35,13 @@ async function main() {
   };
   vm.runInNewContext(fs.readFileSync("src/content.js", "utf8"), context);
   await new Promise(setImmediate);
-  assert.equal(calls.start, 5);
+  assert.equal(calls.start, 6);
   storageListener({ disabledSites: { newValue: [topOrigin] } }, "local");
-  assert.equal(calls.stop, 5, "outer-page disable must stop every child feature");
+  assert.equal(calls.stop, 6, "outer-page disable must stop every child feature");
   storageListener({ disabledSites: { newValue: [] } }, "local");
-  assert.equal(calls.start, 10);
+  assert.equal(calls.start, 12);
   storageListener({ disabledSites: { newValue: [ownOrigin] } }, "local");
-  assert.equal(calls.stop, 10, "child-site disable must also remain effective");
+  assert.equal(calls.stop, 12, "child-site disable must also remain effective");
 
   settings = { error: "storage unavailable" };
   const before = calls.start;

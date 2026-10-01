@@ -7,6 +7,7 @@ assert.equal(manifest.minimum_chrome_version, "119", "matchOriginAsFallback requ
 const expectedScripts = [
   "src/site-access.js",
   "src/content/player-dom.js",
+  "src/content/volume.js",
   "src/content/analysis-layout.js",
   "src/content/player-interactions.js",
   "src/content/fullscreen.js",
@@ -29,6 +30,7 @@ assert.ok(entry.split("\n").length < 190, "content.js should remain a small entr
 assert.match(entry, /createFullscreenController/);
 assert.match(entry, /createShortcutController/);
 assert.match(entry, /createQualityController/);
+assert.match(entry, /createVolumeController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);
 

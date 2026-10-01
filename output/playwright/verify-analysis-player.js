@@ -14,6 +14,7 @@ async (page) => {
   const scripts = [
     "src/site-access.js",
     "src/content/player-dom.js",
+    "src/content/volume.js",
     "src/content/analysis-layout.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",

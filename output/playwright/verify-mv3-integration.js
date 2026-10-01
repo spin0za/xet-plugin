@@ -22,12 +22,23 @@ async (page) => {
         html,body{margin:0;height:100%}.xgplayer{position:relative;width:100%;height:100%;background:black}
         video{width:100%;height:100%}.xgplayer-controls{position:absolute;bottom:0}button{padding:8px}
       </style><div id=player class=xgplayer tabindex=0><video></video><div class=xgplayer-controls>
-        <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div></div>`,
+        <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div></div>
+        <script>document.querySelector('video').volume = 0.3;</script>`,
     }));
     await fixture.goto("https://merchant.pc.xiaoe-tech.com/fixture");
     const middle = fixture.frames().find((frame) => frame.url().includes("bridge.xiaoeknow.com"));
     const inner = fixture.frames().find((frame) => frame.url().includes("player.eapps.cn"));
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
+    await inner.waitForFunction(() => document.querySelector("video").volume === 1);
+    await worker.evaluate(() => chrome.storage.local.set({ enabled: false }));
+    await inner.evaluate(() => {
+      const video = document.createElement("video");
+      video.id = "quality-off-video"; video.volume = 0.2;
+      document.body.append(video);
+    });
+    await inner.waitForFunction(() => document.querySelector("#quality-off-video").volume === 1);
+    await inner.evaluate(() => document.querySelector("#quality-off-video").remove());
+    await worker.evaluate(() => chrome.storage.local.set({ enabled: true }));
     const root = inner.locator("#player");
     await root.press("t");
     await fixture.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
@@ -56,11 +67,21 @@ async (page) => {
     if (!(await fixture.locator("header").isVisible()) || !(await middle.locator("header").isVisible())) {
       throw new Error("Nested page UI was not restored when the outer site was disabled");
     }
+    await inner.evaluate(() => {
+      const video = document.createElement("video");
+      video.id = "disabled-video"; video.volume = 0.25;
+      document.body.append(video);
+    });
+    await inner.waitForTimeout(100);
+    if (await inner.evaluate(() => document.querySelector("#disabled-video").volume) !== 0.25) {
+      throw new Error("Outer-site disable did not stop default volume in the child frame");
+    }
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
-    return { realMV3: true, nestedFrames: 2, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
   } finally {
     await fixture.close();
-    await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [], keepAliveEnabled: false }));
+    await worker.evaluate(() => chrome.storage.local.set({ enabled: true, disabledSites: [], keepAliveEnabled: false }));
   }
 }

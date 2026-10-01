@@ -14,6 +14,7 @@
     !modules.frameCoordinator ||
     !modules.mediaShortcuts ||
     !modules.quality ||
+    !modules.volume ||
     !modules.toast
   ) {
     window[INSTANCE_KEY]?.wake?.();
@@ -95,6 +96,7 @@
     notify: modules.toast.show,
     playerDom: modules.playerDom,
   });
+  const volume = modules.volume.createVolumeController({ playerDom: modules.playerDom });
 
   function startFeatures() {
     if (featuresStarted) {
@@ -107,6 +109,7 @@
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
+    volume.start();
     if (settings.enabled) quality.start();
 
     if (
@@ -132,6 +135,7 @@
     fullscreen.stop();
     analysisLayout.stop();
     quality.stop();
+    volume.stop();
     modules.toast.hide?.();
   }
 
