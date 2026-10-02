@@ -16,6 +16,7 @@
     !modules.qualityPreference ||
     !modules.quality ||
     !modules.volume ||
+    !modules.downloadStream || !modules.download ||
     !modules.toast
   ) {
     window[INSTANCE_KEY]?.wake?.();
@@ -102,6 +103,7 @@
     playerDom: modules.playerDom,
   });
   const volume = modules.volume.createVolumeController({ playerDom: modules.playerDom });
+  const download = modules.download.createDownloadController({ playerDom: modules.playerDom });
 
   function startFeatures() {
     if (featuresStarted) {
@@ -116,6 +118,7 @@
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
+    download.start();
     if (settings.volumeEnabled) volume.start();
     if (settings.enabled) quality.start();
 
@@ -143,6 +146,7 @@
     analysisLayout.stop();
     quality.stop();
     volume.stop();
+    download.stop();
     modules.toast.hide?.();
   }
 

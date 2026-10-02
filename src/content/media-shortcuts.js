@@ -95,8 +95,13 @@
       const action = playerShortcutAction(event);
       if (event.defaultPrevented || !action) return;
       // Space on a focused quality option activates that option, not playback.
-      if ((event.code === "Space" || event.key === " ") &&
-          modules.qualityPreference?.qualityOptionFor(event.target)) return;
+      if (event.code === "Space" || event.key === " ") {
+        if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
+        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button"))) {
+          event.stopImmediatePropagation(); // Preserve native button activation, suppress SDK hotkeys.
+          return;
+        }
+      }
 
       const player = findActivePlayer();
       if (!player) return;
@@ -162,8 +167,13 @@
     }
 
     function handleKeyup(event) {
-      if ((event.code === "Space" || event.key === " ") &&
-          modules.qualityPreference?.qualityOptionFor(event.target)) return;
+      if (event.code === "Space" || event.key === " ") {
+        if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
+        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button"))) {
+          event.stopImmediatePropagation();
+          return;
+        }
+      }
       if (event.key === "Escape" && suppressWebFullscreenEscapeKeyup) {
         suppressWebFullscreenEscapeKeyup = false;
         event.preventDefault();

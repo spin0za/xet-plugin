@@ -15,6 +15,8 @@ async (page) => {
     "src/site-access.js",
     "src/content/player-dom.js",
     "src/content/volume.js",
+    "src/content/download-stream.js",
+    "src/content/download.js",
     "src/content/analysis-layout.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",
@@ -99,6 +101,7 @@ async (page) => {
         };
       });
       await frame.addStyleTag({ path: "src/content/fullscreen.css" });
+      await frame.addStyleTag({ path: "src/content/download.css" });
       for (const path of scripts) await frame.addScriptTag({ path });
     }
 

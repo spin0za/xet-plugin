@@ -3,6 +3,8 @@ async (page) => {
     "src/site-access.js",
     "src/content/player-dom.js",
     "src/content/volume.js",
+    "src/content/download-stream.js",
+    "src/content/download.js",
     "src/content/analysis-layout.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",
@@ -13,7 +15,7 @@ async (page) => {
     "src/content/toast.js",
     "src/content.js",
   ];
-  const extensionStyles = ["src/content/fullscreen.css"];
+  const extensionStyles = ["src/content/fullscreen.css", "src/content/download.css"];
 
   async function installChromeStub(targetPage) {
     await targetPage.evaluate(() => {

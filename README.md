@@ -11,9 +11,9 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 [中文](#中文) · [English](#english)
 
 > [!NOTE]
-> 这是一个非官方社区项目，与小鹅通官方无隶属或合作关系。扩展不会绕过课程权限，也不会下载视频。
+> 这是一个非官方社区项目，与小鹅通官方无隶属或合作关系。扩展不会绕过课程权限。
 >
-> This is an unofficial community project and is not affiliated with or endorsed by Xiaoe Tech. It does not bypass course access controls or download videos.
+> This is an unofficial community project and is not affiliated with or endorsed by Xiaoe Tech. It does not bypass course access controls.
 
 ## 中文
 
@@ -269,7 +269,7 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.11.0**
+Current version: **1.12.0**
 
 主要变更：默认选择可用的最高画质，支持直播“原画”、更高分辨率与仅有高清的播放器；弹窗更名为“默认最高画质”，新增独立的“默认最大音量”开关，继续尊重当前视频的手动画质与音量选择。
 

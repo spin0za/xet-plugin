@@ -1,0 +1,62 @@
+.xet-download-control {
+  display: inline-flex;
+  align-items: center;
+  position: relative;
+  height: 100%;
+  float: right;
+  margin: 0 8px;
+  color: #fff;
+  font: 13px/1.4 system-ui, sans-serif;
+}
+.xg-right-grid:has(> .xet-download-control) {
+  display: flex !important;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.xg-right-grid > .xet-download-control {
+  float: none;
+  flex-shrink: 0;
+  margin: 0 4px;
+}
+.xet-download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-width: 28px;
+  height: 32px;
+  padding: 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.xet-download-button svg { width: 23px; height: 23px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; }
+.xet-download-button:hover { background: rgb(255 255 255 / 15%); }
+.xet-download-button:focus-visible { outline: 2px solid #79caff; outline-offset: 2px; }
+.xet-download-button[data-active] { color: #79caff; }
+.xet-download-button:disabled { cursor: wait; opacity: 0.7; }
+.xet-download-tooltip, .xet-download-status {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 0;
+  width: max-content;
+  max-width: min(340px, 75vw);
+  padding: 8px 12px;
+  border-radius: 5px;
+  color: #fff;
+  background: rgb(20 20 20 / 95%);
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+  z-index: 10;
+}
+.xet-download-tooltip { display: none; white-space: nowrap; }
+.xet-download-button:hover + .xet-download-tooltip,
+.xet-download-button:focus-visible + .xet-download-tooltip { display: block; }
+.xet-download-control:has(.xet-download-status:not([hidden])) .xet-download-tooltip { display: none; }
+.xet-download-status[hidden] { display: none; }
+.xet-download-native { height: 36px; float: none; color: #333; }
+.xet-download-native .xet-download-status { position: fixed; bottom: 20px; right: 20px; }

@@ -5,6 +5,7 @@ tmp/
 node_modules/
 .DS_Store
 Thumbs.db
+local-docs/
 
 # Local icon references and design drafts
 assets/Goose_AoE2DE.webp
