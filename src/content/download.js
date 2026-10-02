@@ -115,10 +115,12 @@
       button.className = "xet-download-button";
       button.setAttribute("aria-label", "下载当前画质的视频");
       const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      icon.setAttribute("viewBox", "0 0 24 24");
+      // Like the SDK icons, the SVG frame includes the toolbar's vertical
+      // space; no extra padded/centered button box around a smaller icon.
+      icon.setAttribute("viewBox", "0 -5 28 40");
       icon.setAttribute("aria-hidden", "true");
       const path = document.createElementNS(icon.namespaceURI, "path");
-      path.setAttribute("d", "M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5");
+      path.setAttribute("d", "M14 3v15m-7-7 7 7 7-7M2 21v5h24v-5");
       icon.append(path);
       const label = document.createElement("span");
       label.className = "xet-download-label";
@@ -141,7 +143,22 @@
       const controls = record.root.querySelector(".xgplayer-controls, xg-controls");
       if (controls) {
         const grid = controls.querySelector(".xg-right-grid");
-        (grid || controls).append(record.container);
+        const parent = grid || controls;
+        const volume = Array.from(parent.children).find(node => node.matches(".xgplayer-volume"));
+        const reference = volume || parent.querySelector(".xgplayer-cssfullscreen, .xgplayer-fullscreen");
+        if (reference) {
+          // Reuse this player's skin, including custom Xiaoe Tech icon sizes
+          // and margins, instead of imposing a second toolbar spacing system.
+          const style = getComputedStyle(reference);
+          const icon = reference.querySelector(".xgplayer-icon, svg") || reference;
+          const size = getComputedStyle(icon);
+          if (parseFloat(size.width) > 0) record.container.style.setProperty("--xet-download-width", size.width);
+          if (parseFloat(size.height) > 0) record.container.style.setProperty("--xet-download-height", size.height);
+          record.container.style.setProperty("--xet-download-margin", style.margin);
+        }
+        // SDK right-hand toolbars use row-reverse (or right floats). Inserting
+        // before volume puts download visually between volume and fullscreen.
+        parent.insertBefore(record.container, volume || null);
       } else if (record.root.tagName === "VIDEO") {
         record.container.classList.add("xet-download-native");
         record.root.after(record.container);

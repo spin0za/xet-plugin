@@ -1,10 +1,9 @@
 .xet-download-control {
-  display: inline-flex;
-  align-items: center;
+  display: block;
   position: relative;
-  height: 100%;
+  height: var(--xet-download-height, 40px);
   float: right;
-  margin: 0 8px;
+  margin: var(--xet-download-margin, 0 16px 0 0);
   color: #fff;
   font: 13px/1.4 system-ui, sans-serif;
 }
@@ -16,27 +15,32 @@
 .xg-right-grid > .xet-download-control {
   float: none;
   flex-shrink: 0;
-  margin: 0 4px;
 }
 .xet-download-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-width: 28px;
-  height: 32px;
-  padding: 4px;
+  display: block;
+  position: relative;
+  box-sizing: border-box;
+  width: var(--xet-download-width, 28px);
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-radius: 4px;
+  border-radius: 0;
+  appearance: none;
   background: transparent;
+  box-shadow: none;
   color: inherit;
   font: inherit;
   cursor: pointer;
 }
-.xet-download-button svg { width: 23px; height: 23px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 1.8; }
-.xet-download-button:hover { background: rgb(255 255 255 / 15%); }
+.xet-download-button svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xet-download-button:hover, .xet-download-button:active { background: transparent; box-shadow: none; }
 .xet-download-button:focus-visible { outline: 2px solid #79caff; outline-offset: 2px; }
 .xet-download-button[data-active] { color: #79caff; }
+.xet-download-button[data-active] svg { visibility: hidden; }
+.xet-download-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; white-space: nowrap; }
+.xet-download-label:empty { display: none; }
 .xet-download-button:disabled { cursor: wait; opacity: 0.7; }
 .xet-download-tooltip, .xet-download-status {
   position: absolute;

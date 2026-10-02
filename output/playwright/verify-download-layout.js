@@ -37,9 +37,46 @@ async (page) => {
           bounds.y < root.y || bounds.y + bounds.height > root.y + root.height + 1) {
         throw new Error(`Download control spills outside SDK player: ${JSON.stringify({ root, bounds })}`);
       }
-      sizes.push({ width, bounds });
+      const geometry = await fixture.evaluate(() => {
+        const box = element => {
+          const { x, y, width, height } = element.getBoundingClientRect();
+          return { x, y, width, height };
+        };
+        const button = document.querySelector(".xet-download-button");
+        const volume = document.querySelector(".xgplayer-volume");
+        const fullscreen = document.querySelector(".xgplayer-cssfullscreen");
+        return { button: box(button), icon: box(button.querySelector("svg")),
+          volume: box(volume), nativeIcon: box(volume.querySelector(".xgplayer-icon")),
+          fullscreen: box(fullscreen), margin: getComputedStyle(volume).margin };
+      });
+      const { button: b, icon, volume, nativeIcon, fullscreen } = geometry;
+      if (b.width !== nativeIcon.width || b.height !== nativeIcon.height || icon.width !== nativeIcon.width || icon.height !== nativeIcon.height || b.y !== nativeIcon.y) {
+        throw new Error(`Download icon does not match native toolbar geometry: ${JSON.stringify(geometry)}`);
+      }
+      const leftGap = b.x - volume.x - volume.width;
+      const rightGap = fullscreen.x - b.x - b.width;
+      if (leftGap < 0 || Math.abs(leftGap - rightGap) > 1) {
+        throw new Error(`Download spacing is uneven: ${JSON.stringify({ leftGap, rightGap, geometry })}`);
+      }
+      await button.hover();
+      const hover = await button.evaluate(element => {
+        const style = getComputedStyle(element);
+        return { background: style.backgroundColor, shadow: style.boxShadow, padding: style.padding };
+      });
+      if (hover.background !== "rgba(0, 0, 0, 0)" || hover.shadow !== "none" || hover.padding !== "0px") {
+        throw new Error(`Download button has unwanted hover chrome: ${JSON.stringify(hover)}`);
+      }
+      await button.evaluate(element => { element.dataset.active = "true"; element.querySelector(".xet-download-label").textContent = "99%"; });
+      const active = await button.boundingBox();
+      if (active.x !== b.x || active.width !== b.width) throw new Error("Download progress shifts neighboring controls");
+      await button.evaluate(element => { delete element.dataset.active; element.querySelector(".xet-download-label").textContent = ""; element.blur(); });
+      sizes.push({ width, bounds, leftGap, rightGap, matchesNativeIcon: true, transparentHover: true, stableProgress: true });
     }
+    await fixture.evaluate(() => { player.root.style.width = "800px"; player.root.style.height = "450px"; });
+    await fixture.mouse.move(0, 0);
     await fixture.screenshot({ path: "output/playwright/download-sdk-controls.png" });
+    await button.hover();
+    await fixture.screenshot({ path: "output/playwright/download-sdk-hover.png" });
     await fixture.evaluate(() => downloadController.stop());
     if (await button.count()) throw new Error("Stop did not remove download UI");
     return { realSdk: "3.0.23", sizes, noOverflow: true, stopped: true };

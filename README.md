@@ -269,7 +269,7 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.12.0**
+Current version: **1.12.1**
 
 主要变更：默认选择可用的最高画质，支持直播“原画”、更高分辨率与仅有高清的播放器；弹窗更名为“默认最高画质”，新增独立的“默认最大音量”开关，继续尊重当前视频的手动画质与音量选择。
 
