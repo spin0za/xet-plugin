@@ -6,6 +6,7 @@ async (page) => {
   );
   if (!worker) throw new Error("Load the unpacked extension in a persistent Chromium test profile first");
   const fixture = await page.context().newPage();
+  let stage = "frame initialization";
   try {
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [], keepAliveEnabled: false }));
     await fixture.setViewportSize({ width: 1280, height: 900 });
@@ -18,19 +19,39 @@ async (page) => {
         <header>嵌入页导航</header><iframe src="https://player.eapps.cn/fixture" allow="fullscreen" allowfullscreen></iframe>`,
     }));
     await fixture.route("https://player.eapps.cn/**", (route) => route.fulfill({
-      contentType: "text/html", body: `<!doctype html><style>
+      contentType: "text/html; charset=utf-8", body: `<!doctype html><style>
         html,body{margin:0;height:100%}.xgplayer{position:relative;width:100%;height:100%;background:black}
         video{width:100%;height:100%}.xgplayer-controls{position:absolute;bottom:0}button{padding:8px}
       </style><div id=player class=xgplayer tabindex=0><video></video><div class=xgplayer-controls>
-        <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div></div>
-        <script>document.querySelector('video').volume = 0.3;</script>`,
+        <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div>
+        <div class=xgplayer-definition style="position:absolute;right:0;top:0;background:white">
+          <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
+          <li id=hd definition=720p class=selected>高清</li></ul></div></div>
+        <script>
+          document.querySelector('video').volume = 0.3;
+          document.querySelector('.xgplayer-definition').addEventListener('click', (event) => {
+            const option = event.target.closest('li'); if (!option) return;
+            document.querySelectorAll('li').forEach(item => item.classList.toggle('selected', item === option));
+            currentQuality.textContent = option.textContent;
+            for (const type of ['emptied', 'loadstart', 'loadedmetadata', 'canplay'])
+              document.querySelector('video').dispatchEvent(new Event(type));
+          });
+        </script>`,
     }));
     await fixture.goto("https://merchant.pc.xiaoe-tech.com/fixture");
     const middle = fixture.frames().find((frame) => frame.url().includes("bridge.xiaoeknow.com"));
     const inner = fixture.frames().find((frame) => frame.url().includes("player.eapps.cn"));
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("video").volume === 1);
+    stage = "initial automatic quality";
+    await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
+    await inner.locator("#hd").click();
+    await inner.waitForTimeout(200);
+    if (!(await inner.locator("#hd").getAttribute("class"))?.includes("selected")) {
+      throw new Error("Real isolated-world content script overrode manual HD");
+    }
     await worker.evaluate(() => chrome.storage.local.set({ enabled: false }));
+    stage = "volume with quality disabled";
     await inner.evaluate(() => {
       const video = document.createElement("video");
       video.id = "quality-off-video"; video.volume = 0.2;
@@ -39,6 +60,17 @@ async (page) => {
     await inner.waitForFunction(() => document.querySelector("#quality-off-video").volume === 1);
     await inner.evaluate(() => document.querySelector("#quality-off-video").remove());
     await worker.evaluate(() => chrome.storage.local.set({ enabled: true }));
+    await inner.waitForTimeout(100);
+    if (!(await inner.locator("#hd").getAttribute("class"))?.includes("selected")) {
+      throw new Error("Settings refresh discarded manual quality ownership");
+    }
+    await inner.evaluate(() => {
+      history.pushState({}, "", "/next-lesson");
+      document.querySelector("video").dispatchEvent(new Event("loadedmetadata"));
+    });
+    stage = "next lesson quality";
+    await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
+    stage = "page fullscreen";
     const root = inner.locator("#player");
     await root.press("t");
     await fixture.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
@@ -50,18 +82,22 @@ async (page) => {
       throw new Error(`Nested iframe layout failed: ${JSON.stringify({ bounds, headersHidden })}`);
     }
     await root.press("f");
+    stage = "native fullscreen";
     await inner.waitForFunction(() => document.fullscreenElement?.id === "player");
     await fixture.waitForFunction(() => !document.querySelector("iframe").dataset.xetWebFullscreen);
     await root.press("t");
+    stage = "native to page fullscreen";
     await inner.waitForFunction(() => !document.fullscreenElement && document.querySelector("#player").dataset.xetWebFullscreen === "true");
     await fixture.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
     await fixture.evaluate(() => { document.body.tabIndex = -1; document.body.focus(); });
     await fixture.keyboard.press("Escape");
+    stage = "outer escape";
     await inner.waitForFunction(() => !document.querySelector("#player").dataset.xetWebFullscreen);
     await fixture.waitForFunction(() => !document.querySelector("iframe").dataset.xetWebFullscreen);
     await root.press("t");
     await fixture.waitForFunction(() => document.querySelector("iframe").dataset.xetWebFullscreen === "true");
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: ["https://merchant.pc.xiaoe-tech.com"] }));
+    stage = "outer site disable";
     await inner.waitForFunction(() => !document.querySelector("#player").dataset.xetInteractions);
     await fixture.waitForFunction(() => !document.documentElement.classList.contains("xet-web-fullscreen-active"));
     if (!(await fixture.locator("header").isVisible()) || !(await middle.locator("header").isVisible())) {
@@ -77,9 +113,12 @@ async (page) => {
       throw new Error("Outer-site disable did not stop default volume in the child frame");
     }
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
+    stage = "outer site reenable";
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
-    return { realMV3: true, nestedFrames: 2, defaultVolume: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, manualQuality: true, nextLessonDefault: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+  } catch (error) {
+    throw new Error(`MV3 integration (${stage}): ${error.message}`);
   } finally {
     await fixture.close();
     await worker.evaluate(() => chrome.storage.local.set({ enabled: true, disabledSites: [], keepAliveEnabled: false }));

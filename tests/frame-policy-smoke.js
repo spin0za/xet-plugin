@@ -16,6 +16,7 @@ async function main() {
     fullscreen: { createFullscreenController: controller },
     frameCoordinator: { createFrameCoordinator: () => ({ ...controller(), publish() {} }) },
     mediaShortcuts: { createShortcutController: controller },
+    qualityPreference: {},
     quality: { createQualityController: controller },
     volume: { createVolumeController: controller },
     toast: { show() {}, hide() {} },

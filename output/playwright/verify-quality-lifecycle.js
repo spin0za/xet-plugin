@@ -3,7 +3,7 @@ async (page) => {
   try {
     await fixture.setContent(`<main>${Array.from({ length: 1500 }, (_, i) =>
       `<div><span>题目${i}</span><span>普通内容</span><button>查看解析</button></div>`).join("")}</main>`);
-    for (const path of ["src/content/player-dom.js", "src/content/quality.js"]) {
+    for (const path of ["src/content/player-dom.js", "src/content/quality-preference.js", "src/content/quality.js"]) {
       await fixture.addScriptTag({ path });
     }
     await fixture.evaluate(() => {

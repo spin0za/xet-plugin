@@ -13,6 +13,7 @@
     !modules.fullscreen ||
     !modules.frameCoordinator ||
     !modules.mediaShortcuts ||
+    !modules.qualityPreference ||
     !modules.quality ||
     !modules.volume ||
     !modules.toast

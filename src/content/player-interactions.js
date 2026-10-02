@@ -8,6 +8,7 @@
     ".xgplayer-start", ".xgplayer-replay",
     ".xgplayer-backward", ".xgplayer-forward",
     ".xgplayer-fullscreen", ".xgplayer-cssfullscreen",
+    ".xgplayer-definition",
   ].join(",");
   const HIDE_DELAY = 3_000;
 

@@ -29,9 +29,24 @@
     let generation = 0;
     let nextRetryAt = 0;
     let scopedElements = null;
+    let activeScope = null;
     let videoRects = null;
     let preferenceRemembered = false;
     const mediaNodes = new Set();
+    const preferences = modules.qualityPreference.createQualityPreferenceTracker({
+      playerDom, isEnabled,
+      onManualSelection() {
+        // Invalidate a pending menu-open task before the SDK changes source.
+        generation++;
+        attemptRunning = null;
+        rerunRequested = false;
+        if (timer !== null) clearTimeout(timer);
+        timer = null;
+        scopedElements = null;
+        // Other players on the same page still receive their default quality.
+        scheduleAttempt(0);
+      },
+    });
 
     function indexMedia(scope = document) {
       const elements = deepElements(scope);
@@ -49,18 +64,21 @@
       return [...mediaNodes];
     }
 
-    function qualityElements() {
-      if (scopedElements) return scopedElements;
+    function qualityScopes() {
       const scopes = new Set(currentMedia().map((element) =>
-        element.closest("xg-player, .xgplayer, .xgplayer-skin-default") ||
-        (element.tagName === "VIDEO" ? element.parentElement : element),
-      ).filter(Boolean));
+        preferences.scopeFor(element) || element,
+      ).filter((scope) => scope && preferences.allows(scope)));
       // Collapse nested scopes so one player is never traversed repeatedly.
-      const outerScopes = [...scopes].filter((scope) =>
+      return [...scopes].filter((scope) =>
         ![...scopes].some((other) => other !== scope && other.contains(scope)),
       );
-      scopedElements = [...new Set(outerScopes.flatMap((scope) => [scope, ...deepElements(scope)]))];
-      return scopedElements;
+    }
+
+    function qualityElements() {
+      if (scopedElements) return scopedElements.filter((element) => preferences.allows(element));
+      const scopes = activeScope ? [activeScope] : qualityScopes();
+      scopedElements = [...new Set(scopes.flatMap((scope) => [scope, ...deepElements(scope)]))];
+      return scopedElements.filter((element) => preferences.allows(element));
     }
 
     function isSmallControl(element) {
@@ -220,9 +238,11 @@
     }
 
     function findKnownPlayerTarget() {
-      const roots = currentMedia().filter((element) => element.matches(".xgplayer-definition"));
+      const roots = currentMedia().filter((element) => element.matches(".xgplayer-definition") &&
+        (!activeScope || activeScope.contains(element)));
 
       for (const root of roots) {
+        if (!preferences.allows(root)) continue;
         const options = Array.from(root.querySelectorAll("li")).filter(
           isUltraOption,
         );
@@ -290,6 +310,39 @@
       });
     }
 
+    async function selectUltraInScope(isCurrent) {
+      if (selectFromKnownPlayer()) return;
+
+      if (targetAlreadySelected()) {
+        rememberUltraPreference();
+        return;
+      }
+
+      let target = bestCandidate(exactLabelElements(TARGET_LABELS), TARGET_LABELS);
+      if (target) {
+        dispatchClick(target);
+        notify("已自动切换为超清");
+        return;
+      }
+
+      const current = bestCandidate(exactLabelElements(CURRENT_LABELS), CURRENT_LABELS);
+      if (!current) return;
+
+      const snapshot = preferences.snapshot(current);
+      dispatchHover(current.closest(".xgplayer-definition") || current);
+      dispatchClick(current);
+      await new Promise((resolve) => setTimeout(resolve, MENU_SETTLE_MS));
+      if (!isCurrent() || !current.isConnected || !preferences.allows(current, snapshot)) return;
+      scopedElements = null;
+
+      target = bestCandidate(exactLabelElements(TARGET_LABELS), TARGET_LABELS);
+      if (!target) return;
+
+      dispatchClick(target);
+      rememberUltraPreference();
+      notify("已自动切换为超清");
+    }
+
     async function trySelectUltra() {
       if (attemptRunning !== null) {
         rerunRequested = true;
@@ -304,48 +357,17 @@
       nextRetryAt = Date.now() + IDLE_RETRY_MS;
 
       try {
-        if (!currentMedia().length) return;
-        if (selectFromKnownPlayer()) return;
-
-        if (targetAlreadySelected()) {
-          rememberUltraPreference();
-          return;
+        for (const scope of qualityScopes()) {
+          if (!isCurrent()) return;
+          if (!scope.isConnected || !preferences.allows(scope)) continue;
+          activeScope = scope;
+          scopedElements = null;
+          await selectUltraInScope(isCurrent);
         }
-
-        let target = bestCandidate(
-          exactLabelElements(TARGET_LABELS),
-          TARGET_LABELS,
-        );
-        if (target) {
-          dispatchClick(target);
-          notify("已自动切换为超清");
-          return;
-        }
-
-        const current = bestCandidate(
-          exactLabelElements(CURRENT_LABELS),
-          CURRENT_LABELS,
-        );
-        if (!current) return;
-
-        dispatchHover(current.closest(".xgplayer-definition") || current);
-        dispatchClick(current);
-        await new Promise((resolve) => setTimeout(resolve, MENU_SETTLE_MS));
-        if (!isCurrent()) return;
-        scopedElements = null;
-
-        target = bestCandidate(
-          exactLabelElements(TARGET_LABELS),
-          TARGET_LABELS,
-        );
-        if (!target) return;
-
-        dispatchClick(target);
-        rememberUltraPreference();
-        notify("已自动切换为超清");
       } finally {
         // An obsolete task must not reset the state of a restarted controller.
         if (generation === token && attemptRunning === token) {
+          activeScope = null;
           attemptRunning = null;
           if (rerunRequested) {
             rerunRequested = false;
@@ -393,6 +415,7 @@
       if (started) return;
       started = true;
       generation++;
+      preferences.start();
       indexMedia();
 
       observer = new MutationObserver((records) => {
@@ -437,6 +460,7 @@
         if (location.href !== previousLocation) {
           previousLocation = location.href;
           lastTargetClicks = new WeakMap();
+          scopedElements = null;
           scheduleAttempt(0, true);
           return;
         }
@@ -450,6 +474,7 @@
       if (!started) return;
       started = false;
       generation++;
+      preferences.stop();
       observer?.disconnect();
       observer = null;
 

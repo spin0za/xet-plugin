@@ -8,6 +8,7 @@ async (page) => {
     "src/content/fullscreen.js",
     "src/content/frame-coordinator.js",
     "src/content/media-shortcuts.js",
+    "src/content/quality-preference.js",
     "src/content/quality.js",
     "src/content/toast.js",
     "src/content.js",

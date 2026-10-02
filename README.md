@@ -20,6 +20,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 ### 功能
 
 - 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
+- 手动点击或用键盘选择画质后，当前视频不再被强制切回超清；切画质、暂停/继续、设置刷新不会清除该选择，打开下一段视频时重新默认超清。同页多个播放器分别处理。
 - 所有受支持页面的视频默认音量为 100%；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
@@ -95,6 +96,7 @@ node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
+node tests/quality-preference-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
 node tests/site-access-smoke.js
@@ -102,6 +104,7 @@ playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
 # 在另一个终端从仓库根目录运行：python3 -m http.server 4173
@@ -113,6 +116,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ### Features
 
 - Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
+- After you select a quality option with the mouse or keyboard, the current video is no longer forced back to Ultra HD. Quality reloads, pause/resume, and settings refreshes preserve your choice; the next video defaults to Ultra HD again. Players on the same page are handled independently.
 - Sets videos on supported pages to 100% volume by default. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
@@ -188,6 +192,7 @@ node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
+node tests/quality-preference-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
 node tests/site-access-smoke.js
@@ -195,6 +200,7 @@ playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
 # In another terminal at the repository root: python3 -m http.server 4173
@@ -221,6 +227,7 @@ src/
     frame-coordinator.js
     fullscreen.css
     media-shortcuts.js
+    quality-preference.js
     quality.js
     toast.js
 output/playwright/
@@ -228,6 +235,7 @@ output/playwright/
   verify-player-structures.js
   verify-analysis-player.js
   verify-quality-lifecycle.js
+  verify-quality-preference.js
   verify-player-focus.js
   verify-volume.js
   verify-mv3-integration.js
@@ -236,6 +244,7 @@ tests/
   content-structure-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
+  quality-preference-smoke.js
   options-smoke.js
   popup-smoke.js
   site-access-smoke.js
@@ -257,8 +266,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.8**
+Current version: **1.10.9**
 
-主要变更：新增独立的默认音量模块，课程、解析页和原生视频加载时默认 100%，保留后续手动调节、静音和网站级启停。
+主要变更：自动超清尊重当前视频的手动画质选择，取消尚未完成的自动任务；同页播放器分别处理，下一段视频重新默认超清，并保留键盘选择画质的操作。
 
-Highlights: a dedicated default-volume module initializes course, analysis, and native videos to 100%, while preserving subsequent manual volume changes, mute state, and per-site lifecycle controls.
+Highlights: automatic Ultra HD respects manual quality choices for the current video and cancels pending auto-selection. Players are handled independently, the next video defaults to Ultra HD again, and keyboard quality selection remains available.
