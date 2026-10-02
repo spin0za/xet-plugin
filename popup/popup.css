@@ -140,6 +140,10 @@ summary:focus-visible {
   cursor: not-allowed;
 }
 
+.volume-setting {
+  margin-top: 10px;
+}
+
 .keep-alive-card {
   margin-top: 10px;
   overflow: hidden;

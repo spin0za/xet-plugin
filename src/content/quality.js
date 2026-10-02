@@ -2,8 +2,7 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.quality) return;
 
-  const TARGET_LABELS = ["超清", "1080P", "1080p", "蓝光"];
-  const CURRENT_LABELS = ["高清", "标清", "流畅", "自动"];
+  const { qualityLabel, qualityRank, qualityOptionFor } = modules.qualityPreference;
   const RETRY_INTERVAL_MS = 1_000;
   const IDLE_RETRY_MS = 15_000;
   const MEDIA_SELECTOR = "video, .xgplayer-definition, xg-player, .xgplayer, .xgplayer-skin-default";
@@ -31,7 +30,8 @@
     let scopedElements = null;
     let activeScope = null;
     let videoRects = null;
-    let preferenceRemembered = false;
+    let rememberedLabel = "";
+    const selectedDefaults = new WeakMap();
     const mediaNodes = new Set();
     const preferences = modules.qualityPreference.createQualityPreferenceTracker({
       playerDom, isEnabled,
@@ -89,19 +89,17 @@
       );
     }
 
-    function exactLabelElements(labels) {
-      const accepted = new Set(labels);
-
+    function exactLabelElements() {
       return qualityElements().filter((element) => {
         // Reject ordinary text before any style/layout reads.
-        if (!accepted.has(normalizeText(element.textContent))) return false;
+        if (!qualityLabel(element.textContent)) return false;
         if (!isVisible(element) || !isSmallControl(element)) return false;
 
         // Prefer the deepest clickable-looking node rather than a wrapper
         // whose child carries the same text.
         return !Array.from(element.children).some(
           (child) =>
-            accepted.has(normalizeText(child.textContent)) && isVisible(child),
+            qualityLabel(child.textContent) && isVisible(child),
         );
       });
     }
@@ -152,22 +150,15 @@
       return score;
     }
 
-    function bestCandidate(elements, labelOrder) {
-      const ranked = [];
+    function selectable(element) {
+      return !element.closest('[disabled], [aria-disabled="true"]');
+    }
 
-      for (const element of elements) {
-        const label = normalizeText(element.textContent);
-        const preference = labelOrder.indexOf(label);
-        if (preference < 0) continue;
-
-        ranked.push({
-          element,
-          score: controlScore(element, label) - preference * 10,
-        });
-      }
-
-      ranked.sort((a, b) => b.score - a.score);
-      return ranked[0]?.element || null;
+    function bestCandidate(elements, highest = false) {
+      const rank = (element) => qualityRank(qualityOptionFor(element) || element);
+      return elements.filter(selectable).filter((element) => !highest || rank(element) > 0)
+        .sort((a, b) => (highest ? rank(b) - rank(a) : 0) ||
+          controlScore(b, normalizeText(b.textContent)) - controlScore(a, normalizeText(a.textContent)))[0] || null;
     }
 
     function dispatchClick(element) {
@@ -206,20 +197,11 @@
       }
     }
 
-    function isUltraOption(element) {
-      const text = normalizeText(element.textContent);
-      const definition = normalizeText(element.getAttribute("definition"));
-      const canonicalName = normalizeText(element.getAttribute("cname"));
-
-      return (
-        text.includes("超清") ||
-        canonicalName.includes("超清") ||
-        /(^|[^0-9])1080(p)?([^0-9]|$)/i.test(definition)
-      );
-    }
-
-    function rememberUltraPreference() {
-      if (preferenceRemembered) return;
+    function rememberPreference(target) {
+      const optionLabel = qualityLabel(target.textContent) || qualityLabel(target.getAttribute("cname"));
+      // Legacy menus display 超清1080P but persist the named choice 超清.
+      const label = optionLabel.replace(/\d{3,4}[pP]?$/, "") || optionLabel;
+      if (!label || label === rememberedLabel) return;
       // Both the legacy and current course players read
       // `${USERID}_definitionType` when choosing their initial source.
       try {
@@ -229,9 +211,9 @@
           if (key?.endsWith("_definitionType")) keys.push(key);
         }
         keys.forEach((key) => {
-          if (localStorage.getItem(key) !== "超清") localStorage.setItem(key, "超清");
+          if (localStorage.getItem(key) !== label) localStorage.setItem(key, label);
         });
-        preferenceRemembered = true;
+        rememberedLabel = label;
       } catch {
         // Course playback still works when localStorage is unavailable.
       }
@@ -243,14 +225,10 @@
 
       for (const root of roots) {
         if (!preferences.allows(root)) continue;
-        const options = Array.from(root.querySelectorAll("li")).filter(
-          isUltraOption,
-        );
-        if (!options.length) continue;
-
-        const target =
-          options.find((option) => option.classList.contains("selected")) ||
-          options[0];
+        // Rank every rendition, not just UHD: live lessons can offer 原画.
+        // The SDK accepts delegated option clicks even with its menu hidden.
+        const target = bestCandidate(Array.from(root.querySelectorAll("li")), true);
+        if (!target) continue;
         return { root, target };
       }
 
@@ -263,7 +241,7 @@
 
       const { root, target } = match;
       if (target.classList.contains("selected")) {
-        rememberUltraPreference();
+        rememberPreference(target);
         return true;
       }
 
@@ -276,74 +254,66 @@
       lastTargetClicks.set(target, Date.now());
       dispatchHover(root);
       target.click();
-      rememberUltraPreference();
-      notify("已自动切换为超清");
+      rememberPreference(target);
+      notify(`已默认选择最高画质：${normalizeText(target.textContent)}`);
       return true;
     }
 
-    function targetAlreadySelected() {
-      const targetElements = exactLabelElements(TARGET_LABELS);
-      const currentElements = exactLabelElements(CURRENT_LABELS);
-
-      // With the menu closed, the control itself shows the selected label. If
-      // "超清" is the only visible label, opening it would leave the menu open.
-      if (targetElements.length && !currentElements.length) return true;
-
-      return targetElements.some((element) => {
-        const className =
-          typeof element.className === "string" ? element.className : "";
-        const state = [
-          className,
-          element.getAttribute("aria-selected"),
-          element.getAttribute("aria-checked"),
-          element.getAttribute("data-selected"),
-        ]
-          .join(" ")
-          .toLowerCase();
-
-        return (
-          /\b(active|current|selected|checked)\b/.test(state) ||
-          element.closest(
-            '[aria-selected="true"], [aria-checked="true"], .active, .selected',
-          )
-        );
-      });
+    function targetAlreadySelected(element) {
+      const className = typeof element.className === "string" ? element.className : "";
+      return /\b(active|current|selected|checked)\b/.test(className) ||
+        element.closest('[aria-selected="true"], [aria-checked="true"], [data-selected="true"], .active, .selected');
     }
 
-    async function selectUltraInScope(isCurrent) {
+    function isOption(element) {
+      return Boolean(qualityOptionFor(element));
+    }
+
+    function selectTarget(target) {
+      const snapshot = preferences.snapshot(target);
+      const label = normalizeText(target.textContent);
+      selectedDefaults.set(activeScope, { snapshot, label });
+      if (!targetAlreadySelected(target)) {
+        const lastClickAt = lastTargetClicks.get(target) || 0;
+        if (Date.now() - lastClickAt < RECLICK_GUARD_MS) return;
+        lastTargetClicks.set(target, Date.now());
+        dispatchClick(target);
+        notify(`已默认选择最高画质：${label}`);
+      }
+      rememberPreference(target);
+    }
+
+    async function selectHighestInScope(isCurrent) {
       if (selectFromKnownPlayer()) return;
 
-      if (targetAlreadySelected()) {
-        rememberUltraPreference();
-        return;
-      }
-
-      let target = bestCandidate(exactLabelElements(TARGET_LABELS), TARGET_LABELS);
+      const elements = exactLabelElements();
+      let target = bestCandidate(elements.filter(isOption), true);
       if (target) {
-        dispatchClick(target);
-        notify("已自动切换为超清");
+        selectTarget(target);
         return;
       }
 
-      const current = bestCandidate(exactLabelElements(CURRENT_LABELS), CURRENT_LABELS);
+      const current = bestCandidate(elements.filter((element) => !isOption(element)));
       if (!current) return;
 
       const snapshot = preferences.snapshot(current);
+      const previous = selectedDefaults.get(activeScope);
+      // Don't repeatedly open a collapsed menu when its highest option is
+      // already selected. A new lesson or a changed label requires discovery.
+      if (previous?.snapshot === snapshot && previous.label === normalizeText(current.textContent)) return;
       dispatchHover(current.closest(".xgplayer-definition") || current);
       dispatchClick(current);
       await new Promise((resolve) => setTimeout(resolve, MENU_SETTLE_MS));
       if (!isCurrent() || !current.isConnected || !preferences.allows(current, snapshot)) return;
       scopedElements = null;
 
-      target = bestCandidate(exactLabelElements(TARGET_LABELS), TARGET_LABELS);
+      target = bestCandidate(exactLabelElements().filter(isOption), true);
       if (!target) return;
 
-      dispatchClick(target);
-      rememberUltraPreference();
-      notify("已自动切换为超清");
+      selectTarget(target);
     }
 
-    async function trySelectUltra() {
+    async function trySelectHighest() {
       if (attemptRunning !== null) {
         rerunRequested = true;
         return;
@@ -362,7 +332,7 @@
           if (!scope.isConnected || !preferences.allows(scope)) continue;
           activeScope = scope;
           scopedElements = null;
-          await selectUltraInScope(isCurrent);
+          await selectHighestInScope(isCurrent);
         }
       } finally {
         // An obsolete task must not reset the state of a restarted controller.
@@ -387,7 +357,7 @@
 
       timer = setTimeout(() => {
         timer = null;
-        void trySelectUltra().catch((error) => console.warn("[Xet] Quality detection failed", error.message));
+        void trySelectHighest().catch((error) => console.warn("[Xet] Quality detection failed", error.message));
       }, delay);
     }
 
@@ -396,7 +366,7 @@
 
       if (event.type === "loadstart" || event.type === "emptied") {
         lastTargetClicks = new WeakMap();
-        preferenceRemembered = false;
+        rememberedLabel = "";
       }
       if (!mediaNodes.has(event.target)) indexMedia(event.target.parentElement || event.target);
       scopedElements = null;
@@ -415,6 +385,7 @@
       if (started) return;
       started = true;
       generation++;
+      lastTargetClicks = new WeakMap();
       preferences.start();
       indexMedia();
 
@@ -449,7 +420,7 @@
         childList: true,
         subtree: true,
         attributes: true,
-        attributeFilter: ["src", "class", "style", "hidden"],
+        attributeFilter: ["src", "class", "style", "hidden", "definition", "cname", "aria-disabled"],
       });
 
       for (const eventName of mediaEvents) {
@@ -497,7 +468,7 @@
       attemptRunning = null;
       rerunRequested = false;
       lastTargetClicks = new WeakMap();
-      preferenceRemembered = false;
+      rememberedLabel = "";
       scopedElements = null;
       scheduleAttempt(0, true);
     }

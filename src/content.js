@@ -32,6 +32,7 @@
 
   const settings = {
     enabled: true,
+    volumeEnabled: true,
     disabledSites: [],
     topOrigin: "",
   };
@@ -57,6 +58,7 @@
       if (!stored || stored.error) throw new Error(stored?.error || "Settings unavailable");
       settings.topOrigin = stored.topOrigin || (window.top === window ? location.origin : "");
       settings.enabled = stored?.enabled !== false;
+      settings.volumeEnabled = stored.volumeEnabled !== false;
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         stored?.disabledSites,
         stored?.disabledHosts,
@@ -67,10 +69,12 @@
       if (window.top !== window && !settings.topOrigin) return;
       const stored = await chrome.storage.local.get({
         enabled: true,
+        volumeEnabled: true,
         disabledSites: null,
         disabledHosts: [],
       });
       settings.enabled = stored.enabled !== false;
+      settings.volumeEnabled = stored.volumeEnabled !== false;
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         stored.disabledSites,
         stored.disabledHosts,
@@ -103,6 +107,8 @@
     if (featuresStarted) {
       if (settings.enabled) { quality.start(); quality.wake(); }
       else quality.stop();
+      if (settings.volumeEnabled) volume.start();
+      else volume.stop();
       return;
     }
     featuresStarted = true;
@@ -110,7 +116,7 @@
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
-    volume.start();
+    if (settings.volumeEnabled) volume.start();
     if (settings.enabled) quality.start();
 
     if (
@@ -148,6 +154,7 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.enabled) settings.enabled = changes.enabled.newValue !== false;
+    if (changes.volumeEnabled) settings.volumeEnabled = changes.volumeEnabled.newValue !== false;
     if (changes.disabledSites || changes.disabledHosts) {
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         changes.disabledSites?.newValue ?? settings.disabledSites,

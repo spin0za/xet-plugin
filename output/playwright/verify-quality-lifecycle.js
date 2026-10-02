@@ -29,7 +29,7 @@ async (page) => {
     }
 
     await fixture.setContent(`<div class="xgplayer"><video></video>
-      <button id=current>高清</button><div id=options hidden><button id=target>超清</button></div></div>`);
+      <button id=current>高清</button><div id=options role=menu hidden><button id=target>超清</button></div></div>`);
     // setContent preserves the isolated controller modules in this fixture.
     await fixture.evaluate(() => {
       window.enabled = true;

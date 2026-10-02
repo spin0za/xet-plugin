@@ -8,6 +8,7 @@ async function main() {
   let settings = { enabled: true, disabledSites: [], topOrigin };
   let storageListener;
   const calls = { start: 0, stop: 0 };
+  const volumeCalls = { start: 0, stop: 0 };
   const controller = () => ({ start: () => calls.start++, stop: () => calls.stop++, wake() {} });
   const modules = {
     playerDom: { findActivePlayer: () => null },
@@ -18,7 +19,10 @@ async function main() {
     mediaShortcuts: { createShortcutController: controller },
     qualityPreference: {},
     quality: { createQualityController: controller },
-    volume: { createVolumeController: controller },
+    volume: { createVolumeController: () => ({
+      start() { calls.start++; volumeCalls.start++; },
+      stop() { calls.stop++; volumeCalls.stop++; },
+    }) },
     toast: { show() {}, hide() {} },
   };
   const window = { top: {} };
@@ -43,6 +47,16 @@ async function main() {
   assert.equal(calls.start, 12);
   storageListener({ disabledSites: { newValue: [ownOrigin] } }, "local");
   assert.equal(calls.stop, 12, "child-site disable must also remain effective");
+  storageListener({ disabledSites: { newValue: [] } }, "local");
+  const otherFeatureStops = () => calls.stop - volumeCalls.stop;
+  const previousOtherStops = otherFeatureStops();
+  storageListener({ volumeEnabled: { newValue: false } }, "local");
+  assert.equal(otherFeatureStops(), previousOtherStops, "volume toggle must not stop shortcuts or quality");
+  const previousVolumeStarts = volumeCalls.start;
+  storageListener({ enabled: { newValue: false } }, "local");
+  assert.equal(volumeCalls.start, previousVolumeStarts, "quality refresh must not reenable disabled volume");
+  storageListener({ volumeEnabled: { newValue: true } }, "local");
+  assert.equal(volumeCalls.start, previousVolumeStarts + 1, "volume can start while quality is off");
 
   settings = { error: "storage unavailable" };
   const before = calls.start;

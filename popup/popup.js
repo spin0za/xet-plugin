@@ -1,5 +1,6 @@
 const siteAccess = globalThis.XetSiteAccess;
 const globalToggle = document.querySelector("#global-toggle");
+const volumeToggle = document.querySelector("#volume-toggle");
 const summary = document.querySelector("#summary");
 const siteSection = document.querySelector("#site-section");
 const hostnameLabel = document.querySelector("#hostname");
@@ -13,6 +14,7 @@ let activeTab = null;
 let activeUrl = null;
 let settings = {
   enabled: true,
+  volumeEnabled: true,
   disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
@@ -71,6 +73,8 @@ async function checkAccess() {
 function render() {
   globalToggle.checked = settings.enabled;
   globalToggle.disabled = !ready || saving;
+  volumeToggle.checked = settings.volumeEnabled;
+  volumeToggle.disabled = !ready || saving;
   renderKeepAlive();
   hint.hidden = true;
   hint.textContent = "";
@@ -98,8 +102,8 @@ function render() {
       : "启用后只访问当前域名";
   } else {
     summary.textContent = settings.enabled
-      ? "自动超清已开启"
-      : "自动超清已关闭";
+      ? "默认最高画质已开启"
+      : "默认最高画质已关闭";
     siteButton.textContent = "在此网站停用";
     siteButton.classList.add("danger");
     siteStatus.textContent = "停用插件在此网站的全部功能";
@@ -131,7 +135,7 @@ async function saveSettings(changes) {
     // Native disabled controls lose focus. Restore it after saving only if the
     // user has not moved elsewhere, so repeated keyboard toggles keep working.
     if (document.activeElement === document.body &&
-        (focused === globalToggle || focused === keepAliveToggle) && !focused.disabled) {
+        [globalToggle, volumeToggle, keepAliveToggle].includes(focused) && !focused.disabled) {
       focused.focus();
     }
     if (failed) summary.textContent = "设置保存失败，请重试";
@@ -140,6 +144,10 @@ async function saveSettings(changes) {
 
 globalToggle.addEventListener("change", async () => {
   await saveSettings({ enabled: globalToggle.checked });
+});
+
+volumeToggle.addEventListener("change", async () => {
+  await saveSettings({ volumeEnabled: volumeToggle.checked });
 });
 
 keepAliveToggle.addEventListener("change", async () => {
@@ -197,6 +205,7 @@ manageSites.addEventListener("click", () => {
   try {
     settings = await chrome.storage.local.get({
       enabled: true,
+      volumeEnabled: true,
       disabledSites: null,
       disabledHosts: [],
       keepAliveEnabled: false,
@@ -220,6 +229,7 @@ manageSites.addEventListener("click", () => {
   } catch (error) {
     ready = false;
     globalToggle.disabled = true;
+    volumeToggle.disabled = true;
     keepAliveToggle.disabled = true;
     siteSection.hidden = true;
     summary.textContent = "无法读取设置，请重新打开扩展";

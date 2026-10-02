@@ -89,6 +89,9 @@
       if (event.defaultPrevented || event.button !== 0 || event.sourceCapabilities?.firesTouchEvents) return null;
       const root = findPlayerRoot(event.target);
       if (!root) return null;
+      // Live/generic quality menus may use <li> or ARIA options outside the
+      // usual xgplayer definition control. Leave those gestures to the SDK.
+      if (event.composedPath().some((node) => modules.qualityPreference?.qualityOptionFor(node))) return null;
       if (event.composedPath().some((node) => node instanceof Element &&
           node !== root && node.matches(CONTROL_SELECTOR))) return null;
       return root;

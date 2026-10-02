@@ -4,9 +4,9 @@
   <img src="assets/goose-icon-master.png" width="256" height="256" alt="小鹅通播放助手图标 / Xiaoe Tech Player Helper icon">
 </p>
 
-一个适用于 Chrome 和 Edge 的本地扩展：自动选择小鹅通视频的“超清”画质，提供类似 YouTube 的播放快捷键，并可通过无界面请求保持登录。
+一个适用于 Chrome 和 Edge 的本地扩展：默认选择小鹅通视频可用的最高画质，可设置默认最大音量，提供类似 YouTube 的播放快捷键，并可通过无界面请求保持登录。
 
-A local Chrome and Edge extension that automatically selects the highest supported Xiaoe Tech video quality, adds YouTube-style playback shortcuts, and can keep a session active with invisible background requests.
+A local Chrome and Edge extension that defaults to the highest available Xiaoe Tech video quality, optionally initializes maximum volume, adds YouTube-style playback shortcuts, and can keep a session active with invisible background requests.
 
 [中文](#中文) · [English](#english)
 
@@ -19,9 +19,9 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ### 功能
 
-- 视频加载后自动选择播放器已有的“超清”、1080P 或蓝光画质。
-- 手动点击或用键盘选择画质后，当前视频不再被强制切回超清；切画质、暂停/继续、设置刷新不会清除该选择，打开下一段视频时重新默认超清。同页多个播放器分别处理。
-- 所有受支持页面的视频默认音量为 100%；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。
+- 视频加载后自动选择播放器实际提供的最高画质，包括直播课的“原画”；优先比较明确的分辨率信息，没有超清时也会选择可用的最高档位，跳过禁用项和“自动”。
+- 手动点击或用键盘选择画质后，当前视频不再被强制改回；切画质、暂停/继续、设置刷新不会清除该选择，打开下一段视频时重新默认最高画质。同页多个播放器分别处理。
+- “默认最大音量”开启时，所有受支持页面的视频默认音量为 100%；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。可单独关闭该开关，不影响画质、快捷键和全屏功能。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
@@ -75,12 +75,12 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ### 工作方式与限制
 
-- 扩展只选择播放器实际提供的画质；如果视频没有超清源，则无法生成更高画质。
+- 扩展只选择播放器实际提供的画质，无法生成不存在的更高画质源。
 - 快捷键直接控制当前可见或正在播放的视频。
 - `T` 启用的网页全屏由扩展独立布局，不再依赖播放器不稳定的网页全屏样式；播放器会进入页面顶层，网站导航及周围页面内容会被隐藏且无法误触，视频则按比例缩放，剩余区域显示为黑色。
 - 播放器界面或 DOM 结构升级后，识别逻辑可能需要同步调整。
-- 自动超清开关不会影响课程权限、购买状态或打卡规则。
-- 顶部“自动超清”只控制自动画质；开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
+- “默认最高画质”开关不会影响课程权限、购买状态或打卡规则。
+- 弹窗依次为“默认最高画质”“默认最大音量”和“自动保持登录”，分别独立控制；前两项默认开启，已有画质开关的设置会保留。开发者模式中的网站级启用或停用控制插件在该网站上的全部功能。
 - 停用自定义域名时，扩展会同时撤销该域名的 Chrome 访问权限并注销自动加载内容脚本；内置支持域名则通过扩展内部状态停用。
 - “自动保持登录”默认关闭，只会请求根据受支持课程网站识别出的商家电脑端主页。
 - 后台请求使用浏览器现有登录状态，但扩展不申请 Cookie 读取权限；续期由网站的正常响应完成。
@@ -89,7 +89,7 @@ A local Chrome and Edge extension that automatically selects the highest support
 
 ### 本地验证
 
-项目包含播放器和扩展界面的 Playwright 浏览器回归脚本，用于验证新旧播放器、原生视频、快捷键、全屏、网站启停、自动超清以及网站管理界面：
+项目包含播放器和扩展界面的 Playwright 浏览器回归脚本，用于验证新旧播放器、原生视频、快捷键、全屏、网站启停、默认最高画质以及网站管理界面：
 
 ```bash
 node tests/background-smoke.js
@@ -104,6 +104,7 @@ playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
@@ -115,9 +116,9 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 
 ### Features
 
-- Automatically selects an available Ultra HD, 1080P, or Blu-ray quality option after the video loads.
-- After you select a quality option with the mouse or keyboard, the current video is no longer forced back to Ultra HD. Quality reloads, pause/resume, and settings refreshes preserve your choice; the next video defaults to Ultra HD again. Players on the same page are handled independently.
-- Sets videos on supported pages to 100% volume by default. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting.
+- Defaults to the highest quality offered by the player, including Original (原画) on live lessons. Explicit resolution metadata takes priority over marketing labels; disabled options and adaptive Auto mode are excluded. Videos without Ultra HD still default to their highest available rendition.
+- After you select a quality option with the mouse or keyboard, the current video is no longer forced back. Quality reloads, pause/resume, and settings refreshes preserve your choice; the next video defaults to its highest available quality again. Players on the same page are handled independently.
+- The **Default maximum volume** switch initializes supported videos to 100% volume. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting. Turning this switch off leaves quality, shortcuts, and fullscreen features active.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
@@ -176,7 +177,7 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Page fullscreen activated with `T` uses an extension-managed layout instead of the player's unstable page-fullscreen CSS. The player enters the page's top layer, hiding and blocking accidental interaction with site navigation and surrounding content. The video scales proportionally and any unused space stays black.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
-- The top-level automatic-quality switch controls only quality selection. The site-level action under Developer mode controls every extension feature on that site.
+- The popup presents **Default highest quality**, **Default maximum volume**, and **Automatic session keep-alive**, with independent switches in that order. Quality and volume default to on; existing quality preferences are preserved. The site-level action under Developer mode controls every extension feature on that site.
 - Disabling a custom domain revokes its Chrome host permission and unregisters its automatically loaded content scripts. Built-in Xiaoe Tech domains are disabled through the extension's internal site state instead.
 - Session keep-alive is off by default and requests only the merchant desktop homepage inferred from a supported course site.
 - Background requests use the browser's existing login state without requesting cookie-reading permission; renewal is handled by the site's normal response.
@@ -200,6 +201,7 @@ playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
+playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
@@ -235,6 +237,7 @@ output/playwright/
   verify-player-structures.js
   verify-analysis-player.js
   verify-quality-lifecycle.js
+  verify-highest-quality.js
   verify-quality-preference.js
   verify-player-focus.js
   verify-volume.js
@@ -266,8 +269,8 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.10.9**
+Current version: **1.11.0**
 
-主要变更：自动超清尊重当前视频的手动画质选择，取消尚未完成的自动任务；同页播放器分别处理，下一段视频重新默认超清，并保留键盘选择画质的操作。
+主要变更：默认选择可用的最高画质，支持直播“原画”、更高分辨率与仅有高清的播放器；弹窗更名为“默认最高画质”，新增独立的“默认最大音量”开关，继续尊重当前视频的手动画质与音量选择。
 
-Highlights: automatic Ultra HD respects manual quality choices for the current video and cancels pending auto-selection. Players are handled independently, the next video defaults to Ultra HD again, and keyboard quality selection remains available.
+Highlights: defaults to the highest available quality, including Original for live lessons, higher resolutions, and HD-only players. Renames the popup quality switch and adds an independent default-maximum-volume switch, preserving manual quality and volume choices for the current video.

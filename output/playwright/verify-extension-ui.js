@@ -27,6 +27,7 @@ async (page) => {
           disabledSites,
           keepAliveEnabled: true,
           keepAliveUrl: "https://merchant.pc.xiaoe-tech.com/bought",
+          ...JSON.parse(sessionStorage.getItem("fixture-settings") || "{}"),
         };
         window.chrome = {
           runtime: {
@@ -43,7 +44,10 @@ async (page) => {
                 if (failStorageRead) throw new Error("storage unavailable");
                 return { ...defaults, ...settings };
               },
-              set: async (changes) => Object.assign(settings, changes),
+              set: async (changes) => {
+                Object.assign(settings, changes);
+                sessionStorage.setItem("fixture-settings", JSON.stringify(settings));
+              },
             },
           },
           permissions: {
@@ -90,6 +94,25 @@ async (page) => {
   await popupPage.keyboard.press("Space");
   if (await popupPage.locator("#global-toggle").isChecked()) throw new Error("Keyboard toggle did not turn off");
   await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => document.querySelector("#global-toggle").checked &&
+    !document.querySelector("#global-toggle").disabled);
+  await popupPage.keyboard.press("Tab");
+  const volumeFocus = await popupPage.evaluate(() => document.activeElement.id === "volume-toggle");
+  if (!volumeFocus || !(await popupPage.locator("#volume-toggle").isChecked())) {
+    throw new Error("Default volume toggle is not enabled by default or in the correct keyboard order");
+  }
+  await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => !document.querySelector("#volume-toggle").checked &&
+    !document.querySelector("#volume-toggle").disabled);
+  if (!(await popupPage.locator("#global-toggle").isChecked()) ||
+      !(await popupPage.locator("#keep-alive-toggle").isChecked())) throw new Error("Volume toggle changed other settings");
+  await popupPage.reload();
+  await popupPage.waitForFunction(() => !document.querySelector("#volume-toggle").disabled);
+  if (await popupPage.locator("#volume-toggle").isChecked()) throw new Error("Disabled volume setting was not restored");
+  await popupPage.locator("#volume-toggle").focus();
+  await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => document.querySelector("#volume-toggle").checked &&
+    !document.querySelector("#volume-toggle").disabled);
   await popupPage.emulateMedia({ reducedMotion: "reduce" });
   const accessibility = await popupPage.evaluate(() => {
     const summary = document.querySelector(".developer-options > summary");
@@ -110,6 +133,7 @@ async (page) => {
   if (accessibility.contrast < 4.5 || accessibility.transition !== "0s") {
     throw new Error(`Popup accessibility regression: ${JSON.stringify(accessibility)}`);
   }
+  await popupPage.screenshot({ path: "output/playwright/highest-quality-popup.png" });
   await popupPage.locator(".developer-options > summary").click();
   const popup = await popupPage.evaluate(() => {
     const details = document.querySelector(".developer-options");
@@ -176,6 +200,13 @@ async (page) => {
   await popupPage.keyboard.press("Space");
   await popupPage.waitForFunction(() => document.querySelector("#keep-alive-toggle").checked &&
     !document.querySelector("#keep-alive-toggle").disabled);
+  await popupPage.locator("#volume-toggle").focus();
+  await popupPage.keyboard.press("Space");
+  await popupPage.waitForFunction(() => document.querySelector("#volume-toggle").checked &&
+    !document.querySelector("#volume-toggle").disabled);
+  if (await popupPage.evaluate(() => document.activeElement.id) !== "volume-toggle") {
+    throw new Error("Volume toggle lost focus after a failed settings write");
+  }
 
   const failedPopup = await page.context().newPage();
   await installChromeStub(failedPopup, {
@@ -183,11 +214,12 @@ async (page) => {
   });
   await failedPopup.goto(`${fixtureBaseUrl}/popup/popup.html`);
   await failedPopup.waitForFunction(() => document.querySelector("#summary").textContent.includes("无法读取设置"));
-  const failedInitDisabled = await failedPopup.locator("#global-toggle").isDisabled();
+  const failedInitDisabled = await failedPopup.locator("#global-toggle").isDisabled() &&
+    await failedPopup.locator("#volume-toggle").isDisabled();
   if (!failedInitDisabled) throw new Error("Failed initialization enabled the settings controls");
   await failedPopup.close();
 
   await popupPage.close();
   await optionsPage.close();
-  return { popup, options, keyboardFocus, accessibility, failedSaveRolledBack, failedInitDisabled };
+  return { popup, options, keyboardFocus, volumeFocus, independentVolumeToggle: true, accessibility, failedSaveRolledBack, failedInitDisabled };
 }

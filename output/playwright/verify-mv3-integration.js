@@ -8,7 +8,7 @@ async (page) => {
   const fixture = await page.context().newPage();
   let stage = "frame initialization";
   try {
-    await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [], keepAliveEnabled: false }));
+    await worker.evaluate(() => chrome.storage.local.set({ enabled: true, volumeEnabled: true, disabledSites: [], keepAliveEnabled: false }));
     await fixture.setViewportSize({ width: 1280, height: 900 });
     await fixture.route("https://merchant.pc.xiaoe-tech.com/**", (route) => route.fulfill({
       contentType: "text/html", body: `<!doctype html><style>body{margin:0}iframe{width:400px;height:300px}</style>
@@ -70,6 +70,27 @@ async (page) => {
     });
     stage = "next lesson quality";
     await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
+    stage = "volume toggle disabled";
+    await worker.evaluate(() => chrome.storage.local.set({ volumeEnabled: false }));
+    await inner.waitForTimeout(100);
+    await inner.evaluate(() => {
+      const video = document.createElement("video");
+      video.id = "volume-off-video"; video.volume = 0.35;
+      document.body.append(video);
+      const original = document.createElement("li"); original.id = "original"; original.textContent = "原画";
+      document.querySelector(".xgplayer-definition ul").append(original);
+    });
+    await inner.waitForFunction(() => document.querySelector("#original").classList.contains("selected"));
+    if (await inner.evaluate(() => document.querySelector("#volume-off-video").volume) !== 0.35) {
+      throw new Error("Disabled volume default still changed a new video");
+    }
+    if (await inner.evaluate(() => document.querySelector("#player").dataset.xetInteractions) !== "true") {
+      throw new Error("Volume toggle disabled player interactions");
+    }
+    stage = "volume toggle reenabled";
+    await worker.evaluate(() => chrome.storage.local.set({ volumeEnabled: true }));
+    await inner.waitForFunction(() => document.querySelector("#volume-off-video").volume === 1);
+    await inner.evaluate(() => document.querySelector("#volume-off-video").remove());
     stage = "page fullscreen";
     const root = inner.locator("#player");
     await root.press("t");
@@ -116,11 +137,11 @@ async (page) => {
     stage = "outer site reenable";
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
-    return { realMV3: true, nestedFrames: 2, defaultVolume: true, manualQuality: true, nextLessonDefault: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
   } catch (error) {
     throw new Error(`MV3 integration (${stage}): ${error.message}`);
   } finally {
     await fixture.close();
-    await worker.evaluate(() => chrome.storage.local.set({ enabled: true, disabledSites: [], keepAliveEnabled: false }));
+    await worker.evaluate(() => chrome.storage.local.set({ enabled: true, volumeEnabled: true, disabledSites: [], keepAliveEnabled: false }));
   }
 }

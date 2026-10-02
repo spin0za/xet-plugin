@@ -216,6 +216,11 @@ async function main() {
   const send = (message) => new Promise((resolve) => runtimeOnMessage.listeners[0](message, sender, resolve));
   const policy = await send({ type: "xet:get-settings" });
   assert.equal(policy.topOrigin, "https://custom.example");
+  assert.equal(policy.volumeEnabled, true, "older installations default maximum volume to on");
+  state.volumeEnabled = false;
+  assert.equal((await send({ type: "xet:get-settings" })).volumeEnabled, false,
+    "volume setting must propagate to embedded players independently");
+  delete state.volumeEnabled;
   const authorization = { type: "xet:authorize-frame-web", active: true,
     token: "00000000-0000-4000-8000-000000000001" };
   assert.equal((await send(authorization)).ok, true);

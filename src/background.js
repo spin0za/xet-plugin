@@ -3,6 +3,7 @@ importScripts("site-access.js");
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
   enabled: true,
+  volumeEnabled: true,
   disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",

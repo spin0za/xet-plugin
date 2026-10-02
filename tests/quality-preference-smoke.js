@@ -14,6 +14,7 @@ class Element {
   }
   querySelector(selector) { return selector === "video" ? this.video || null : null; }
   querySelectorAll() { return []; }
+  getAttribute(name) { return this[name] || null; }
 }
 
 const listeners = new Map();
@@ -27,6 +28,21 @@ const context = {
 };
 vm.runInNewContext(fs.readFileSync("src/content/quality-preference.js", "utf8"), context);
 const preferenceModule = context.__xetPlayerHelperModules.qualityPreference;
+const rank = (label, definition) => {
+  const element = new Element(label); element.definition = definition;
+  return preferenceModule.qualityRank(element);
+};
+assert.ok(rank("原画") > rank("8K"));
+assert.ok(rank("4K") > rank("2K"));
+assert.ok(rank("2K") > rank("超清"));
+assert.ok(rank("超清", "1080p") > rank("高清", "720p"));
+assert.equal(rank("超清", "720p"), 720, "metadata outranks marketing names");
+assert.equal(rank("超清1080P", "720p"), 720, "SDK metadata also outranks a conflicting display resolution");
+assert.equal(rank("超清", "1080"), 1080, "numeric SDK resolution metadata remains supported");
+assert.equal(rank("自动"), 0, "adaptive quality is not a fixed highest rendition");
+assert.equal(rank("下载视频"), 0, "unrelated menu actions must not be ranked");
+assert.ok(preferenceModule.qualityLabel("原画"));
+assert.ok(preferenceModule.qualityLabel("2160P"));
 const root = new Element(); root.video = { duration: 120 };
 const other = new Element(); other.video = { duration: 30 };
 const option = new Element("高清", "option"); option.menu = {}; option.root = root;
