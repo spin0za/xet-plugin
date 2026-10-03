@@ -7,6 +7,21 @@ async function main() {
     constructor(tagName = "DIV", volume = 0.4, readyState = 0, duration = NaN) {
       super();
       Object.assign(this, { tagName, volume, readyState, duration, muted: true, isConnected: true, children: [] });
+      this.captureHandlers = new Map();
+    }
+    addEventListener(type, handler, options) {
+      if (options === true) this.captureHandlers.set(type, handler);
+      super.addEventListener(type, handler, options);
+    }
+    removeEventListener(type, handler, options) {
+      if (options === true) this.captureHandlers.delete(type);
+      super.removeEventListener(type, handler, options);
+    }
+    closest(selector) { return selector === ".pc-live-player" ? this.liveRoot : this.control; }
+    matches() { return this.tagName === "INPUT"; }
+    querySelector() { return this.children.find(node => node.tagName === "VIDEO"); }
+    querySelectorAll(selector) {
+      return selector === "video" ? this.children.filter(node => node.tagName === "VIDEO") : this.ranges || [];
     }
   }
   const initial = new Element("VIDEO");
@@ -17,7 +32,7 @@ async function main() {
   let fullScans = 0;
   const observers = [];
   const context = {
-    Element, document, location, setTimeout, clearTimeout, console,
+    Element, Event, document, location, setTimeout, clearTimeout, console,
     MutationObserver: class {
       constructor(callback) { this.callback = callback; observers.push(this); }
       observe() { this.active = true; }
@@ -102,6 +117,57 @@ async function main() {
   controller.start();
   await flush();
   assert.equal(obsolete.volume, 0.1, "previous generation must not run after restart");
+  controller.stop();
+  const live = new Element("VIDEO", 0.5, 4, 3600);
+  live.muted = false;
+  const liveRoot = new Element();
+  const control = new Element();
+  const range = new Element("INPUT");
+  Object.assign(range, { min: "0", max: "100", value: "50", control, liveRoot });
+  live.liveRoot = liveRoot;
+  liveRoot.children = [live];
+  liveRoot.ranges = [range];
+  let controlUpdates = 0;
+  const sdkState = { currentVolume: 50, beforeMuteVolume: 0 };
+  for (const type of ["input", "change"]) range.addEventListener(type, () => {
+    sdkState.currentVolume = sdkState.beforeMuteVolume = Number(range.value);
+    live.volume = sdkState.currentVolume / 100;
+    controlUpdates++;
+  });
+  document.children = [live];
+  controller.start();
+  await flush();
+  assert.equal(live.volume, 1);
+  assert.equal(range.value, "100");
+  assert.equal(sdkState.currentVolume, 100);
+  assert.equal(sdkState.beforeMuteVolume, 100, "unmuting must restore the initialized volume");
+  assert.equal(controlUpdates, 2, "synchronize both the native input and SDK change handlers once");
+  control.captureHandlers.get("pointerdown")({ isTrusted: true, currentTarget: control });
+  range.value = "25";
+  range.dispatchEvent(new Event("input"));
+  live.dispatchEvent(new Event("loadedmetadata"));
+  await flush();
+  assert.equal(live.volume, 0.25);
+  // A late/recreated slider must not override manual intent even at 100%.
+  live.volume = 1;
+  const lateRange = new Element("INPUT");
+  Object.assign(lateRange, { min: "0", max: "100", value: "50", control, liveRoot });
+  liveRoot.ranges = [lateRange];
+  observers.at(-1).callback([{ addedNodes: [lateRange] }]);
+  await flush();
+  assert.equal(lateRange.value, "50", "trusted manual control use closes initialization for late sliders");
+  location.href = "https://merchant.pc.xiaoe-tech.com/live/next";
+  live.dispatchEvent(new Event("loadedmetadata"));
+  await flush();
+  assert.equal(lateRange.value, "100", "a new lesson may initialize the existing live slider again");
+  controller.stop();
+  assert.equal(control.captureHandlers.size, 0, "disable removes live control intent listeners");
+  live.muted = true;
+  lateRange.value = "0";
+  controller.start();
+  await flush();
+  assert.equal(lateRange.value, "0", "initially muted live controls must not emit unmute events");
+  assert.equal(live.muted, true);
   controller.stop();
   console.log("default volume smoke test passed");
 }

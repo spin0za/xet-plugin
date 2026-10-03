@@ -27,8 +27,17 @@ async (page) => {
         <div class=xgplayer-definition style="position:absolute;right:0;top:0;background:white">
           <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
           <li id=hd definition=720p class=selected>高清</li></ul></div></div>
+        <div id=live-player class=pc-live-player><video id=live-video></video><div class=mute-btn><div class=volume-range>
+          <input id=live-volume type=range min=0 max=100 value=50></div></div></div>
         <script>
           document.querySelector('video').volume = 0.3;
+          document.querySelector('#live-video').volume = 0.5;
+          window.liveVolumeState = 50;
+          document.querySelector('#live-volume').addEventListener('input', (event) => {
+            window.liveVolumeState = Number(event.target.value);
+            document.querySelector('#live-video').volume = window.liveVolumeState / 100;
+            document.querySelector('#live-video').muted = window.liveVolumeState === 0;
+          });
           document.querySelector('.xgplayer-definition').addEventListener('click', (event) => {
             const option = event.target.closest('li'); if (!option) return;
             document.querySelectorAll('li').forEach(item => item.classList.toggle('selected', item === option));
@@ -43,6 +52,16 @@ async (page) => {
     const inner = fixture.frames().find((frame) => frame.url().includes("player.eapps.cn"));
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("video").volume === 1);
+    stage = "live volume across isolated worlds";
+    await inner.waitForFunction(() => document.querySelector("#live-volume").value === "100" && window.liveVolumeState === 100);
+    await inner.locator("#live-volume").press("Home");
+    await inner.locator("#live-volume").press("ArrowRight");
+    await inner.evaluate(() => document.querySelector("#live-video").dispatchEvent(new Event("loadedmetadata")));
+    await inner.waitForTimeout(100);
+    if (await inner.evaluate(() => document.querySelector("#live-video").volume !== 0.01 || window.liveVolumeState !== 1)) {
+      throw new Error("Live controls failed to preserve manual volume in the real MV3 extension");
+    }
+    await inner.locator("#live-player").evaluate(node => node.remove());
     stage = "initial automatic quality";
     await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
     await inner.locator("#hd").click();
