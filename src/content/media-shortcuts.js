@@ -4,6 +4,28 @@
 
   const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 
+  function playbackRateOptions(video, playerDom) {
+    const liveRoot = video.closest(".pc-live-player");
+    const root = liveRoot || playerDom.findPlayerRoot(video);
+    if (!root) return null; // Truly native video: no SDK state to synchronize.
+    const menu = root.querySelector(liveRoot
+      ? ".speed-btn .speed-control"
+      : ".xgplayer-playbackrate, .xgplayer-playback-rate");
+    // A known live player may mount its menu later. Do not create a hidden,
+    // unsupported speed before its controls are ready.
+    if (!menu) return liveRoot ? [] : null;
+    const options = [];
+    for (const element of menu.querySelectorAll(liveRoot ? ".selector_item" : "li")) {
+      if (element.matches(':disabled, [disabled], [aria-disabled="true"], .disabled, .is-disabled') ||
+          element.closest("[inert]")) continue;
+      const text = (element.textContent || "").trim();
+      const match = text.match(/^(\d+(?:\.\d+)?)\s*[x×倍]?$/i);
+      const rate = match ? Number(match[1]) : NaN;
+      if (Number.isFinite(rate) && rate > 0) options.push({ rate, element });
+    }
+    return options.sort((a, b) => a.rate - b.rate);
+  }
+
   function createShortcutController({ fullscreen, playerDom }) {
     const {
       findActivePlayer,
@@ -67,15 +89,22 @@
     }
 
     function changePlaybackRate(video, direction) {
+      const options = playbackRateOptions(video, playerDom);
+      const rates = options === null ? PLAYBACK_RATES : options.map(option => option.rate);
       const currentRate = Number.isFinite(video.playbackRate)
         ? video.playbackRate
         : 1;
       const nextRate =
         direction < 0
-          ? PLAYBACK_RATES.findLast((rate) => rate < currentRate - 0.001)
-          : PLAYBACK_RATES.find((rate) => rate > currentRate + 0.001);
+          ? rates.findLast((rate) => rate < currentRate - 0.001)
+          : rates.find((rate) => rate > currentRate + 0.001);
 
-      if (nextRate !== undefined) video.playbackRate = nextRate;
+      if (nextRate === undefined) return;
+      // Let the SDK update its label, selected option and internal speed too.
+      // Clicking an already-selected stale label can be a no-op in Vue; in
+      // that case repair the media value as well. Never just rewrite UI text.
+      options?.find(option => option.rate === nextRate)?.element.click();
+      if (video.playbackRate !== nextRate) video.playbackRate = nextRate;
     }
 
     function handleKeydown(event) {

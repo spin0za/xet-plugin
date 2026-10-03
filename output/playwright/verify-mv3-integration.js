@@ -28,7 +28,10 @@ async (page) => {
           <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
           <li id=hd definition=720p class=selected>高清</li></ul></div></div>
         <div id=live-player class=pc-live-player><video id=live-video></video><div class=mute-btn><div class=volume-range>
-          <input id=live-volume type=range min=0 max=100 value=50></div></div></div>
+          <input id=live-volume type=range min=0 max=100 value=50></div></div>
+          <div class=speed-btn><div id=live-speed-label>1X</div><div class=speed-control style="display:none">
+            ${[2, 1.5, 1.25, 1, 0.75].map(rate => `<div class="selector_item ${rate === 1 ? "active" : ""}" data-rate="${rate}">${rate}X</div>`).join("")}
+          </div></div></div>
         <script>
           document.querySelector('video').volume = 0.3;
           document.querySelector('#live-video').volume = 0.5;
@@ -38,6 +41,14 @@ async (page) => {
             document.querySelector('#live-video').volume = window.liveVolumeState / 100;
             document.querySelector('#live-video').muted = window.liveVolumeState === 0;
           });
+          window.liveSpeedState = 1;
+          document.querySelectorAll('.speed-control .selector_item').forEach(item => item.addEventListener('click', () => {
+            const rate = Number(item.dataset.rate);
+            if (window.liveSpeedState === rate) return;
+            window.liveSpeedState = document.querySelector('#live-video').playbackRate = rate;
+            document.querySelector('#live-speed-label').textContent = rate + 'X';
+            document.querySelectorAll('.selector_item').forEach(el => el.classList.toggle('active', el === item));
+          }));
           document.querySelector('.xgplayer-definition').addEventListener('click', (event) => {
             const option = event.target.closest('li'); if (!option) return;
             document.querySelectorAll('li').forEach(item => item.classList.toggle('selected', item === option));
@@ -61,7 +72,16 @@ async (page) => {
     if (await inner.evaluate(() => document.querySelector("#live-video").volume !== 0.01 || window.liveVolumeState !== 1)) {
       throw new Error("Live controls failed to preserve manual volume in the real MV3 extension");
     }
-    await inner.locator("#live-player").evaluate(node => node.remove());
+    stage = "live speed across isolated worlds";
+    await inner.evaluate(() => { document.activeElement.blur(); document.querySelector("#player").style.display = "none"; });
+    await inner.press("body", "Shift+Period");
+    await inner.waitForFunction(() => document.querySelector("#live-video").playbackRate === 1.25 &&
+      document.querySelector("#live-speed-label").textContent === "1.25X" && window.liveSpeedState === 1.25);
+    await inner.press("body", "Shift+Period"); await inner.press("body", "Shift+Period");
+    if (await inner.evaluate(() => document.querySelector("#live-video").playbackRate !== 2 || window.liveSpeedState !== 2)) {
+      throw new Error("Live shortcut did not respect its available menu speeds");
+    }
+    await inner.evaluate(() => { document.querySelector("#live-player").remove(); document.querySelector("#player").style.display = ""; });
     stage = "initial automatic quality";
     await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
     await inner.locator("#hd").click();
@@ -156,7 +176,7 @@ async (page) => {
     stage = "outer site reenable";
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
-    return { realMV3: true, nestedFrames: 2, defaultVolume: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
   } catch (error) {
     throw new Error(`MV3 integration (${stage}): ${error.message}`);
   } finally {

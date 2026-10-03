@@ -41,7 +41,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 | `J` / `L` | 后退 / 前进 10 秒 |
 | `K` | 暂停 / 继续播放 |
 | `空格` | 暂停 / 继续播放 |
-| `<` / `>` | 降低 / 提高播放速度（0.5～3 倍速） |
+| `<` / `>` | 按播放器实际提供的档位降低 / 提高倍速，并同步控件；原生视频回退为 0.5～3 倍速 |
 | `F` | 切换原生全屏 |
 | `T` | 切换网页全屏 |
 | `Esc` | 退出网页全屏 |
@@ -96,6 +96,7 @@ node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
+node tests/playback-rate-smoke.js
 node tests/quality-preference-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
@@ -108,6 +109,7 @@ playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
+playwright-cli run-code "$(<output/playwright/verify-playback-rate.js)"
 # 在另一个终端从仓库根目录运行：python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
@@ -138,7 +140,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 | `J` / `L` | Seek backward / forward 10 seconds |
 | `K` | Pause / resume playback |
 | `Space` | Pause / resume playback |
-| `<` / `>` | Decrease / increase playback speed (0.5x–3x) |
+| `<` / `>` | Step through the player's available speeds and synchronize its controls; native video falls back to 0.5x–3x |
 | `F` | Toggle native fullscreen |
 | `T` | Toggle page fullscreen |
 | `Esc` | Exit page fullscreen |
@@ -193,6 +195,7 @@ node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
+node tests/playback-rate-smoke.js
 node tests/quality-preference-smoke.js
 node tests/options-smoke.js
 node tests/popup-smoke.js
@@ -205,6 +208,7 @@ playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-preference.js)"
 playwright-cli run-code "$(<output/playwright/verify-player-focus.js)"
 playwright-cli run-code "$(<output/playwright/verify-volume.js)"
+playwright-cli run-code "$(<output/playwright/verify-playback-rate.js)"
 # In another terminal at the repository root: python3 -m http.server 4173
 playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 ```
@@ -241,12 +245,14 @@ output/playwright/
   verify-quality-preference.js
   verify-player-focus.js
   verify-volume.js
+  verify-playback-rate.js
   verify-mv3-integration.js
 tests/
   background-smoke.js
   content-structure-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
+  playback-rate-smoke.js
   quality-preference-smoke.js
   options-smoke.js
   popup-smoke.js
@@ -269,7 +275,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.12.3**
+Current version: **1.12.4**
+
+1.12.4：倍速快捷键通过播放器的实际菜单切换，同步实际播放速度、按钮文字和选中档位，并遵守直播或回放菜单的倍速范围。
+
+1.12.4: Speed shortcuts use the player's available menu options, keeping playback speed, button text and selected options in sync while respecting live/replay speed limits.
 
 主要变更：默认选择可用的最高画质，支持直播“原画”、更高分辨率与仅有高清的播放器；弹窗更名为“默认最高画质”，新增独立的“默认最大音量”开关，继续尊重当前视频的手动画质与音量选择。
 
