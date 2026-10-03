@@ -3,7 +3,9 @@
   position: relative;
   height: var(--xet-download-height, 40px);
   float: right;
-  margin: var(--xet-download-margin, 0 16px 0 0);
+  /* Merchant skins reset margins on every player descendant. Keep the
+     captured native spacing even when those styles load after this sheet. */
+  margin: var(--xet-download-margin, 0 16px 0 0) !important;
   color: #fff;
   font: 13px/1.4 system-ui, sans-serif;
 }

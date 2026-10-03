@@ -115,9 +115,9 @@
       button.className = "xet-download-button";
       button.setAttribute("aria-label", "下载当前画质的视频");
       const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      // Like the SDK icons, the SVG frame includes the toolbar's vertical
-      // space; no extra padded/centered button box around a smaller icon.
-      icon.setAttribute("viewBox", "0 -5 28 40");
+      // A square viewBox also fits merchant skins with square icon frames;
+      // a tall viewBox would shrink the artwork's width in those players.
+      icon.setAttribute("viewBox", "0 0 28 28");
       icon.setAttribute("aria-hidden", "true");
       const path = document.createElementNS(icon.namespaceURI, "path");
       path.setAttribute("d", "M14 3v15m-7-7 7 7 7-7M2 21v5h24v-5");
