@@ -18,6 +18,16 @@
   float: none;
   flex-shrink: 0;
 }
+/* Join the SDK's existing flex strip and inherit its white toolbar color.
+   Dimensions and margins come from its adjacent fullscreen control. */
+.pc-live-player .right-area > .xet-download-live {
+  float: none;
+  flex-shrink: 0;
+  align-self: center;
+  width: var(--xet-download-width, 20px);
+  height: var(--xet-download-height, 20px);
+  color: inherit;
+}
 .xet-download-button {
   display: block;
   position: relative;

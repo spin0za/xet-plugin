@@ -22,19 +22,24 @@ async (page) => {
       contentType: "text/html; charset=utf-8", body: `<!doctype html><style>
         html,body{margin:0;height:100%}.xgplayer{position:relative;width:100%;height:100%;background:black}
         video{width:100%;height:100%}.xgplayer-controls{position:absolute;bottom:0}button{padding:8px}
+        .pc-live-player{position:relative;width:100%;height:300px;background:#222}
+        .pc-live-player .myControls{position:absolute;bottom:0;width:100%;color:white}
+        .button-area-wrapper,.right-area{display:flex;align-items:center;gap:16px}
+        .pc-live-player .fullscreen-btn{width:24px;height:24px}
       </style><div id=player class=xgplayer tabindex=0><video></video><div class=xgplayer-controls>
         <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div>
         <div class=xgplayer-definition style="position:absolute;right:0;top:0;background:white">
           <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
           <li id=hd definition=720p class=selected>高清</li></ul></div></div>
-        <div id=live-mount><div id=live-player class=pc-live-player><video id=live-video></video><div class=mute-btn><div class=volume-range>
-          <input id=live-volume type=range min=0 max=100 value=50></div></div>
-          <div class=speed-btn><div id=live-speed-label>1X</div><div class=speed-control style="display:none">
+        <div id=live-mount><div id=live-player class=pc-live-player><video id=live-video></video>
+          <div class=myControls><div class=button-area-wrapper><div class=left-area><div class=mute-btn><div class=volume-range>
+          <input id=live-volume type=range min=0 max=100 value=50></div></div></div>
+          <div class=right-area><div class=speed-btn><div id=live-speed-label>1X</div><div class=speed-control style="display:none">
             ${[2, 1.5, 1.25, 1, 0.75].map(rate => `<div class="selector_item ${rate === 1 ? "active" : ""}" data-rate="${rate}">${rate}X</div>`).join("")}
           </div></div><div class=fullscreen-btn>
             <img id=live-exit class=fullBtn alt=退出全屏 style="display:none;width:24px;height:24px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
             <img id=live-enter class=fullBtn alt=全屏 style="width:24px;height:24px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
-          </div></div></div>
+          </div></div></div></div></div></div>
         <script>
           document.querySelector('video').volume = 0.3;
           document.querySelector('#live-video').volume = 0.5;
@@ -48,6 +53,7 @@ async (page) => {
           window.liveFullscreenState = false;
           window.liveFullscreenClicks = 0;
           const showLiveFullscreen = (active) => {
+            if (!document.querySelector('#live-enter')) return;
             window.liveFullscreenState = active;
             document.querySelector('#live-enter').style.display = active ? 'none' : 'block';
             document.querySelector('#live-exit').style.display = active ? 'block' : 'none';
@@ -86,6 +92,11 @@ async (page) => {
     await inner.waitForFunction(() => document.querySelector("video").volume === 1);
     stage = "live volume across isolated worlds";
     await inner.waitForFunction(() => document.querySelector("#live-volume").value === "100" && window.liveVolumeState === 100);
+    await inner.waitForFunction(() => document.querySelector("#live-player .right-area .xet-download-button"));
+    if (await inner.evaluate(() => document.querySelectorAll("#live-player .xet-download-button").length !== 1 ||
+      document.querySelector("#live-player .xet-download-control").classList.contains("xet-download-native"))) {
+      throw new Error("Live download action did not join the real MV3 toolbar");
+    }
     await inner.locator("#live-volume").press("Home");
     await inner.locator("#live-volume").press("ArrowRight");
     await inner.evaluate(() => document.querySelector("#live-video").dispatchEvent(new Event("loadedmetadata")));

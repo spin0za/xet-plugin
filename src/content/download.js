@@ -105,7 +105,9 @@
     function add(root) {
       if (records.has(root)) {
         const record = records.get(root);
-        if (!record.container.isConnected) attach(record);
+        // SDK toolbars can mount after <video>, or be rebuilt during a
+        // course/line change. Recheck placement without replacing the button.
+        attach(record);
         return;
       }
       const container = document.createElement("span");
@@ -158,15 +160,27 @@
         }
         // SDK right-hand toolbars use row-reverse (or right floats). Inserting
         // before volume puts download visually between volume and fullscreen.
-        parent.insertBefore(record.container, volume || null);
+        if (record.container.parentElement !== parent || record.container.nextElementSibling !== (volume || null)) {
+          parent.insertBefore(record.container, volume || null);
+        }
       } else if (record.root.tagName === "VIDEO") {
         record.container.classList.add("xet-download-native");
         record.root.after(record.container);
       } else if (record.root.matches(".pc-live-player")) {
-        // Recognizing the complete live player must not detach the existing
-        // native-fallback download action from its media wrapper.
-        record.container.classList.add("xet-download-native");
-        record.root.querySelector("video")?.after(record.container);
+        const parent = record.root.querySelector(".myControls .button-area-wrapper .right-area");
+        const reference = parent && [...parent.children].find(node => node.matches(".fullscreen-btn"));
+        // Wait for the real toolbar instead of placing a floating action
+        // next to <video>. Both live and replay SDK skins share this strip.
+        if (!reference) return;
+        const style = getComputedStyle(reference);
+        record.container.classList.remove("xet-download-native");
+        record.container.classList.add("xet-download-live");
+        for (const property of ["width", "height", "margin"]) {
+          record.container.style.setProperty(`--xet-download-${property}`, style[property]);
+        }
+        if (record.container.parentElement !== parent || record.container.nextElementSibling !== reference) {
+          parent.insertBefore(record.container, reference);
+        }
       }
     }
 
@@ -180,7 +194,7 @@
           shadows.set(node.shadowRoot, watcher);
         }
         if (node.tagName === "VIDEO") add(playerDom.findPlayerRoot(node) || node);
-        else if (node.matches(".xgplayer-controls, xg-controls")) {
+        else if (node.matches(".xgplayer-controls, xg-controls, .myControls, .button-area-wrapper, .right-area, .fullscreen-btn")) {
           const root = playerDom.findPlayerRoot(node);
           if (root && playerDom.findPlayerVideo(root)) add(root);
         }

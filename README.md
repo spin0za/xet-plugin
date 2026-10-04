@@ -277,7 +277,7 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.12.5**
+Current version: **1.12.6**
 
 1.12.5：修复直播/回放的 `F` 键绕过原有播放器控件的问题，统一按钮与快捷键入口，同步播放器全屏状态；网页全屏保留原有控件及菜单，不再强行启用原生控件。
 
