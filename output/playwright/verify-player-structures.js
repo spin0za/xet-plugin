@@ -741,7 +741,7 @@ async (page) => {
       </style>
       <article id="task-card">
         <h1>打卡课程</h1>
-        <video></video>
+        <video controls></video>
       </article>
       <script>
         const card = document.querySelector("#task-card");
@@ -857,10 +857,10 @@ async (page) => {
       !webOn.controls ||
       !webOffWithEscape.inactive ||
       webOffWithEscape.position === "fixed" ||
-      webOffWithEscape.controls ||
+      !webOffWithEscape.controls ||
       !webOffWithT.inactive ||
       webOffWithT.position === "fixed" ||
-      webOffWithT.controls ||
+      !webOffWithT.controls ||
       !cardUntouched
     ) {
       throw new Error(

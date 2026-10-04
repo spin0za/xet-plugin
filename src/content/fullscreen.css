@@ -73,6 +73,16 @@ html.xet-web-fullscreen-active video[data-xet-web-fullscreen="true"] {
   object-fit: contain !important;
 }
 
+/* Resize the live SDK's media wrapper, not its controls. Its original
+   toolbar, menus and idle-hide animation remain owned by the SDK. */
+.pc-live-player[data-xet-web-fullscreen="true"] .normal_video_wrap_1001 {
+  position: relative !important;
+  inline-size: 100% !important;
+  block-size: 100% !important;
+  min-inline-size: 0 !important;
+  min-block-size: 0 !important;
+}
+
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
   video,

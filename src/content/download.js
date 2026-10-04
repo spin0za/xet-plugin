@@ -162,6 +162,11 @@
       } else if (record.root.tagName === "VIDEO") {
         record.container.classList.add("xet-download-native");
         record.root.after(record.container);
+      } else if (record.root.matches(".pc-live-player")) {
+        // Recognizing the complete live player must not detach the existing
+        // native-fallback download action from its media wrapper.
+        record.container.classList.add("xet-download-native");
+        record.root.querySelector("video")?.after(record.container);
       }
     }
 

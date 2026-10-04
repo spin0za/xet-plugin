@@ -27,10 +27,13 @@ async (page) => {
         <div class=xgplayer-definition style="position:absolute;right:0;top:0;background:white">
           <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
           <li id=hd definition=720p class=selected>高清</li></ul></div></div>
-        <div id=live-player class=pc-live-player><video id=live-video></video><div class=mute-btn><div class=volume-range>
+        <div id=live-mount><div id=live-player class=pc-live-player><video id=live-video></video><div class=mute-btn><div class=volume-range>
           <input id=live-volume type=range min=0 max=100 value=50></div></div>
           <div class=speed-btn><div id=live-speed-label>1X</div><div class=speed-control style="display:none">
             ${[2, 1.5, 1.25, 1, 0.75].map(rate => `<div class="selector_item ${rate === 1 ? "active" : ""}" data-rate="${rate}">${rate}X</div>`).join("")}
+          </div></div><div class=fullscreen-btn>
+            <img id=live-exit class=fullBtn alt=退出全屏 style="display:none;width:24px;height:24px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
+            <img id=live-enter class=fullBtn alt=全屏 style="width:24px;height:24px" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
           </div></div></div>
         <script>
           document.querySelector('video').volume = 0.3;
@@ -42,6 +45,24 @@ async (page) => {
             document.querySelector('#live-video').muted = window.liveVolumeState === 0;
           });
           window.liveSpeedState = 1;
+          window.liveFullscreenState = false;
+          window.liveFullscreenClicks = 0;
+          const showLiveFullscreen = (active) => {
+            window.liveFullscreenState = active;
+            document.querySelector('#live-enter').style.display = active ? 'none' : 'block';
+            document.querySelector('#live-exit').style.display = active ? 'block' : 'none';
+          };
+          document.querySelector('#live-enter').addEventListener('click', () => {
+            window.liveFullscreenClicks++;
+            document.querySelector('#live-mount').requestFullscreen(); showLiveFullscreen(true);
+          });
+          document.querySelector('#live-exit').addEventListener('click', () => {
+            window.liveFullscreenClicks++;
+            document.exitFullscreen(); showLiveFullscreen(false);
+          });
+          document.addEventListener('fullscreenchange', () => {
+            if (!document.fullscreenElement) showLiveFullscreen(false);
+          });
           document.querySelectorAll('.speed-control .selector_item').forEach(item => item.addEventListener('click', () => {
             const rate = Number(item.dataset.rate);
             if (window.liveSpeedState === rate) return;
@@ -81,7 +102,26 @@ async (page) => {
     if (await inner.evaluate(() => document.querySelector("#live-video").playbackRate !== 2 || window.liveSpeedState !== 2)) {
       throw new Error("Live shortcut did not respect its available menu speeds");
     }
-    await inner.evaluate(() => { document.querySelector("#live-player").remove(); document.querySelector("#player").style.display = ""; });
+    stage = "live fullscreen controls across isolated worlds";
+    await inner.press("body", "f");
+    await inner.waitForFunction(() => document.fullscreenElement?.id === "live-mount" && window.liveFullscreenState);
+    if (await inner.evaluate(() => document.querySelector("#live-video").controls)) throw new Error("Live fullscreen replaced SDK controls");
+    await inner.press("body", "f");
+    await inner.waitForFunction(() => !document.fullscreenElement && !window.liveFullscreenState);
+    await inner.locator("#live-enter").click();
+    await inner.waitForFunction(() => document.fullscreenElement?.id === "live-mount" && window.liveFullscreenState);
+    await inner.locator("#live-exit").click();
+    await inner.waitForFunction(() => !document.fullscreenElement && !window.liveFullscreenState);
+    if (await inner.evaluate(() => window.liveFullscreenClicks) !== 4) throw new Error("Live button and F used different fullscreen paths");
+    await inner.press("body", "t");
+    await inner.waitForFunction(() => document.querySelector("#live-player").dataset.xetWebFullscreen === "true");
+    await inner.press("body", "f");
+    await inner.waitForFunction(() => document.fullscreenElement?.id === "live-mount" && window.liveFullscreenState);
+    await inner.press("body", "t");
+    await inner.waitForFunction(() => !document.fullscreenElement && document.querySelector("#live-player").dataset.xetWebFullscreen === "true");
+    await inner.press("body", "Escape");
+    await inner.waitForFunction(() => !document.querySelector("#live-player").dataset.xetWebFullscreen);
+    await inner.evaluate(() => { document.querySelector("#live-mount").remove(); document.querySelector("#player").style.display = ""; });
     stage = "initial automatic quality";
     await inner.waitForFunction(() => document.querySelector("#ultra").classList.contains("selected"));
     await inner.locator("#hd").click();
@@ -176,7 +216,7 @@ async (page) => {
     stage = "outer site reenable";
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
-    return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, liveFullscreenControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
   } catch (error) {
     throw new Error(`MV3 integration (${stage}): ${error.message}`);
   } finally {

@@ -13,7 +13,7 @@
   const HIDE_DELAY = 3_000;
 
   function createPlayerInteractionController({ playerDom }) {
-    const { deepElements, findPlayerRoot, findPlayerVideo, findActivePlayer, isEditableTarget } = playerDom;
+    const { XG_PLAYER_ROOT_SELECTOR, deepElements, findPlayerRoot, findPlayerVideo, findActivePlayer, isEditableTarget } = playerDom;
     const players = new Map();
     let observer = null;
     let pointerFrame = null;
@@ -32,7 +32,9 @@
     }
 
     function show(root, overControls = false) {
-      if (!root || root.tagName === "VIDEO") return;
+      // Only repair xgplayer's mobile interaction skin. Other SDKs already
+      // own picture clicks, menu gestures and control visibility.
+      if (!root?.matches(XG_PLAYER_ROOT_SELECTOR)) return;
       let state = players.get(root);
       if (!state) {
         state = { timer: null, overControls: false };
@@ -88,7 +90,7 @@
     function pictureRoot(event) {
       if (event.defaultPrevented || event.button !== 0 || event.sourceCapabilities?.firesTouchEvents) return null;
       const root = findPlayerRoot(event.target);
-      if (!root) return null;
+      if (!root?.matches(XG_PLAYER_ROOT_SELECTOR)) return null;
       // Live/generic quality menus may use <li> or ARIA options outside the
       // usual xgplayer definition control. Leave those gestures to the SDK.
       if (event.composedPath().some((node) => modules.qualityPreference?.qualityOptionFor(node))) return null;
@@ -138,7 +140,7 @@
       const elements = deepElements(scope);
       if (scope instanceof Element) elements.push(scope);
       for (const node of elements) {
-        if (node.matches("xg-player, .xgplayer, .xgplayer-skin-default") &&
+        if (node.matches(XG_PLAYER_ROOT_SELECTOR) &&
             !players.has(node)) show(node);
       }
     }

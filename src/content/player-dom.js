@@ -2,7 +2,10 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.playerDom) return;
 
-  const PLAYER_ROOT_SELECTOR = "xg-player, .xgplayer, .xgplayer-skin-default";
+  const XG_PLAYER_ROOT_SELECTOR = "xg-player, .xgplayer, .xgplayer-skin-default";
+  // Live/replay controls are siblings of the media wrapper, not descendants
+  // of <video>. Fullscreen must include this complete SDK player.
+  const PLAYER_ROOT_SELECTOR = `${XG_PLAYER_ROOT_SELECTOR}, .pc-live-player`;
 
   function findPlayerRoot(element) {
     let current = element;
@@ -123,7 +126,8 @@
         root.classList.contains("xgplayer-is-fullscreen") ||
         root.classList.contains("xgplayer-is-cssfullscreen") ||
         root === document.fullscreenElement ||
-        root.contains(document.fullscreenElement),
+        root.contains(document.fullscreenElement) ||
+        document.fullscreenElement?.contains(root),
     );
     if (fullscreenRoot) return fullscreenRoot;
 
@@ -173,6 +177,7 @@
   }
 
   modules.playerDom = Object.freeze({
+    XG_PLAYER_ROOT_SELECTOR,
     composedParent,
     deepElements,
     deepQueryAll,

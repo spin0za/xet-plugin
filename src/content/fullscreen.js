@@ -6,6 +6,7 @@
     ".xgplayer-fullscreen",
     ".xgplayer-fullscreen-img",
     "xg-fullscreen",
+    ".pc-live-player .fullscreen-btn .fullBtn",
   ].join(",");
   const WEB_FULLSCREEN_SELECTOR = [
     ".xgplayer-cssfullscreen",
@@ -115,6 +116,9 @@
 
     function isNativeFullscreen(root) {
       const fullscreenElement = nativeFullscreenElement();
+      // The live SDK fullscreens its mounting wrapper, an ancestor of the
+      // player. It must still support F-to-exit and native-to-web switching.
+      if (root.matches(".pc-live-player") && fullscreenElement?.contains(root)) return true;
       if (managedPlayers.has(root)) {
         // Player classes can lag one fullscreenchange behind the browser.
         // Managed requests use the browser's state as the source of truth.
@@ -139,7 +143,16 @@
     }
 
     function clickNativeFullscreenControl(root) {
-      const control = findPlayerControl(root, NATIVE_FULLSCREEN_SELECTOR);
+      // Vue keeps separate enter/exit images and its own isFull state. Click
+      // the active SDK control so that state and its wrapper target stay in
+      // sync; requesting fullscreen on <video> or rewriting the icon cannot.
+      const control = root.matches(".pc-live-player")
+        ? [...root.querySelectorAll(".fullscreen-btn .fullBtn")].find(
+            (element) => getComputedStyle(element).display !== "none",
+          )
+        : findPlayerControl(root, NATIVE_FULLSCREEN_SELECTOR);
+      // Only each image's v-show/display selects enter vs exit. The toolbar
+      // itself can be idle-hidden; F must still use the same SDK action.
       if (!control) return false;
 
       clickingFallbackControl = true;
@@ -158,6 +171,7 @@
     }
 
     function enterNativeFullscreen(root) {
+      if (root.matches(".pc-live-player") && clickNativeFullscreenControl(root)) return;
       const canRequest = Boolean(
         root.requestFullscreen ||
           root.webkitRequestFullscreen ||
@@ -192,6 +206,7 @@
       }
 
       if (nativeFullscreenElement()) {
+        if (root.matches(".pc-live-player") && clickNativeFullscreenControl(root)) return;
         const result = exitNativeFullscreen();
         result?.catch?.(() => {});
       } else if (isNativeFullscreen(root)) {
@@ -272,13 +287,9 @@
         document.body.style.overflow = root.dataset.xetBodyOverflow || "";
         document.documentElement.style.overflow =
           root.dataset.xetHtmlOverflow || "";
-        if (root.tagName === "VIDEO") {
-          root.controls = root.dataset.xetOriginalControls === "true";
-        }
         delete root.dataset[marker];
         delete root.dataset.xetBodyOverflow;
         delete root.dataset.xetHtmlOverflow;
-        delete root.dataset.xetOriginalControls;
         root.classList.remove("xgplayer-is-cssfullscreen");
         document.body.classList.remove("xeplayer-webscreen-fix");
         document.documentElement.classList.remove(
@@ -296,10 +307,8 @@
       root.dataset.xetBodyOverflow = document.body.style.overflow || "";
       root.dataset.xetHtmlOverflow =
         document.documentElement.style.overflow || "";
-      if (root.tagName === "VIDEO") {
-        root.dataset.xetOriginalControls = String(root.controls);
-        root.controls = true;
-      }
+      // Keep the existing UI: SDK players keep their controls subtree and
+      // genuinely native videos retain their original controls attribute.
       document.body.style.overflow = "hidden";
       document.documentElement.style.overflow = "hidden";
       root.classList.add("xgplayer-is-cssfullscreen");

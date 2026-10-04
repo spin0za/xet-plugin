@@ -26,7 +26,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
-- 播放器全屏按钮与 `F` 使用相同的原生全屏入口；移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
+- 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
 - 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强和该网站的登录保活都会停止。
@@ -103,6 +103,7 @@ node tests/popup-smoke.js
 node tests/site-access-smoke.js
 playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
+playwright-cli run-code "$(<output/playwright/verify-fullscreen-controls.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
 playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
@@ -125,7 +126,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
-- Makes the player's fullscreen button and `F` use the same native fullscreen entry point, removes the mobile skin's full-picture gradient overlay, and keeps playback controls visible after exiting.
+- Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
 - Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
@@ -202,6 +203,7 @@ node tests/popup-smoke.js
 node tests/site-access-smoke.js
 playwright-cli open about:blank --browser chrome
 playwright-cli run-code "$(<output/playwright/verify-player-structures.js)"
+playwright-cli run-code "$(<output/playwright/verify-fullscreen-controls.js)"
 playwright-cli run-code "$(<output/playwright/verify-analysis-player.js)"
 playwright-cli run-code "$(<output/playwright/verify-quality-lifecycle.js)"
 playwright-cli run-code "$(<output/playwright/verify-highest-quality.js)"
@@ -275,7 +277,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.12.4**
+Current version: **1.12.5**
+
+1.12.5：修复直播/回放的 `F` 键绕过原有播放器控件的问题，统一按钮与快捷键入口，同步播放器全屏状态；网页全屏保留原有控件及菜单，不再强行启用原生控件。
+
+1.12.5: Fixes live/replay fullscreen shortcuts bypassing the original controls. Buttons and shortcuts share the SDK entry point and fullscreen state; page fullscreen preserves existing controls and menus without forcing native controls.
 
 1.12.4：倍速快捷键通过播放器的实际菜单切换，同步实际播放速度、按钮文字和选中档位，并遵守直播或回放菜单的倍速范围。
 
