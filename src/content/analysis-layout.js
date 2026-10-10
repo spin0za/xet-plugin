@@ -2,7 +2,9 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.analysisLayout) return;
 
-  const ANALYSIS_PATH = /\/pc_evaluation\/(?:practice_analysis|exam_analysis)\//;
+  // Question-answering and rote-review modes share practice_sheet. Their
+  // answer explanations use the same rich-text embeds as submitted analyses.
+  const ANALYSIS_PATH = /\/pc_evaluation\/(?:practice_sheet|practice_analysis|exam_analysis)\//;
   const MARKER = "data-xet-analysis-layout";
   const EMBED_MARKER = "data-xet-analysis-embed";
   const CONTAINER_MARKER = "data-xet-analysis-container";
@@ -51,7 +53,7 @@
         for (const embed of document.querySelectorAll(EMBEDS)) {
           // Rich text uses shrink-to-fit flex items and occasionally fixed-width
           // paragraphs. Expanding only the iframe cannot escape those limits.
-          const boundary = embed.closest("#_flag4unlimit, #detail_div, .detail_div, .image-text-box");
+          const boundary = embed.closest("#_flag4unlimit, #detail_div, .detail_div, .image-text-box, .question-block__answer, .question-wrap");
           for (let node = embed.parentElement; boundary && node; node = node.parentElement) {
             if (node.matches("div, p, section, span") && !node.matches(EMBEDS)) nextContainers.add(node);
             if (node === boundary) break;

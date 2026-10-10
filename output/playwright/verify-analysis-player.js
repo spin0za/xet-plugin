@@ -57,7 +57,7 @@ async (page) => {
       contentType: "text/html",
       body: "<!doctype html><style>html,body {margin:0;width:100%;height:100%;}</style><div id=player></div>",
     }));
-    await testPage.goto("https://analysis.example/p/t_pc/pc_evaluation/practice_analysis/fixture");
+    await testPage.goto("https://analysis.example/p/t_pc/pc_evaluation/practice_sheet/fixture");
     const originalPreviewSize = await testPage.locator("iframe").first().boundingBox();
 
     const settings = { enabled: true, disabledSites: [], topOrigin: "https://analysis.example" };
@@ -120,6 +120,14 @@ async (page) => {
           videoInit: false,
         });
         await player.start();
+        // The site's embed supplies a white title in the SDK's top bar.
+        const title = document.createElement("span");
+        title.textContent = "9.敬语-30.mp4";
+        title.style.cssText = "color:white;font-size:16px;line-height:50px";
+        const topBar = document.createElement("div");
+        topBar.className = "xg-top-bar";
+        topBar.append(title);
+        player.root.append(topBar);
         // A local stream exercises real play/pause and metadata events without
         // borrowing a course URL or accessing authenticated media.
         const canvas = document.createElement("canvas");
@@ -145,22 +153,26 @@ async (page) => {
     }
 
     const layouts = [];
-    for (const viewport of [{ width: 1280, height: 900 }, { width: 620, height: 900 }]) {
-      await testPage.setViewportSize(viewport);
-      const sizes = await testPage.locator("iframe").evaluateAll((elements) =>
-        elements.map((element) => {
-          const rect = element.getBoundingClientRect();
-          return { width: rect.width, height: rect.height };
-        }),
-      );
-      if (sizes.some(({ width, height }) => Math.abs(width / height - 16 / 9) > .01)) {
-        throw new Error(`Previews are not landscape: ${JSON.stringify(sizes)}`);
+    for (const route of ["practice_sheet", "practice_analysis"]) {
+      await testPage.evaluate((route) => history.pushState({}, "", `/p/t_pc/pc_evaluation/${route}/fixture`), route);
+      await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
+      for (const viewport of [{ width: 1280, height: 900 }, { width: 620, height: 900 }]) {
+        await testPage.setViewportSize(viewport);
+        const sizes = await testPage.locator("iframe").evaluateAll((elements) =>
+          elements.map((element) => {
+            const rect = element.getBoundingClientRect();
+            return { width: rect.width, height: rect.height };
+          }),
+        );
+        if (sizes.some(({ width, height }) => Math.abs(width / height - 16 / 9) > .01)) {
+          throw new Error(`Previews are not landscape: ${JSON.stringify(sizes)}`);
+        }
+        const expectedWidth = Math.min(960, viewport.width - 40);
+        if (sizes.some(({ width }) => Math.abs(width - expectedWidth) > 1)) {
+          throw new Error(`Rich-text width still limits previews: ${JSON.stringify(sizes)}`);
+        }
+        layouts.push({ route, viewport, sizes });
       }
-      const expectedWidth = Math.min(960, viewport.width - 40);
-      if (sizes.some(({ width }) => Math.abs(width - expectedWidth) > 1)) {
-        throw new Error(`Rich-text width still limits previews: ${JSON.stringify(sizes)}`);
-      }
-      layouts.push({ viewport, sizes });
     }
     await testPage.setViewportSize({ width: 1280, height: 900 });
     const frame = frames[0];
@@ -176,6 +188,22 @@ async (page) => {
         previewCrop.overflow !== "hidden" || previewCrop.fit !== "cover") {
       throw new Error(`Preview rim not cropped: ${JSON.stringify(previewCrop)}`);
     }
+    const previewScrims = await frame.evaluate(() => {
+      const top = getComputedStyle(player.root, "::before");
+      const bottom = getComputedStyle(player.root, "::after");
+      return { top: top.backgroundImage, bottom: bottom.backgroundImage,
+        height: top.height, pointerEvents: top.pointerEvents,
+        titleLayer: getComputedStyle(player.root.querySelector(".xg-top-bar")).zIndex };
+    });
+    if (!previewScrims.top.includes("0.9") || !previewScrims.top.includes("0.78") ||
+        !previewScrims.bottom.includes("0.9") || !previewScrims.bottom.includes("0.78") ||
+        previewScrims.height !== "80px" || previewScrims.pointerEvents !== "none" ||
+        Number(previewScrims.titleLayer) <= 9) {
+      throw new Error(`Preview scrims not behind readable UI: ${JSON.stringify(previewScrims)}`);
+    }
+    await frame.evaluate(() => player.video.pause());
+    await player.screenshot({ path: "output/playwright/analysis-preview-contrast.png" });
+    await frame.evaluate(() => player.video.play());
     const pictureClicks = [];
     async function verifyPictureClicks(mode) {
       await frame.evaluate(() => {
@@ -208,6 +236,11 @@ async (page) => {
       const hidden = await fullscreenState();
       if (hidden.controlsVisible || hidden.controlOpacity !== "0") {
         throw new Error(`${mode} controls did not hide: ${JSON.stringify(hidden)}`);
+      }
+      if (mode === "preview" && await player.evaluate((root) =>
+          getComputedStyle(root, "::before").opacity !== "0" ||
+          getComputedStyle(root, "::after").opacity !== "0")) {
+        throw new Error("Preview edge scrims must hide with idle controls");
       }
       if (mode === "preview" || mode === "native fullscreen") {
         await player.screenshot({ path: `output/playwright/analysis-${mode === "preview" ? "preview" : "fullscreen"}.png` });
@@ -242,6 +275,8 @@ async (page) => {
           videoFit: getComputedStyle(root.querySelector("video")).objectFit,
           gradient: root.querySelector(".gradient")
             ? getComputedStyle(root.querySelector(".gradient")).display : "none",
+          previewScrims: ["::before", "::after"].some((pseudo) =>
+            getComputedStyle(root, pseudo).content !== "none"),
           controlsVisible: style.display !== "none" && style.opacity === "1" &&
             style.visibility === "visible" && controlRect.bottom <= rect.bottom + 1,
           controlHeight: controlRect.height,
@@ -261,7 +296,7 @@ async (page) => {
     await frame.waitForFunction(() => document.fullscreenElement?.id === "player");
     const keyboardFullscreen = await fullscreenState();
     if (JSON.stringify(buttonFullscreen) !== JSON.stringify(keyboardFullscreen) ||
-        buttonFullscreen.gradient !== "none" || !buttonFullscreen.controlsVisible ||
+        buttonFullscreen.gradient !== "none" || buttonFullscreen.previewScrims || !buttonFullscreen.controlsVisible ||
         buttonFullscreen.controlHeight !== 48 || buttonFullscreen.videoFit !== "contain") {
       throw new Error(`Different or obscured fullscreen: ${JSON.stringify({buttonFullscreen, keyboardFullscreen})}`);
     }
@@ -367,22 +402,33 @@ async (page) => {
     if (await frame.evaluate(() => getComputedStyle(player.video).transform) !== "none") {
       throw new Error("Preview crop leaked onto a non-analysis page");
     }
+    if (await player.evaluate((root) => getComputedStyle(root, "::before").content !== "none")) {
+      throw new Error("Preview scrim leaked onto a non-evaluation page");
+    }
     const otherPageSize = await testPage.locator("iframe").first().boundingBox();
     if (otherPageSize.width !== originalPreviewSize.width ||
         otherPageSize.height !== originalPreviewSize.height) {
       throw new Error("Analysis layout leaked onto another page");
     }
     await testPage.evaluate(() => {
-      history.pushState({}, "", "/p/t_pc/pc_evaluation/exam_analysis/fixture");
-      document.querySelector("#detail_div").append(
-        document.querySelector(".xiaoe-iframe-outside").cloneNode(true),
-      );
+      history.pushState({}, "", "/p/t_pc/pc_evaluation/practice_sheet/fixture");
+      // Rote review mounts explanations inside its question answer block,
+      // sometimes inside a fixed-width paragraph, after the route has loaded.
+      const answer = document.createElement("div");
+      answer.className = "question-block__answer";
+      const paragraph = document.createElement("p");
+      paragraph.style.width = "360px";
+      paragraph.append(document.querySelector(".xiaoe-iframe-outside").cloneNode(true));
+      answer.append(paragraph);
+      document.body.append(answer);
     });
     await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
     const newSize = await testPage.locator("iframe").last().boundingBox();
-    if (Math.abs(newSize.width / newSize.height - 16 / 9) > .01) {
-      throw new Error("New analysis embed did not inherit landscape layout");
+    if (Math.abs(newSize.width / newSize.height - 16 / 9) > .01 || newSize.width !== 960) {
+      throw new Error("New rote-review embed did not inherit landscape layout");
     }
+    await testPage.evaluate(() => history.pushState({}, "", "/p/t_pc/pc_evaluation/exam_analysis/fixture"));
+    await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
 
     // Disabling the site must release both layout and fullscreen enhancement.
     await testPage.evaluate(() => chrome.storage.local.set({ disabledSites: [location.origin] }));
@@ -391,7 +437,7 @@ async (page) => {
       .filter((attribute) => attribute.name.startsWith("data-xet-"))
       .map((attribute) => attribute.name));
     if (disabled || remainingMarkers.length) throw new Error(`Site disable did not restore original styling: ${remainingMarkers}`);
-    return { layouts, previewCrop, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
+    return { layouts, previewCrop, previewScrims, roteReviewRemount: true, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
   } finally {
     await testPage.close();
   }

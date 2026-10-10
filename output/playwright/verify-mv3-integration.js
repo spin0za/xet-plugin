@@ -11,7 +11,12 @@ async (page) => {
     await worker.evaluate(() => chrome.storage.local.set({ enabled: true, volumeEnabled: true, disabledSites: [], keepAliveEnabled: false }));
     await fixture.setViewportSize({ width: 1280, height: 900 });
     await fixture.route("https://merchant.pc.xiaoe-tech.com/**", (route) => route.fulfill({
-      contentType: "text/html", body: `<!doctype html><style>body{margin:0}iframe{width:400px;height:300px}</style>
+      contentType: "text/html", body: route.request().url().includes("/practice_sheet/")
+        ? `<!doctype html><style>body{margin:0;padding:20px}</style>
+          <div class="question-block__answer"><p style="width:360px">
+          <iframe class="xiaoe-iframe-video" src="https://player.eapps.cn/fixture" width="360" height="470" allow="fullscreen" allowfullscreen></iframe>
+          </p></div>`
+        : `<!doctype html><style>body{margin:0}iframe{width:400px;height:300px}</style>
         <header>网站导航</header><iframe src="https://bridge.xiaoeknow.com/fixture" allow="fullscreen" allowfullscreen></iframe>`,
     }));
     await fixture.route("https://bridge.xiaoeknow.com/**", (route) => route.fulfill({
@@ -227,7 +232,33 @@ async (page) => {
     stage = "outer site reenable";
     await inner.waitForFunction(() => document.querySelector("#player").dataset.xetInteractions === "true");
     await inner.waitForFunction(() => document.querySelector("#disabled-video").volume === 1);
-    return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, liveFullscreenControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true };
+    stage = "rote-review landscape preview across isolated worlds";
+    await fixture.goto("https://merchant.pc.xiaoe-tech.com/p/t_pc/pc_evaluation/practice_sheet/fixture");
+    await fixture.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
+    const reviewFrame = fixture.frames().find((frame) => frame.url().includes("player.eapps.cn"));
+    await reviewFrame.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 620, height: 900 }]) {
+      await fixture.setViewportSize(viewport);
+      const reviewBounds = await fixture.locator("iframe").boundingBox();
+      if (Math.abs(reviewBounds.width / reviewBounds.height - 16 / 9) > .01 ||
+          reviewBounds.width !== Math.min(960, viewport.width - 40)) {
+        throw new Error(`Real MV3 rote-review layout failed: ${JSON.stringify(reviewBounds)}`);
+      }
+    }
+    const reviewContrast = await reviewFrame.locator("#player").evaluate((root) => ({
+      top: getComputedStyle(root, "::before").backgroundImage,
+      bottom: getComputedStyle(root, "::after").backgroundImage,
+    }));
+    if (!reviewContrast.top.includes("0.9") || !reviewContrast.bottom.includes("0.9")) {
+      throw new Error(`Real MV3 preview contrast missing: ${JSON.stringify(reviewContrast)}`);
+    }
+    await worker.evaluate(() => chrome.storage.local.set({ disabledSites: ["https://merchant.pc.xiaoe-tech.com"] }));
+    await fixture.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-layout"));
+    await reviewFrame.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    if (await reviewFrame.locator("#player").evaluate((root) => getComputedStyle(root, "::before").content !== "none")) {
+      throw new Error("Site disable left preview scrims behind in real MV3");
+    }
+    return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, liveFullscreenControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true, roteReviewLandscape: true, reviewContrast };
   } catch (error) {
     throw new Error(`MV3 integration (${stage}): ${error.message}`);
   } finally {

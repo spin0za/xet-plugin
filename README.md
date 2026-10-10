@@ -24,7 +24,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - “默认最大音量”开启时，所有受支持页面的视频默认音量为 100%，直播与直播回放的音量滑块也同步到最大；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。可单独关闭该开关，不影响画质、快捷键和全屏功能。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
-- 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
+- 在线练习（含背题模式）与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
@@ -127,7 +127,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - The **Default maximum volume** switch initializes supported videos to 100% volume and synchronizes the volume slider for live streams and replays. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting. Turning this switch off leaves quality, shortcuts, and fullscreen features active.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
-- Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
+- Normalizes practice previews (including rote-review mode) and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
@@ -289,7 +289,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.13.1**
+Current version: **1.13.2**
+
+1.13.2：背题模式与解析页共用横屏预览规则；加深预览顶部和底部的局部渐变，保留原有控件与全屏行为。
+
+1.13.2: Shares landscape preview rules between rote-review practice and analysis pages, with darker edge gradients while preserving original controls and fullscreen behavior.
 
 1.13.1：解析页标记、收藏使用原站图标与按钮样式，答题卡标记采用原站圆形徽标；操作反馈复用网站的顶部居中提示组件。
 
