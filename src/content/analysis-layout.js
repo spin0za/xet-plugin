@@ -20,25 +20,70 @@
     let previousPath = "";
     const containers = new Set();
     const frames = new Set();
+    const framePorts = new Map();
+    let parentPort = null;
 
     function notifyFrame(frame, active) {
       try {
-        const origin = new URL(frame.src, location.href).origin;
-        if (origin === "null") return;
-        frame.contentWindow?.postMessage({ type: FRAME_MESSAGE, active }, origin);
+        framePorts.get(frame)?.postMessage({ type: FRAME_MESSAGE, active });
       } catch {
-        // Detached or non-HTTP embeds cannot receive the preview styling hint.
+        releaseFrame(frame);
       }
+    }
+
+    function releaseFrame(frame) {
+      framePorts.get(frame)?.close();
+      framePorts.delete(frame);
+    }
+
+    function requestFrame(frame) {
+      try {
+        const url = new URL(frame.src, location.href);
+        if (!["https:", "http:"].includes(url.protocol)) return;
+        // Bootstrap only: no settings or active state. src may describe a
+        // pending navigation, not the document currently in this WindowProxy.
+        frame.contentWindow?.postMessage({ type: `${FRAME_MESSAGE}-probe` }, "*");
+      } catch {
+        // Detached or non-HTTP embeds do not participate in preview styling.
+      }
+    }
+
+    function announceReady() {
+      if (window.parent === window) return;
+      parentPort?.close();
+      const channel = new MessageChannel();
+      parentPort = channel.port1;
+      parentPort.onmessage = (event) => {
+        if (event.data?.type === FRAME_MESSAGE && typeof event.data.active === "boolean") {
+          document.documentElement.toggleAttribute(EMBED_MARKER, event.data.active);
+        }
+      };
+      // Transfer the reply channel to our actual parent. Subsequent style
+      // messages target this document's port, not a navigable WindowProxy.
+      window.parent.postMessage({ type: `${FRAME_MESSAGE}-ready` }, "*", [channel.port2]);
     }
 
     function handleMessage(event) {
       if (event.source === window.parent && window.parent !== window &&
-          event.data?.type === FRAME_MESSAGE && typeof event.data.active === "boolean") {
-        document.documentElement.toggleAttribute(EMBED_MARKER, event.data.active);
+          event.data?.type === `${FRAME_MESSAGE}-probe`) {
+        announceReady();
       } else if (event.data?.type === `${FRAME_MESSAGE}-ready`) {
+        const port = event.ports?.[0];
+        if (!port) return;
+        let validOrigin = false;
+        try {
+          validOrigin = ["https:", "http:"].includes(new URL(event.origin).protocol);
+        } catch { /* Reject opaque or malformed origins. */ }
         for (const frame of frames) {
-          if (frame.contentWindow === event.source) notifyFrame(frame, true);
+          if (validOrigin && ANALYSIS_PATH.test(location.pathname) &&
+              frame.contentWindow === event.source) {
+            releaseFrame(frame);
+            framePorts.set(frame, port);
+            notifyFrame(frame, true);
+            return;
+          }
         }
+        port.close();
       }
     }
 
@@ -61,7 +106,6 @@
         }
         for (const frame of document.querySelectorAll(FRAME_SELECTOR)) {
           nextFrames.add(frame);
-          if (!frames.has(frame)) notifyFrame(frame, true);
         }
       }
       for (const node of containers) {
@@ -73,10 +117,15 @@
       containers.clear();
       nextContainers.forEach((node) => containers.add(node));
       for (const frame of frames) {
-        if (!nextFrames.has(frame)) notifyFrame(frame, false);
+        if (!nextFrames.has(frame)) {
+          notifyFrame(frame, false);
+          releaseFrame(frame);
+        }
       }
+      const addedFrames = [...nextFrames].filter((frame) => !frames.has(frame));
       frames.clear();
       nextFrames.forEach((frame) => frames.add(frame));
+      addedFrames.forEach(requestFrame);
     }
 
     function scheduleUpdate() {
@@ -94,7 +143,10 @@
     }
 
     function handleLoad(event) {
-      if (frames.has(event.target)) notifyFrame(event.target, true);
+      if (frames.has(event.target)) {
+        releaseFrame(event.target);
+        requestFrame(event.target);
+      }
     }
 
     function start() {
@@ -107,10 +159,7 @@
       window.addEventListener("load", handleLoad, true);
       window.addEventListener("popstate", checkRoute);
       window.addEventListener("hashchange", checkRoute);
-      if (window.parent !== window) {
-        // The parent may have loaded before the embed's content script.
-        window.parent.postMessage({ type: `${FRAME_MESSAGE}-ready` }, "*");
-      }
+      announceReady();
       update();
       observer = new MutationObserver((records) => {
         checkRoute();
@@ -134,7 +183,12 @@
       window.removeEventListener("popstate", checkRoute);
       window.removeEventListener("hashchange", checkRoute);
       for (const node of containers) node.removeAttribute(CONTAINER_MARKER);
-      for (const frame of frames) notifyFrame(frame, false);
+      for (const frame of frames) {
+        notifyFrame(frame, false);
+        releaseFrame(frame);
+      }
+      parentPort?.close();
+      parentPort = null;
       containers.clear();
       frames.clear();
       document.documentElement.removeAttribute(EMBED_MARKER);

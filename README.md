@@ -251,6 +251,7 @@ output/playwright/
   verify-extension-ui.js
   verify-player-structures.js
   verify-analysis-player.js
+  verify-analysis-frame-loading.js
   verify-analysis-actions.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
@@ -275,9 +276,9 @@ tests/
 
 ## 真实扩展集成测试 / Real extension integration test
 
-`verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理。两者需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
+`verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理；`verify-analysis-frame-loading.js` 验证嵌入视频延迟加载、重定向、更换地址、路由切换和停用时的通信，并检查是否出现域名不匹配报错。这些测试需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
 
-`verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. `verify-analysis-actions.js` checks analysis buttons against fixture save endpoints, reload persistence, keyboard access and error handling. Both require a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
+`verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. `verify-analysis-actions.js` checks analysis buttons against fixture save endpoints, reload persistence, keyboard access and error handling. `verify-analysis-frame-loading.js` checks delayed iframe loads, redirects, source changes, route transitions and site disable, including origin-mismatch console errors. These tests require a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
 
 ## 图标来源 / Icon attribution
 
@@ -289,7 +290,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.13.2**
+Current version: **1.13.3**
+
+1.13.3：修复嵌入视频加载期间的通信域名不匹配报错，支持延迟加载、重定向与页面切换后的预览样式同步。
+
+1.13.3: Fixes iframe origin-mismatch errors during video loading and preserves preview styling across delayed loads, redirects and page transitions.
 
 1.13.2：背题模式与解析页共用横屏预览规则；加深预览顶部和底部的局部渐变，保留原有控件与全屏行为。
 
