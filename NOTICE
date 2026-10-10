@@ -1,0 +1,28 @@
+Required Notice: Copyright (c) 2026 Yuren Huang (spin0za)
+
+License scope
+
+Except where otherwise indicated, the original source code and documentation
+in this repository are licensed under the PolyForm Noncommercial License 1.0.0.
+The complete, unmodified license text is in LICENSE:
+https://polyformproject.org/licenses/noncommercial/1.0.0
+
+This license permits noncommercial use, modification and redistribution under
+its terms. Commercial use is not authorized by this license; contact the
+relevant copyright holder for separate permission. Copyright holders retain
+their rights in their own contributions.
+
+Third-party materials are excluded from this grant and remain subject to
+their respective rights and license terms. In particular:
+
+- src/vendor/mux.js is licensed under the Apache License 2.0.
+  Its license is preserved in src/vendor/mux.js.LICENSE.
+
+- The project icon and game-derived source images, including those in icons/
+  and assets/, are not licensed under PolyForm. They contain content derived
+  from Age of Empires II: Definitive Edition, copyright Microsoft Corporation,
+  and are used under Microsoft's Game Content Usage Rules:
+  https://www.xbox.com/en-us/developers/rules
+  See the icon attribution section in README.md for the attribution and scope.
+
+This notice does not replace or expand any third-party license.

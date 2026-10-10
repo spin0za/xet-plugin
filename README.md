@@ -280,6 +280,16 @@ tests/
 
 `verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. `verify-analysis-actions.js` checks analysis buttons against fixture save endpoints, reload persistence, keyboard access and error handling. `verify-analysis-frame-loading.js` checks delayed iframe loads, redirects, source changes, route transitions and site disable, including origin-mismatch console errors. These tests require a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
 
+## 许可证 / License
+
+除另有说明及第三方素材外，本项目的原创代码与文档采用 [PolyForm Noncommercial License 1.0.0](LICENSE)。允许在许可证规定的非商业目的下使用、学习、修改和分发；商业使用需要向相关版权持有人另行取得授权。版权持有人仍保留对自己作品另行授权的权利。这属于源码可见（Source Available）项目，不属于 OSI 定义的开源软件。
+
+Except where otherwise indicated and excluding third-party materials, the project's original code and documentation are licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Noncommercial use, study, modification and redistribution are permitted under its terms; commercial use requires separate permission from the relevant copyright holder. Copyright holders retain the right to offer separate licenses for their own work. This is a source-available project, not OSI-defined open source.
+
+授权范围与版权声明见 [NOTICE](NOTICE)。第三方库保留各自许可证，例如 [mux.js 的 Apache License 2.0](src/vendor/mux.js.LICENSE)；项目图标及游戏衍生素材不属于 PolyForm 授权范围，参见下方图标来源说明。
+
+See [NOTICE](NOTICE) for the license scope and copyright notice. Third-party libraries retain their own licenses, including [mux.js's Apache License 2.0](src/vendor/mux.js.LICENSE). The project icon and game-derived assets are excluded from the PolyForm grant; see the icon attribution below.
+
 ## 图标来源 / Icon attribution
 
 本项目图标基于《Age of Empires II: Definitive Edition》中的游戏素材制作，并依照 Microsoft 的 [Game Content Usage Rules](https://www.xbox.com/en-us/developers/rules) 用于这个免费、非商业的社区项目。该图标不是无版权素材，也不表示 Microsoft 对本项目的认可或合作。
