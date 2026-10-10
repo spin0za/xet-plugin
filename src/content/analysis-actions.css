@@ -1,0 +1,67 @@
+.practice-analysis [data-xet-analysis-action-header] {
+  position: relative;
+  padding-inline-end: 92px;
+}
+
+.practice-analysis .xet-analysis-actions {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.practice-analysis .xet-analysis-action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 32px;
+  min-block-size: 32px;
+  padding: 5px;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  cursor: pointer;
+}
+
+.practice-analysis .xet-analysis-action svg {
+  display: block;
+  inline-size: 20px;
+  block-size: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.practice-analysis .xet-analysis-action[data-xet-action="mark"][aria-pressed="true"] { color: #bd5000; }
+.practice-analysis .xet-analysis-action[data-xet-action="mark"][aria-pressed="true"] svg { fill: #ff781f; }
+.practice-analysis .xet-analysis-action[data-xet-action="collect"][aria-pressed="true"] { color: #a65e00; }
+.practice-analysis .xet-analysis-action[data-xet-action="collect"][aria-pressed="true"] svg { fill: #ffa51f; }
+.practice-analysis .xet-analysis-action:hover { background: #f7f9fc; }
+.practice-analysis .xet-analysis-action[aria-disabled="true"] { opacity: .55; cursor: progress; }
+.practice-analysis .xet-analysis-action:focus-visible { outline: 2px solid #1478ff; outline-offset: 2px; }
+
+.practice-analysis [data-xet-analysis-card-marked] { position: relative; }
+.practice-analysis .xet-analysis-card-mark {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-end: -4px;
+  inline-size: 14px;
+  block-size: 14px;
+  pointer-events: none;
+}
+.practice-analysis .xet-analysis-card-mark svg {
+  display: block;
+  inline-size: 100%;
+  block-size: 100%;
+  fill: #ff781f;
+  stroke: #bd5000;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}

@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -395,6 +395,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:analysis-context") {
+    return respond(sendResponse, "read-analysis-context", () =>
+      globalThis.XetPracticeAnalysisSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:download-source") {
     return respond(sendResponse, "read-download-source", () =>
       globalThis.XetDownloadSource.resolve(message, sender, { siteAccess, readSettings }));

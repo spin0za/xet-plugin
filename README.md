@@ -25,11 +25,12 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。
+- 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
-- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强和该网站的登录保活都会停止。
+- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强、解析页按钮和该网站的登录保活都会停止。
 - 商家自定义课程域名可按网站单独授权，并可在独立的网站管理页中集中撤销或恢复。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
 
@@ -94,6 +95,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/practice-analysis-source-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
@@ -125,11 +127,12 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders.
+- Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
-- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, and keep-alive activity for that site.
+- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, analysis actions, and keep-alive activity for that site.
 - Supports per-site grants for merchant-owned custom course domains, with a dedicated management page for revoking or restoring access.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
 
@@ -226,10 +229,13 @@ src/
   background.js
   content.js
   site-access.js
+  practice-analysis-source.js
   content/
     player-dom.js
     volume.js
     analysis-layout.js
+    analysis-actions.js
+    analysis-actions.css
     player-interactions.js
     fullscreen.js
     frame-coordinator.js
@@ -242,6 +248,7 @@ output/playwright/
   verify-extension-ui.js
   verify-player-structures.js
   verify-analysis-player.js
+  verify-analysis-actions.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
   verify-quality-preference.js
@@ -252,6 +259,7 @@ output/playwright/
 tests/
   background-smoke.js
   content-structure-smoke.js
+  practice-analysis-source-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
   playback-rate-smoke.js
@@ -263,9 +271,9 @@ tests/
 
 ## 真实扩展集成测试 / Real extension integration test
 
-`verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe，需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
+`verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理。两者需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
 
-`verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. Use a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
+`verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. `verify-analysis-actions.js` checks analysis buttons against fixture save endpoints, reload persistence, keyboard access and error handling. Both require a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
 
 ## 图标来源 / Icon attribution
 
@@ -277,7 +285,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.12.6**
+Current version: **1.13.0**
+
+1.13.0：为在线练习解析页恢复标记与收藏按钮，复用网站保存接口；交卷后可修改，刷新后保留状态，保存失败会提示。
+
+1.13.0: Restores mark and favorite actions on practice analysis pages using the site's save endpoints, with post-submission editing, persisted flags and save-error feedback.
 
 1.12.5：修复直播/回放的 `F` 键绕过原有播放器控件的问题，统一按钮与快捷键入口，同步播放器全屏状态；网页全屏保留原有控件及菜单，不再强行启用原生控件。
 

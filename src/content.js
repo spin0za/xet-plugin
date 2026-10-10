@@ -9,6 +9,7 @@
     !siteAccess ||
     !modules?.playerDom ||
     !modules.analysisLayout ||
+    !modules.analysisActions ||
     !modules.playerInteractions ||
     !modules.fullscreen ||
     !modules.frameCoordinator ||
@@ -93,6 +94,7 @@
     fullscreen, isEnabled: isSiteEnabled,
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
+  const analysisActions = modules.analysisActions.createAnalysisActionsController({ notify: modules.toast.show });
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -115,6 +117,7 @@
     }
     featuresStarted = true;
     analysisLayout.start();
+    analysisActions.start();
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
@@ -144,6 +147,7 @@
     frameCoordinator.stop();
     fullscreen.stop();
     analysisLayout.stop();
+    analysisActions.stop();
     quality.stop();
     volume.stop();
     download.stop();

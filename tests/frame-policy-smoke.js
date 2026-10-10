@@ -13,6 +13,7 @@ async function main() {
   const modules = {
     playerDom: { findActivePlayer: () => null },
     analysisLayout: { createAnalysisLayoutController: controller },
+    analysisActions: { createAnalysisActionsController: controller },
     playerInteractions: {},
     fullscreen: { createFullscreenController: controller },
     frameCoordinator: { createFrameCoordinator: () => ({ ...controller(), publish() {} }) },
@@ -42,13 +43,13 @@ async function main() {
   };
   vm.runInNewContext(fs.readFileSync("src/content.js", "utf8"), context);
   await new Promise(setImmediate);
-  assert.equal(calls.start, 7);
+  assert.equal(calls.start, 8);
   storageListener({ disabledSites: { newValue: [topOrigin] } }, "local");
-  assert.equal(calls.stop, 7, "outer-page disable must stop every child feature");
+  assert.equal(calls.stop, 8, "outer-page disable must stop every child feature");
   storageListener({ disabledSites: { newValue: [] } }, "local");
-  assert.equal(calls.start, 14);
+  assert.equal(calls.start, 16);
   storageListener({ disabledSites: { newValue: [ownOrigin] } }, "local");
-  assert.equal(calls.stop, 14, "child-site disable must also remain effective");
+  assert.equal(calls.stop, 16, "child-site disable must also remain effective");
   storageListener({ disabledSites: { newValue: [] } }, "local");
   const otherFeatureStops = () => calls.stop - volumeCalls.stop;
   const previousOtherStops = otherFeatureStops();
