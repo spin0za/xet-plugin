@@ -290,7 +290,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.13.3**
+Current version: **1.13.4**
+
+1.13.4：预览顶部、底部保留原有渐变边界，仅加深 20%，移除扩大范围的额外遮罩。
+
+1.13.4: Preserves the original preview gradient bounds, darkens them by only 20%, and removes the oversized extra overlays.
 
 1.13.3：修复嵌入视频加载期间的通信域名不匹配报错，支持延迟加载、重定向与页面切换后的预览样式同步。
 

@@ -246,10 +246,13 @@ async (page) => {
       }
     }
     const reviewContrast = await reviewFrame.locator("#player").evaluate((root) => ({
-      top: getComputedStyle(root, "::before").backgroundImage,
-      bottom: getComputedStyle(root, "::after").backgroundImage,
+      top: getComputedStyle(root, "::before").content,
+      bottom: getComputedStyle(root.querySelector(".xgplayer-controls")).backgroundImage,
+      height: getComputedStyle(root.querySelector(".xgplayer-controls")).height,
+      overlay: getComputedStyle(root, "::after").content,
     }));
-    if (!reviewContrast.top.includes("0.9") || !reviewContrast.bottom.includes("0.9")) {
+    if (reviewContrast.top !== "none" || reviewContrast.overlay !== "none" ||
+        reviewContrast.height !== "48px" || !reviewContrast.bottom.includes("0.9")) {
       throw new Error(`Real MV3 preview contrast missing: ${JSON.stringify(reviewContrast)}`);
     }
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: ["https://merchant.pc.xiaoe-tech.com"] }));

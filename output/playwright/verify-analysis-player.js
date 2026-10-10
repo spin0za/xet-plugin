@@ -120,14 +120,23 @@ async (page) => {
           videoInit: false,
         });
         await player.start();
-        // The site's embed supplies a white title in the SDK's top bar.
+        // Reproduce the merchant's actual 40px title bar from iframe_fe
+        // 2.2.19, not the generic SDK fixture's differently sized top bar.
         const title = document.createElement("span");
         title.textContent = "9.敬语-30.mp4";
-        title.style.cssText = "color:white;font-size:16px;line-height:50px";
+        title.className = "xgplayer-title-wrap";
+        title.style.cssText = "position:relative;color:white;margin-right:auto;max-width:50%;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
         const topBar = document.createElement("div");
         topBar.className = "xg-top-bar";
+        topBar.style.cssText = "position:absolute;width:100%;height:40px;top:0;left:0;z-index:11;display:flex;justify-content:flex-end;align-items:center;padding:0 24px;box-sizing:border-box;background-image:linear-gradient(0deg,transparent,rgba(0,0,0,.4))";
         topBar.append(title);
         player.root.append(topBar);
+        window.originalTitleBounds = {
+          height: getComputedStyle(topBar).height,
+          padding: getComputedStyle(topBar).padding,
+          zIndex: getComputedStyle(topBar).zIndex,
+          background: getComputedStyle(topBar).backgroundImage,
+        };
         // A local stream exercises real play/pause and metadata events without
         // borrowing a course URL or accessing authenticated media.
         const canvas = document.createElement("canvas");
@@ -189,17 +198,19 @@ async (page) => {
       throw new Error(`Preview rim not cropped: ${JSON.stringify(previewCrop)}`);
     }
     const previewScrims = await frame.evaluate(() => {
-      const top = getComputedStyle(player.root, "::before");
-      const bottom = getComputedStyle(player.root, "::after");
+      const top = getComputedStyle(player.root.querySelector(".xg-top-bar"));
+      const bottom = getComputedStyle(player.root.querySelector(".xgplayer-controls"));
       return { top: top.backgroundImage, bottom: bottom.backgroundImage,
-        height: top.height, pointerEvents: top.pointerEvents,
-        titleLayer: getComputedStyle(player.root.querySelector(".xg-top-bar")).zIndex };
+        height: top.height, bottomHeight: bottom.height,
+        padding: top.padding, titleLayer: top.zIndex, original: originalTitleBounds,
+        noExtraOverlays: ["::before", "::after"].every(pseudo => getComputedStyle(player.root, pseudo).content === "none") };
     });
-    if (!previewScrims.top.includes("0.9") || !previewScrims.top.includes("0.78") ||
-        !previewScrims.bottom.includes("0.9") || !previewScrims.bottom.includes("0.78") ||
-        previewScrims.height !== "80px" || previewScrims.pointerEvents !== "none" ||
-        Number(previewScrims.titleLayer) <= 9) {
-      throw new Error(`Preview scrims not behind readable UI: ${JSON.stringify(previewScrims)}`);
+    if (!previewScrims.top.includes("0.48") || !previewScrims.original.background.includes("0.4") ||
+        !previewScrims.bottom.includes("0.9") || !previewScrims.noExtraOverlays ||
+        previewScrims.bottomHeight !== "48px" || previewScrims.height !== previewScrims.original.height ||
+        previewScrims.padding !== previewScrims.original.padding ||
+        previewScrims.titleLayer !== previewScrims.original.zIndex) {
+      throw new Error(`Preview gradients changed native bounds or exceeded 20%: ${JSON.stringify(previewScrims)}`);
     }
     await frame.evaluate(() => player.video.pause());
     await player.screenshot({ path: "output/playwright/analysis-preview-contrast.png" });
@@ -238,9 +249,9 @@ async (page) => {
         throw new Error(`${mode} controls did not hide: ${JSON.stringify(hidden)}`);
       }
       if (mode === "preview" && await player.evaluate((root) =>
-          getComputedStyle(root, "::before").opacity !== "0" ||
-          getComputedStyle(root, "::after").opacity !== "0")) {
-        throw new Error("Preview edge scrims must hide with idle controls");
+          getComputedStyle(root, "::before").content !== "none" ||
+          getComputedStyle(root, "::after").content !== "none")) {
+        throw new Error("Preview must not have extra overlays");
       }
       if (mode === "preview" || mode === "native fullscreen") {
         await player.screenshot({ path: `output/playwright/analysis-${mode === "preview" ? "preview" : "fullscreen"}.png` });

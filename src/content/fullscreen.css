@@ -225,37 +225,15 @@ html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .x
   transform: scale(1.02) !important;
 }
 
-/* Short edge scrims keep white titles and controls legible on white slides.
-   Paint behind the SDK's UI, never over the middle of the video, and never
-   intercept picture clicks or replace the player's controls. */
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"])::before,
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"])::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  height: min(80px, 25%);
-  z-index: 9;
-  pointer-events: none;
-}
-
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"])::before {
-  top: 0;
-  background: linear-gradient(rgba(0, 0, 0, .9), rgba(0, 0, 0, .78) 65%, transparent);
-}
-
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"])::after {
-  bottom: 0;
-  background: linear-gradient(transparent, rgba(0, 0, 0, .78) 35%, rgba(0, 0, 0, .9));
+/* Darken the existing preview gradients by 20%, without adding overlays or
+   changing their bounds/stops. The merchant SDK's title bar ends at .4;
+   the playback strip above ends at .75. Keep sizing and title stacking native. */
+html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) .xg-top-bar {
+  background-image: linear-gradient(0deg, transparent, rgba(0, 0, 0, .48)) !important;
 }
 
 html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) .xgplayer-controls {
-  background: none !important;
-}
-
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) [data-xet-controls-hidden="true"]::before,
-html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) [data-xet-controls-hidden="true"]::after {
-  opacity: 0;
+  background: linear-gradient(transparent, rgba(0, 0, 0, .9)) !important;
 }
 
 @media (forced-colors: active) {
