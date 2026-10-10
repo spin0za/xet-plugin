@@ -54,7 +54,8 @@ assert.ok(fs.existsSync("options/options.css"));
 const fullscreenStyle = fs.readFileSync("src/content/fullscreen.css", "utf8");
 // Preview contrast belongs to existing bars, never an extra picture overlay.
 assert.doesNotMatch(fullscreenStyle, /::before|::after/);
-assert.match(fullscreenStyle, /\.xg-top-bar \{\s*background-image: linear-gradient\(0deg, transparent, rgba\(0, 0, 0, \.48\)\) !important;\s*\}/);
+assert.match(fullscreenStyle, /\.xg-top-bar \{[^}]*display: flex !important;[^}]*background-image: linear-gradient\(0deg, transparent, rgba\(0, 0, 0, \.48\)\) !important;\s*\}/);
+assert.match(fullscreenStyle, /\[data-xet-controls-hidden="true"\][^{]*\.xg-top-bar \{\s*opacity: 0 !important;\s*visibility: hidden !important;\s*pointer-events: none !important;/);
 assert.match(fullscreenStyle, /\.xgplayer-controls \{\s*background: linear-gradient\(transparent, rgba\(0, 0, 0, \.9\)\) !important;\s*\}/);
 
 console.log("content module structure smoke test passed");

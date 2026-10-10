@@ -229,11 +229,22 @@ html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .x
    changing their bounds/stops. The merchant SDK's title bar ends at .4;
    the playback strip above ends at .75. Keep sizing and title stacking native. */
 html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) .xg-top-bar {
+  /* The SDK hides xg-bar in its nostart/inactive states. Preview titles use
+     the same visibility state as the existing playback strip instead. */
+  display: flex !important;
+  opacity: 1 !important;
+  visibility: visible !important;
   background-image: linear-gradient(0deg, transparent, rgba(0, 0, 0, .48)) !important;
 }
 
 html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player):not(:fullscreen):not([data-xet-web-fullscreen="true"]) .xgplayer-controls {
   background: linear-gradient(transparent, rgba(0, 0, 0, .9)) !important;
+}
+
+html:is([data-xet-analysis-layout], [data-xet-analysis-embed]) :is(.xgplayer, .xgplayer-skin-default, xg-player)[data-xet-controls-hidden="true"]:not(:fullscreen):not([data-xet-web-fullscreen="true"]) .xg-top-bar {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 @media (forced-colors: active) {

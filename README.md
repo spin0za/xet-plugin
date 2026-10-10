@@ -290,7 +290,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.13.4**
+Current version: **1.13.5**
+
+1.13.5：统一首次播放前后的预览标题栏和渐变显示，播放闲置时与底部控件一同隐藏，保留原有范围与颜色。
+
+1.13.5: Keeps preview titles and gradients consistent before and after first playback, hiding both bars together during idle playback without changing their bounds or colors.
 
 1.13.4：预览顶部、底部保留原有渐变边界，仅加深 20%，移除扩大范围的额外遮罩。
 

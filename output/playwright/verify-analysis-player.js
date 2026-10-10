@@ -110,8 +110,11 @@ async (page) => {
 
     await installExtension(testPage);
     const frames = testPage.frames().filter((frame) => frame !== testPage.mainFrame());
+    const firstPlayback = [];
     for (const frame of frames) {
       await frame.addStyleTag({ content: playerStyle });
+      // Actual merchant SDK rule: its custom xg-bar is hidden before start.
+      await frame.addStyleTag({ content: ".xgplayer.xgplayer-nostart xg-bar{display:none}.xgplayer.xgplayer-inactive .xg-top-bar.top-bar-autohide{display:none}" });
       await frame.addScriptTag({ content: playerScript });
       await frame.evaluate(async () => {
         window.player = new Player({
@@ -119,16 +122,16 @@ async (page) => {
           isMobileSimulateMode: "mobile",
           videoInit: false,
         });
-        await player.start();
+        player.root.classList.add("xgplayer-nostart");
         // Reproduce the merchant's actual 40px title bar from iframe_fe
         // 2.2.19, not the generic SDK fixture's differently sized top bar.
         const title = document.createElement("span");
         title.textContent = "9.敬语-30.mp4";
         title.className = "xgplayer-title-wrap";
         title.style.cssText = "position:relative;color:white;margin-right:auto;max-width:50%;font-size:16px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap";
-        const topBar = document.createElement("div");
-        topBar.className = "xg-top-bar";
-        topBar.style.cssText = "position:absolute;width:100%;height:40px;top:0;left:0;z-index:11;display:flex;justify-content:flex-end;align-items:center;padding:0 24px;box-sizing:border-box;background-image:linear-gradient(0deg,transparent,rgba(0,0,0,.4))";
+        const topBar = document.createElement("xg-bar");
+        topBar.className = "xg-top-bar top-bar-autohide";
+        topBar.style.cssText = "position:absolute;width:100%;height:40px;top:0;left:0;z-index:11;justify-content:flex-end;align-items:center;padding:0 24px;box-sizing:border-box;background-image:linear-gradient(0deg,transparent,rgba(0,0,0,.4))";
         topBar.append(title);
         player.root.append(topBar);
         window.originalTitleBounds = {
@@ -155,10 +158,29 @@ async (page) => {
           requestAnimationFrame(draw);
         }
         draw();
-        player.video.srcObject = canvas.captureStream(15);
-        await player.video.play();
+        window.startLocalVideo = async () => {
+          await player.start();
+          player.video.srcObject = canvas.captureStream(15);
+          await player.video.play();
+        };
       });
+      const initiallyHidden = await frame.locator(".xg-top-bar").evaluate(bar => getComputedStyle(bar).display === "none");
+      if (!initiallyHidden) throw new Error("Fixture must reproduce native hidden title before first playback");
       await installExtension(frame);
+      await frame.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
+      await frame.waitForFunction(() => player.root.dataset.xetInteractions === "true");
+      await frame.waitForFunction(() => getComputedStyle(player.root.querySelector(".xgplayer-controls")).opacity === "1");
+      const readBars = () => frame.evaluate(() => [".xg-top-bar", ".xgplayer-controls"].map(selector => {
+        const bar = player.root.querySelector(selector), style = getComputedStyle(bar);
+        return { height: style.height, background: style.backgroundImage,
+          visible: style.display !== "none" && style.visibility === "visible" && style.opacity === "1" };
+      }));
+      const before = await readBars();
+      if (before.some(bar => !bar.visible)) throw new Error(`Title/controls missing before first playback: ${JSON.stringify(before)}`);
+      await frame.evaluate(() => startLocalVideo());
+      const after = await readBars();
+      if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error(`Bars changed on first playback: ${JSON.stringify({before, after})}`);
+      firstPlayback.push({ initiallyHidden, before, after });
     }
 
     const layouts = [];
@@ -253,11 +275,17 @@ async (page) => {
           getComputedStyle(root, "::after").content !== "none")) {
         throw new Error("Preview must not have extra overlays");
       }
+      if (mode === "preview" && await frame.locator(".xg-top-bar").isVisible()) {
+        throw new Error("Preview title/gradient did not hide together with idle controls");
+      }
       if (mode === "preview" || mode === "native fullscreen") {
         await player.screenshot({ path: `output/playwright/analysis-${mode === "preview" ? "preview" : "fullscreen"}.png` });
       }
       await player.hover({ position: { x: size.width * .65, y: size.height * .4 } });
       if (!(await fullscreenState()).controlsVisible) throw new Error(`${mode} movement did not restore controls`);
+      if (mode === "preview" && !(await frame.locator(".xg-top-bar").isVisible())) {
+        throw new Error("Pointer movement did not restore preview title");
+      }
       return { mode, hidden: !hidden.controlsVisible };
     }
     await verifyPictureClicks("preview");
@@ -448,7 +476,7 @@ async (page) => {
       .filter((attribute) => attribute.name.startsWith("data-xet-"))
       .map((attribute) => attribute.name));
     if (disabled || remainingMarkers.length) throw new Error(`Site disable did not restore original styling: ${remainingMarkers}`);
-    return { layouts, previewCrop, previewScrims, roteReviewRemount: true, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
+    return { layouts, firstPlayback, previewCrop, previewScrims, roteReviewRemount: true, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
   } finally {
     await testPage.close();
   }

@@ -27,11 +27,15 @@ async (page) => {
       contentType: "text/html; charset=utf-8", body: `<!doctype html><style>
         html,body{margin:0;height:100%}.xgplayer{position:relative;width:100%;height:100%;background:black}
         video{width:100%;height:100%}.xgplayer-controls{position:absolute;bottom:0}button{padding:8px}
+        .xgplayer .xg-top-bar{position:absolute;top:0;width:100%;height:40px;display:flex;background-image:linear-gradient(0deg,transparent,rgba(0,0,0,.4));color:white}
+        .xgplayer.xgplayer-nostart xg-bar{display:none}
+        .xgplayer.xgplayer-inactive .xg-top-bar.top-bar-autohide{display:none}
         .pc-live-player{position:relative;width:100%;height:300px;background:#222}
         .pc-live-player .myControls{position:absolute;bottom:0;width:100%;color:white}
         .button-area-wrapper,.right-area{display:flex;align-items:center;gap:16px}
         .pc-live-player .fullscreen-btn{width:24px;height:24px}
-      </style><div id=player class=xgplayer tabindex=0><video></video><div class=xgplayer-controls>
+      </style><div id=player class="xgplayer xgplayer-nostart" tabindex=0><video></video>
+        <xg-bar class="xg-top-bar top-bar-autohide"><span class=xgplayer-title-wrap>解析视频.mp4</span></xg-bar><div class=xgplayer-controls>
         <button class=xgplayer-play>播放</button><button class=xgplayer-fullscreen>全屏</button></div>
         <div class=xgplayer-definition style="position:absolute;right:0;top:0;background:white">
           <span id=currentQuality>高清</span><ul><li id=ultra definition=1080p>超清</li>
@@ -250,17 +254,29 @@ async (page) => {
       bottom: getComputedStyle(root.querySelector(".xgplayer-controls")).backgroundImage,
       height: getComputedStyle(root.querySelector(".xgplayer-controls")).height,
       overlay: getComputedStyle(root, "::after").content,
+      titleDisplay: getComputedStyle(root.querySelector(".xg-top-bar")).display,
+      titleBackground: getComputedStyle(root.querySelector(".xg-top-bar")).backgroundImage,
     }));
     if (reviewContrast.top !== "none" || reviewContrast.overlay !== "none" ||
-        reviewContrast.height !== "48px" || !reviewContrast.bottom.includes("0.9")) {
+        reviewContrast.height !== "48px" || !reviewContrast.bottom.includes("0.9") ||
+        reviewContrast.titleDisplay !== "flex" || !reviewContrast.titleBackground.includes("0.48")) {
       throw new Error(`Real MV3 preview contrast missing: ${JSON.stringify(reviewContrast)}`);
     }
+    await reviewFrame.locator("#player").evaluate(root => {
+      root.classList.remove("xgplayer-nostart");
+      root.classList.add("xgplayer-inactive");
+      root.dataset.xetControlsHidden = "true";
+    });
+    if (await reviewFrame.locator(".xg-top-bar").isVisible()) throw new Error("Real MV3 idle title remained visible");
+    await reviewFrame.locator("#player").evaluate(root => { root.dataset.xetControlsHidden = "false"; });
+    if (!(await reviewFrame.locator(".xg-top-bar").isVisible())) throw new Error("Real MV3 title failed to reappear");
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: ["https://merchant.pc.xiaoe-tech.com"] }));
     await fixture.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-layout"));
     await reviewFrame.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
     if (await reviewFrame.locator("#player").evaluate((root) => getComputedStyle(root, "::before").content !== "none")) {
       throw new Error("Site disable left preview scrims behind in real MV3");
     }
+    if (await reviewFrame.locator(".xg-top-bar").isVisible()) throw new Error("Site disable did not restore native title visibility");
     return { realMV3: true, nestedFrames: 2, defaultVolume: true, liveSpeedControls: true, liveFullscreenControls: true, manualQuality: true, nextLessonDefault: true, originalQuality: true, volumeToggleIndependent: true, qualityToggleIndependent: true, headersHidden, bounds, outerSiteDisable: true, reenabled: true, roteReviewLandscape: true, reviewContrast };
   } catch (error) {
     throw new Error(`MV3 integration (${stage}): ${error.message}`);
