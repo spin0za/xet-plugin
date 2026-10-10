@@ -5,10 +5,8 @@
   const CLASS = "xet-analysis-actions";
   const BUTTON = "xet-analysis-action";
   const HEADER = "data-xet-analysis-action-header";
-  const ICONS = {
-    mark: "M7 2h6v2l-1 1v4l2 3H6l2-3V5L7 4z M10 12v6",
-    collect: "M10 2l2.5 5 5.5.8-4 4 .9 5.6-4.9-2.6-4.9 2.6.9-5.6-4-4 5.5-.8z",
-  };
+  const ICONS = modules.analysisIcons;
+  if (!ICONS || !modules.analysisFeedback) return;
 
   function routeKey() {
     if (!PATH.test(location.pathname)) return "";
@@ -20,7 +18,7 @@
 
   function flag(value) { return value === true || value === 1 || value === "1"; }
 
-  function createAnalysisActionsController({ notify = () => {}, request = message =>
+  function createAnalysisActionsController({ request = message =>
     chrome.runtime.sendMessage(message) } = {}) {
     let started = false;
     let timer = null;
@@ -36,6 +34,9 @@
     const questions = new Map();
     const mounts = new Map();
     const cardMarks = new Map();
+    const feedback = modules.analysisFeedback.createFeedbackController({
+      request, getKey: () => key, isEnabled: () => started && routeKey() === key,
+    });
 
     async function post(path, payload, signal) {
       // All endpoints and payload shapes are extension-owned, same-origin,
@@ -68,6 +69,7 @@
       abort = null;
       loading = false;
       context = null;
+      feedback.clear();
       questions.clear();
       for (const [item, mount] of mounts) {
         mount.group.remove();
@@ -88,19 +90,19 @@
       button.setAttribute("aria-disabled", String(question.pending));
       button.setAttribute("aria-busy", String(question.pending));
       const label = action === "mark" ? "标记" : "收藏";
-      button.title = `${active ? "取消" : ""}${label}`;
       button.setAttribute("aria-label", `第 ${question.index + 1} 题${label}`);
+      const icon = button.firstElementChild;
+      const source = ICONS[action][Number(active)];
+      if (icon.getAttribute("src") !== source) icon.src = source;
     }
 
     function makeIcon(action) {
-      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-      svg.setAttribute("viewBox", "0 0 20 20");
-      svg.setAttribute("aria-hidden", "true");
-      const path = document.createElementNS(svg.namespaceURI, "path");
-      path.setAttribute("d", ICONS[action]);
-      if (action === "mark") path.setAttribute("transform", "rotate(45 10 10)");
-      svg.append(path);
-      return svg;
+      const icon = document.createElement("img");
+      icon.alt = "";
+      icon.setAttribute("aria-hidden", "true");
+      icon.width = 20; icon.height = 20;
+      icon.src = ICONS[action][0];
+      return icon;
     }
 
     function makeButton(action) {
@@ -115,7 +117,7 @@
     function renderCardMarks() {
       for (const [cell, marker] of cardMarks) {
         const index = Number(cell.querySelector("span")?.textContent.trim()) - 1;
-        if (!cell.isConnected || !questions.get(index)?.mark || cell.querySelector(".mark-icon")) {
+        if (!cell.isConnected || !marker.isConnected || !questions.get(index)?.mark || cell.querySelector(".mark-icon")) {
           marker.remove();
           cell.removeAttribute("data-xet-analysis-card-marked");
           cardMarks.delete(cell);
@@ -124,12 +126,11 @@
       for (const cell of document.querySelectorAll(".practice-analysis .answer-card__content__card__item")) {
         const index = Number(cell.querySelector("span")?.textContent.trim()) - 1;
         if (!questions.get(index)?.mark || cardMarks.has(cell) || cell.querySelector(".mark-icon")) continue;
-        const marker = document.createElement("span");
+        const marker = document.createElement("img");
         marker.className = "xet-analysis-card-mark";
-        marker.setAttribute("role", "img");
-        marker.setAttribute("aria-label", "已标记");
-        marker.title = "已标记";
-        marker.append(makeIcon("mark"));
+        marker.alt = "已标记";
+        marker.src = ICONS.cardMark;
+        marker.width = 20; marker.height = 20;
         cell.setAttribute("data-xet-analysis-card-marked", "");
         cell.append(marker);
         cardMarks.set(cell, marker);
@@ -212,7 +213,7 @@
       } catch (error) {
         if (current === generation && !signal.aborted) {
           retryAt = Date.now() + 10_000;
-          notify("无法读取标记和收藏，请确认登录及网络状态");
+          void feedback.show("load-error");
         }
       } finally { if (current === generation) loading = false; }
     }
@@ -248,10 +249,10 @@
         }
         if (current !== generation || !started || routeKey() !== key) return;
         question[action] = value;
-        notify(`${value ? "" : "取消"}${action === "mark" ? "标记" : "收藏"}成功`);
+        void feedback.show(`${value ? "" : "un"}${action}`);
       } catch (error) {
         if (current === generation && !signal.aborted) {
-          notify(`${action === "mark" ? "标记" : "收藏"}未能确认保存，请稍后重试`);
+          void feedback.show(`${action}-error`);
           // A lost response can follow a successful server write. Re-read
           // instead of guessing and sending an unintended inverse operation.
           context = null;
@@ -303,7 +304,7 @@
       window.addEventListener("focus", refresh);
       document.addEventListener("visibilitychange", refresh);
       observer = new MutationObserver(records => {
-        if (records.some(r => [...r.addedNodes, ...r.removedNodes].some(n =>
+        if (records.some(r => (r.target instanceof Element && r.target.matches(".answer-card__content__card__item")) || [...r.addedNodes, ...r.removedNodes].some(n =>
           n instanceof Element && (n.matches(".practice-analysis, .analysis-item, .question-header, .answer-card__content__card") ||
             n.querySelector(".practice-analysis, .analysis-item, .question-header, .answer-card__content__card"))))) schedule();
       });

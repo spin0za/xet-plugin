@@ -63,6 +63,11 @@ async (page) => {
         .analysis-item{padding:20px 0;border-bottom:1px solid #eee}
         .question-header{font-size:16px}.question-type{color:#1677ff;font-size:14px;margin-bottom:16px}
         video{width:160px;height:90px;background:#ddd}p{line-height:1.5}
+        /* Sense UI message geometry copied from the deployed site's component. */
+        .ss-message__wrapper{position:fixed;left:0;width:100%;text-align:center;pointer-events:none;z-index:4003}
+        .ss-message{display:inline-flex;align-items:center;height:40px;box-sizing:border-box;padding:0 16px;
+          border-radius:4px;background:#fff;color:#333;font-size:14px;line-height:16px;box-shadow:0 8px 24px 0 rgba(31,31,31,.16)}
+        .ss-message svg{width:18px;height:18px;margin-right:8px}
       </style><main class=practice-analysis><h1>在线练习解析 / Fixture</h1>
         <aside class=answer-card__content__card style="display:flex;gap:8px;margin-bottom:16px">
           ${state.slice(0,3).map((q,i)=>`<div class=answer-card__content__card__item style="width:32px;height:32px;border:1px solid #1677ff"><span>${i+1}</span></div>`).join('')}
@@ -76,7 +81,22 @@ async (page) => {
           document.querySelector('video').play=async()=>{ window.mediaActions++; };
           document.querySelector('video').pause=()=>{ window.mediaActions++; };
           const main=document.querySelector('.practice-analysis');
-          main.__vue__={ resourceId:'wb_course_fixture',join_id:'join_fixture',practiceList:${JSON.stringify(state.map(q=>({id:q.id,is_collected:q.collect})))}};
+          window.nativeNotices=[];
+          const nativeMessage=(type,text)=>{
+            window.nativeNotices.push({type,text});
+            const wrapper=document.createElement('div');wrapper.className='ss-message__wrapper';
+            wrapper.style.top=(40+document.querySelectorAll('.ss-message__wrapper').length*48)+'px';
+            const message=document.createElement('div');message.className='ss-message';
+            const icon=document.createElementNS('http://www.w3.org/2000/svg','svg');icon.setAttribute('viewBox','0 0 18 18');
+            const circle=document.createElementNS(icon.namespaceURI,'circle');
+            circle.setAttribute('cx','9');circle.setAttribute('cy','9');circle.setAttribute('r','9');
+            circle.setAttribute('fill',type==='success'?'#11d611':'#ff4747');
+            icon.append(circle);const span=document.createElement('span');span.textContent=text;
+            message.append(icon,span);wrapper.append(message);document.body.append(wrapper);
+            setTimeout(()=>wrapper.remove(),3000);
+          };
+          main.__vue__={ resourceId:'wb_course_fixture',join_id:'join_fixture',practiceList:${JSON.stringify(state.map(q=>({id:q.id,is_collected:q.collect})))},
+            $message:{success:text=>nativeMessage('success',text),error:text=>nativeMessage('error',text)}};
         </script></html>` });
     });
     await fixture.goto(url);
@@ -87,17 +107,59 @@ async (page) => {
     assert(await fixture.locator(".xet-analysis-card-mark").count() === 1, "Answer card did not display existing mark");
     assert(await fixture.locator("#analysis-2 button[data-xet-action=collect]").getAttribute("aria-pressed") === "true", "Existing favorite was not loaded");
     assert(await fixture.locator("#analysis-3 .xet-analysis-actions").count() === 1, "Material children received duplicate actions");
+    const styles = await mark.evaluate(button => {
+      const style=getComputedStyle(button), icon=button.querySelector('img'), bounds=button.getBoundingClientRect();
+      return {width:bounds.width,height:bounds.height,border:style.borderTopColor,radius:style.borderRadius,
+        padding:style.padding,gap:getComputedStyle(button.parentElement).gap,iconWidth:icon.width,
+        iconHeight:icon.height,loaded:icon.complete && icon.naturalWidth===20};
+    });
+    assert(styles.width===32 && styles.height===32 && styles.border==='rgb(235, 235, 235)' && styles.radius==='8px' &&
+      styles.padding==='0px' && styles.gap==='12px' && styles.iconWidth===20 && styles.iconHeight===20 && styles.loaded,
+      `Original button geometry diverged: ${JSON.stringify(styles)}`);
+    await mark.hover();
+    assert(await mark.evaluate(button => getComputedStyle(button).backgroundColor)==='rgb(255, 255, 255)', 'Hover added a non-native gray background');
+    const badge = await fixture.locator('.xet-analysis-card-mark').evaluate(image => {
+      const style=getComputedStyle(image);return {width:image.width,height:image.height,top:style.top,right:style.right,
+        loaded:image.complete && image.naturalWidth===40 && image.naturalHeight===39};
+    });
+    assert(badge.width===20 && badge.height===20 && badge.top==='-10px' && badge.right==='-10px' && badge.loaded,
+      'Answer card did not use the original circular badge');
     await fixture.screenshot({ path: "output/playwright/analysis-actions.png" });
+
+    async function checkNotice(text, screenshot) {
+      stage = `native feedback: ${text}`;
+      await fixture.waitForFunction(text=>window.nativeNotices.some(n=>n.text===text),text);
+      assert(await fixture.locator('.xet-analysis-feedback').count()===0, 'Native message was replaced with an extension fallback');
+      assert(await fixture.locator('#xet-ultra-quality-toast').count()===0, 'Question feedback leaked into the video toast');
+      const notice=fixture.locator('.ss-message__wrapper').filter({hasText:text}).last();
+      const layout=await notice.evaluate(wrapper=>{
+        const box=wrapper.querySelector('.ss-message'), bounds=box.getBoundingClientRect(), style=getComputedStyle(box);
+        return {center:(bounds.left+bounds.right)/2,height:bounds.height,top:bounds.top,font:style.fontSize,
+          radius:style.borderRadius,padding:style.padding,color:style.color,background:style.backgroundColor};
+      });
+      assert(Math.abs(layout.center-640)<.02 && layout.height===40 && layout.top>=40 && layout.font==='14px' && layout.radius==='4px' &&
+        layout.padding==='0px 16px' && layout.color==='rgb(51, 51, 51)' && layout.background==='rgb(255, 255, 255)',
+        `Native notice geometry diverged: ${JSON.stringify(layout)}`);
+      await fixture.screenshot({path:`output/playwright/analysis-${screenshot}.png`,clip:{x:0,y:0,width:1280,height:500}});
+      await fixture.waitForFunction(()=>!document.querySelector('.ss-message__wrapper'));
+    }
 
     stage = "mouse mark persistence";
     await mark.click();
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=mark]').getAttribute('aria-pressed') === 'false');
     assert(await fixture.locator(".xet-analysis-card-mark").count() === 0, "Answer card kept canceled mark");
+    await checkNotice('取消标记成功','unmark');
     stage = "keyboard favorite persistence";
     await collect.press("Space");
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=collect]').getAttribute('aria-pressed') === 'true');
     assert(await fixture.evaluate(() => window.mediaActions) === 0, "Space activated video instead of question button");
     assert(state[0].mark === false && state[0].collect === true, "UI and saved state diverged");
+    await checkNotice('收藏成功','collect');
+    await collect.click();
+    await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=collect]').getAttribute('aria-pressed') === 'false');
+    await checkNotice('取消收藏成功','uncollect');
+    await collect.click();
+    await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=collect]').getAttribute('aria-pressed') === 'true');
     await fixture.reload();
     await fixture.waitForFunction(() => document.querySelectorAll(".xet-analysis-actions").length === 41);
     assert(await mark.getAttribute("aria-pressed") === "false" && await collect.getAttribute("aria-pressed") === "true", "Reload lost saved flags");
@@ -115,11 +177,12 @@ async (page) => {
     assert(writes.length === beforeSynthetic + 1, "Double click issued duplicate writes");
     holdSave = false; releaseSave();
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=mark]').getAttribute('aria-pressed') === 'true');
+    await checkNotice('标记成功','mark');
 
     stage = "save rejection and uncertain network response";
     rejectSave = true;
     await collect.click();
-    await fixture.waitForFunction(() => document.querySelector('#xet-ultra-quality-toast')?.textContent.includes('未能确认'));
+    await fixture.waitForFunction(() => window.nativeNotices.some(n=>n.type==='error' && n.text==='收藏操作失败，请稍后重试'));
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=collect]').getAttribute('aria-busy') === 'false');
     assert(await collect.getAttribute("aria-pressed") === "true" && state[0].collect === true, "Rejected save changed the selected state");
     rejectSave = false; loseSaveResponse = true;
@@ -136,7 +199,7 @@ async (page) => {
     await mark.click();
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=mark]').getAttribute('aria-busy') === 'true');
     await fixture.locator('#analysis-2 [data-xet-action=collect]').click();
-    await fixture.waitForFunction(() => document.querySelector('#xet-ultra-quality-toast')?.textContent.includes('未能确认'));
+    await fixture.waitForFunction(() => window.nativeNotices.filter(n=>n.type==='error').length>=3);
     holdSave = false; holdQuestionId = ""; rejectQuestionId = ""; releaseSave();
     await fixture.waitForFunction(() => document.querySelector('#analysis-1 [data-xet-action=mark]').getAttribute('aria-pressed') === 'false');
     assert(await fixture.locator('#analysis-2 [data-xet-action=collect]').getAttribute('aria-pressed') === 'false', "Failed refresh overwrote concurrent saved state");
@@ -173,10 +236,29 @@ async (page) => {
     await fixture.reload();
     await fixture.waitForFunction(() => document.querySelectorAll(".xet-analysis-actions").length === 40);
     assert(await fixture.locator("#analysis-3 .xet-analysis-actions").count() === 0, "Unknown flags were shown as false");
+    stage = "missing site message fallback and cleanup";
+    await fixture.evaluate(() => {delete document.querySelector('.practice-analysis').__vue__.$message;});
+    await mark.click();
+    await fixture.waitForFunction(()=>document.querySelector('.xet-analysis-feedback')?.textContent==='标记成功');
+    await fixture.waitForTimeout(350); // Let the original 300ms entrance animation settle.
+    const fallback=await fixture.locator('.xet-analysis-feedback').evaluate(wrapper=>{
+      const box=wrapper.firstElementChild,bounds=box.getBoundingClientRect();
+      return {top:bounds.top,height:bounds.height,center:(bounds.left+bounds.right)/2,
+        role:wrapper.getAttribute('role'),manual:wrapper.getAttribute('popover'),open:wrapper.matches(':popover-open')};
+    });
+    assert(fallback.top===40 && fallback.height===40 && Math.abs(fallback.center-190)<.02 && fallback.role==='status' && fallback.manual==='manual' && fallback.open,
+      `Fallback notice was not accessible or centered: ${JSON.stringify(fallback)}`);
+    await worker.evaluate(origin => chrome.storage.local.set({ disabledSites: [origin] }), origin);
+    await fixture.waitForFunction(()=>!document.querySelector('.xet-analysis-feedback'));
     assert(errors.length === 0, `Browser errors: ${errors.join('; ')}`);
     return { passed: true, questions: 41, savedActions: writes.length,
-      checked: ["real MV3 bridge", "post-submission persistence", "answer card marks", "Space/Enter", "trusted clicks", "double clicks", "errors", "network reconciliation", "concurrent saves", "focus refresh", "remount", "responsive layout", "SPA", "disable", "unknown flags"] };
-  } catch (error) { throw new Error(`${stage}: ${error.message}`); }
+      checked: ["real MV3 bridge", "original artwork", "original geometry and hover", "four native messages", "post-submission persistence", "answer card marks", "Space/Enter", "trusted clicks", "double clicks", "errors", "network reconciliation", "concurrent saves", "focus refresh", "remount", "responsive layout", "SPA", "disable", "unknown flags", "accessible fallback cleanup"] };
+  } catch (error) {
+    const diagnostic = await fixture.evaluate(() => ({notices:window.nativeNotices,
+      fallback:document.querySelector('.xet-analysis-feedback')?.textContent,
+      mark:document.querySelector('#analysis-1 [data-xet-action=mark]')?.getAttribute('aria-pressed')}));
+    throw new Error(`${stage}: ${error.message}; ${JSON.stringify(diagnostic)}`);
+  }
   finally {
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
     await fixture.close();

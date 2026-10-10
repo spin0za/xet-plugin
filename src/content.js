@@ -94,7 +94,7 @@
     fullscreen, isEnabled: isSiteEnabled,
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
-  const analysisActions = modules.analysisActions.createAnalysisActionsController({ notify: modules.toast.show });
+  const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,

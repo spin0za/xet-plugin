@@ -6,6 +6,8 @@ async (page) => {
     "src/content/download-stream.js",
     "src/content/download.js",
     "src/content/analysis-layout.js",
+    "src/content/analysis-icons.js",
+    "src/content/analysis-feedback.js",
     "src/content/analysis-actions.js",
     "src/content/player-interactions.js",
     "src/content/fullscreen.js",

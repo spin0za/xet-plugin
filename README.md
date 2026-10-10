@@ -95,6 +95,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/analysis-icons-smoke.js
 node tests/practice-analysis-source-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
@@ -234,6 +235,8 @@ src/
     player-dom.js
     volume.js
     analysis-layout.js
+    analysis-icons.js
+    analysis-feedback.js
     analysis-actions.js
     analysis-actions.css
     player-interactions.js
@@ -259,6 +262,7 @@ output/playwright/
 tests/
   background-smoke.js
   content-structure-smoke.js
+  analysis-icons-smoke.js
   practice-analysis-source-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
@@ -285,7 +289,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.13.0**
+Current version: **1.13.1**
+
+1.13.1：解析页标记、收藏使用原站图标与按钮样式，答题卡标记采用原站圆形徽标；操作反馈复用网站的顶部居中提示组件。
+
+1.13.1: Matches the site's original mark/favorite artwork, button styles and answer-card badges, and reuses its top-centered feedback messages.
 
 1.13.0：为在线练习解析页恢复标记与收藏按钮，复用网站保存接口；交卷后可修改，刷新后保留状态，保存失败会提示。
 

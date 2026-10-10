@@ -13,7 +13,7 @@ async function main() {
   const context = { URL, Set, location: { href: `${origin}${path}?join_id=join_fixture&task_id=task_fixture` },
     document: { querySelector: () => ({ __vue__: instance }) } };
   vm.runInNewContext(fs.readFileSync("src/practice-analysis-source.js", "utf8"), context);
-  const { readAnalysisContext, resolve } = context.XetPracticeAnalysisSource;
+  const { readAnalysisContext, showAnalysisFeedback, resolve } = context.XetPracticeAnalysisSource;
   const snapshot = JSON.parse(JSON.stringify(readAnalysisContext(key)));
   assert.deepEqual(snapshot.questions, [
     { id: "qs_fixture_1", index: 0, collected: true },
@@ -32,13 +32,28 @@ async function main() {
   context.location.href = `${origin}/p/t_pc/pc_evaluation/practice_sheet/wb_course_fixture`;
   assert.equal(readAnalysisContext(key), null, "never inspect an in-progress answer sheet");
   context.location.href = `${origin}${path}?join_id=join_fixture&task_id=task_fixture`;
+  const notices = [];
+  instance.$message = {
+    success: text => notices.push(["success", text]),
+    error: text => notices.push(["error", text]),
+  };
+  for (const feedback of ["mark", "unmark", "collect", "uncollect", "mark-error"]) {
+    assert.equal(showAnalysisFeedback(key, feedback), true);
+  }
+  assert.deepEqual(notices, [["success", "标记成功"], ["success", "取消标记成功"],
+    ["success", "收藏成功"], ["success", "取消收藏成功"], ["error", "标记操作失败，请稍后重试"]]);
+  assert.equal(showAnalysisFeedback(key, "<script>arbitrary feedback</script>"), false);
+  assert.equal(showAnalysisFeedback(key, "constructor"), false);
+  assert.equal(showAnalysisFeedback(`${key}other`, "mark"), false);
+  delete instance.$message;
+  assert.equal(showAnalysisFeedback(key, "mark"), false, "missing site component uses the local fallback");
   let disabledSites = [];
   let allowed = true;
   const injections = [];
   let resultDocument = "document_fixture";
   context.chrome = { scripting: { async executeScript(options) {
     injections.push(options);
-    return [{ result: snapshot, documentId: resultDocument }];
+    return [{ result: options.func === showAnalysisFeedback ? true : snapshot, documentId: resultDocument }];
   } } };
   const deps = { siteAccess: {
     siteInfo: url => url ? { origin: new URL(url).origin } : null,
@@ -56,9 +71,19 @@ async function main() {
   disabledSites = []; allowed = false;
   assert.equal((await resolve({ key }, sender, deps)).ok, false);
   assert.equal(injections.length, 1, "disabled and unauthorized sites never get MAIN injection");
+  allowed = true;
+  assert.equal((await resolve({ type: "xet:analysis-feedback", key, feedback: "arbitrary" }, sender, deps)).ok, false);
+  assert.equal(injections.length, 1, "unknown feedback never gets MAIN injection");
+  assert.equal((await resolve({ type: "xet:analysis-feedback", key, feedback: "unmark" }, sender, deps)).ok, true);
+  assert.equal(injections[1].func, showAnalysisFeedback);
+  assert.deepEqual(JSON.parse(JSON.stringify(injections[1].args)), [key, "unmark"]);
+  disabledSites = [origin];
+  assert.equal((await resolve({ type: "xet:analysis-feedback", key, feedback: "mark" }, sender, deps)).ok, false);
+  assert.equal(injections.length, 2, "disabled sites never invoke native messages");
+  disabledSites = [];
   allowed = true; resultDocument = "new_document";
   assert.equal((await resolve({ key }, sender, deps)).ok, false);
-  console.log("practice analysis read-only bridge smoke test passed");
+  console.log("practice analysis identity and native feedback bridge smoke test passed");
 }
 
 main().catch(error => { console.error(error); process.exitCode = 1; });

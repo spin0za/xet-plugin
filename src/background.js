@@ -395,7 +395,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === "xet:analysis-context") {
+  if (message?.type === "xet:analysis-context" || message?.type === "xet:analysis-feedback") {
     return respond(sendResponse, "read-analysis-context", () =>
       globalThis.XetPracticeAnalysisSource.resolve(message, sender, { siteAccess, readSettings }));
   }

@@ -17,51 +17,87 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-inline-size: 32px;
-  min-block-size: 32px;
-  padding: 5px;
-  border: 1px solid #eee;
+  inline-size: 32px;
+  block-size: 32px;
+  padding: 0;
+  border: 1px solid #ebebeb;
   border-radius: 8px;
   background: #fff;
   color: #333;
   cursor: pointer;
 }
 
-.practice-analysis .xet-analysis-action svg {
+.practice-analysis .xet-analysis-action img {
   display: block;
   inline-size: 20px;
   block-size: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.65;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+  max-inline-size: none;
 }
 
-.practice-analysis .xet-analysis-action[data-xet-action="mark"][aria-pressed="true"] { color: #bd5000; }
-.practice-analysis .xet-analysis-action[data-xet-action="mark"][aria-pressed="true"] svg { fill: #ff781f; }
-.practice-analysis .xet-analysis-action[data-xet-action="collect"][aria-pressed="true"] { color: #a65e00; }
-.practice-analysis .xet-analysis-action[data-xet-action="collect"][aria-pressed="true"] svg { fill: #ffa51f; }
-.practice-analysis .xet-analysis-action:hover { background: #f7f9fc; }
+.practice-analysis .xet-analysis-action:hover,
+.practice-analysis .xet-analysis-action:active { background: #fff; }
 .practice-analysis .xet-analysis-action[aria-disabled="true"] { opacity: .55; cursor: progress; }
 .practice-analysis .xet-analysis-action:focus-visible { outline: 2px solid #1478ff; outline-offset: 2px; }
 
 .practice-analysis [data-xet-analysis-card-marked] { position: relative; }
 .practice-analysis .xet-analysis-card-mark {
   position: absolute;
-  inset-block-start: -4px;
-  inset-inline-end: -4px;
-  inline-size: 14px;
-  block-size: 14px;
+  inset-block-start: -10px;
+  inset-inline-end: -10px;
+  inline-size: 20px;
+  block-size: 20px;
+  max-inline-size: none;
+  z-index: 999;
   pointer-events: none;
 }
-.practice-analysis .xet-analysis-card-mark svg {
-  display: block;
-  inline-size: 100%;
-  block-size: 100%;
-  fill: #ff781f;
-  stroke: #bd5000;
-  stroke-width: 1.5;
-  stroke-linecap: round;
-  stroke-linejoin: round;
+
+/* Fallback only. Normal feedback uses the site's original $message component. */
+.xet-analysis-feedback {
+  position: fixed;
+  inset: auto auto auto 0;
+  top: 40px;
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #333;
+  overflow: visible;
+  text-align: center;
+  pointer-events: none;
+  z-index: 4003;
+  transition: top .4s;
+}
+.xet-analysis-message {
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 4px;
+  background: #fff;
+  color: #333;
+  font-size: 14px;
+  line-height: 16px;
+  box-shadow: 0 8px 24px 0 rgba(31, 31, 31, .16);
+  animation: xet-analysis-message-enter .3s ease-in-out both;
+}
+.xet-analysis-message svg {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin-right: 8px;
+}
+.xet-analysis-feedback-closing .xet-analysis-message {
+  animation: xet-analysis-message-enter .3s ease-in-out reverse both;
+}
+@keyframes xet-analysis-message-enter {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .xet-analysis-feedback { transition: none; }
+  .xet-analysis-message,
+  .xet-analysis-feedback-closing .xet-analysis-message { animation: none; }
 }
