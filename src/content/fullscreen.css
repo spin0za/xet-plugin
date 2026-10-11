@@ -159,8 +159,8 @@ html [data-xet-interactions="true"][data-xet-controls-hidden="true"] xg-controls
 }
 
 /* Rich-text embeds carry inconsistent width/height attributes. Practice sheets
-   (including rote review) and analyses share this correction; genuine portrait
-   courses retain their original layout. */
+   (including rote review), error-book practice and analyses share this
+   correction; genuine portrait courses retain their original layout. */
 html[data-xet-analysis-layout] [data-xet-analysis-container],
 html[data-xet-analysis-layout] #xePreview .xe-preview__container .xe-preview__content [data-xet-analysis-container] {
   display: block !important;

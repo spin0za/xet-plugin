@@ -38,7 +38,7 @@ async (page) => {
       } else await route.fulfill({ contentType: "text/html", body: html });
     });
     await fixture.route("https://player.eapps.cn/**", (route) => route.fulfill({ contentType: "text/html", body: html }));
-    await fixture.goto(`${parentOrigin}/p/t_pc/pc_evaluation/practice_analysis/fixture`);
+    await fixture.goto(`${parentOrigin}/p/t_pc/pc_evaluation/errbook/practice/230518461?readonly=1`);
     await fixture.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
 
     await fixture.evaluate(() => {
@@ -91,6 +91,24 @@ async (page) => {
     await slow.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
     await redirected.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
 
+    await fixture.evaluate(() => history.pushState({}, "", "/p/t_pc/pc_evaluation/errbook/list"));
+    await slow.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    await redirected.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    await fixture.evaluate(() => history.pushState({}, "", "/p/t_pc/pc_evaluation/errbook/practice/230518461?readonly=1"));
+    await slow.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    await redirected.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-embed"));
+    for (const viewport of [{ width: 1280, height: 900 }, { width: 620, height: 900 }]) {
+      await fixture.setViewportSize(viewport);
+      const sizes = await fixture.locator("iframe").evaluateAll((frames) => frames.map((frame) => {
+        const { width, height } = frame.getBoundingClientRect();
+        return { width, height };
+      }));
+      if (sizes.some(({ width, height }) => Math.abs(width / height - 16 / 9) > .01 ||
+          Math.abs(width - Math.min(960, viewport.width - 40)) > 1)) {
+        throw new Error(`Error-book MV3 previews not responsive 16:9: ${JSON.stringify(sizes)}`);
+      }
+    }
+
     await fixture.evaluate(() => { document.querySelector("#slow").src = "https://iframe.xiaoeknow.com/replaced"; });
     const replaced = await waitEmbed("https://iframe.xiaoeknow.com/replaced");
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: ["https://merchant.pc.xiaoe-tech.com"] }));
@@ -98,7 +116,7 @@ async (page) => {
     await redirected.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
     if (errors.length) throw new Error(`Iframe communication errors: ${errors.join("; ")}`);
     return { delayedLoad: true, redirect: true, navigation: true, routeRestore: true, forgedMessagesIgnored: true,
-      siteDisable: true, originMismatchErrors: errors.length };
+      errorBookPreview: true, siteDisable: true, originMismatchErrors: errors.length };
   } finally {
     releaseLoad();
     await browserLog.detach();

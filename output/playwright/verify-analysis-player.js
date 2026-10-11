@@ -57,7 +57,7 @@ async (page) => {
       contentType: "text/html",
       body: "<!doctype html><style>html,body {margin:0;width:100%;height:100%;}</style><div id=player></div>",
     }));
-    await testPage.goto("https://analysis.example/p/t_pc/pc_evaluation/practice_sheet/fixture");
+    await testPage.goto("https://analysis.example/p/t_pc/pc_evaluation/errbook/practice/230518461?question_id=fixture&tab=1&readonly=1");
     const originalPreviewSize = await testPage.locator("iframe").first().boundingBox();
 
     const settings = { enabled: true, disabledSites: [], topOrigin: "https://analysis.example" };
@@ -184,8 +184,9 @@ async (page) => {
     }
 
     const layouts = [];
-    for (const route of ["practice_sheet", "practice_analysis"]) {
-      await testPage.evaluate((route) => history.pushState({}, "", `/p/t_pc/pc_evaluation/${route}/fixture`), route);
+    for (const route of ["practice_sheet/fixture", "practice_analysis/fixture", "exam_analysis/fixture",
+      "errbook/practice/230518461?readonly=0", "errbook/practice/230518461?readonly=1"]) {
+      await testPage.evaluate((route) => history.pushState({}, "", `/p/t_pc/pc_evaluation/${route}`), route);
       await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
       for (const viewport of [{ width: 1280, height: 900 }, { width: 620, height: 900 }]) {
         await testPage.setViewportSize(viewport);
@@ -435,7 +436,7 @@ async (page) => {
 
     // Route changes should restore other pages and cover subsequently inserted
     // embeds without requiring a fresh extension injection.
-    await testPage.evaluate(() => history.pushState({}, "", "/course/portrait"));
+    await testPage.evaluate(() => history.pushState({}, "", "/p/t_pc/pc_evaluation/errbook/list"));
     await testPage.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-layout"));
     await frame.waitForFunction(() => !document.documentElement.hasAttribute("data-xet-analysis-embed"));
     if (await frame.evaluate(() => getComputedStyle(player.video).transform) !== "none") {
@@ -449,22 +450,26 @@ async (page) => {
         otherPageSize.height !== originalPreviewSize.height) {
       throw new Error("Analysis layout leaked onto another page");
     }
-    await testPage.evaluate(() => {
-      history.pushState({}, "", "/p/t_pc/pc_evaluation/practice_sheet/fixture");
-      // Rote review mounts explanations inside its question answer block,
-      // sometimes inside a fixed-width paragraph, after the route has loaded.
-      const answer = document.createElement("div");
-      answer.className = "question-block__answer";
-      const paragraph = document.createElement("p");
-      paragraph.style.width = "360px";
-      paragraph.append(document.querySelector(".xiaoe-iframe-outside").cloneNode(true));
-      answer.append(paragraph);
-      document.body.append(answer);
-    });
-    await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
-    const newSize = await testPage.locator("iframe").last().boundingBox();
-    if (Math.abs(newSize.width / newSize.height - 16 / 9) > .01 || newSize.width !== 960) {
-      throw new Error("New rote-review embed did not inherit landscape layout");
+    for (const route of ["practice_sheet/fixture", "errbook/practice/230518461?readonly=1"]) {
+      await testPage.evaluate((route) => {
+        history.pushState({}, "", `/p/t_pc/pc_evaluation/${route}`);
+        // Both rote review and error-book practice mount explanations inside
+        // fixed-width answer paragraphs after the route has loaded.
+        const answer = document.createElement("div");
+        answer.className = "question-block__answer";
+        const paragraph = document.createElement("p");
+        paragraph.style.width = "360px";
+        paragraph.append(document.querySelector(".xiaoe-iframe-outside").cloneNode(true));
+        answer.append(paragraph);
+        document.body.append(answer);
+      }, route);
+      await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
+      await testPage.waitForFunction(() => document.querySelectorAll("iframe").length &&
+        [...document.querySelectorAll("iframe")].at(-1).getBoundingClientRect().width === 960);
+      const newSize = await testPage.locator("iframe").last().boundingBox();
+      if (Math.abs(newSize.width / newSize.height - 16 / 9) > .01 || newSize.width !== 960) {
+        throw new Error(`New ${route} embed did not inherit landscape layout`);
+      }
     }
     await testPage.evaluate(() => history.pushState({}, "", "/p/t_pc/pc_evaluation/exam_analysis/fixture"));
     await testPage.waitForFunction(() => document.documentElement.hasAttribute("data-xet-analysis-layout"));
@@ -476,7 +481,7 @@ async (page) => {
       .filter((attribute) => attribute.name.startsWith("data-xet-"))
       .map((attribute) => attribute.name));
     if (disabled || remainingMarkers.length) throw new Error(`Site disable did not restore original styling: ${remainingMarkers}`);
-    return { layouts, firstPlayback, previewCrop, previewScrims, roteReviewRemount: true, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
+    return { layouts, firstPlayback, previewCrop, previewScrims, roteReviewRemount: true, errorBookRemount: true, pictureClicks, autoHide, embeddedWeb, buttonFullscreen, keyboardFullscreen, restored, disabled };
   } finally {
     await testPage.close();
   }

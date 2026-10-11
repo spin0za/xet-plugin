@@ -2,9 +2,9 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.analysisLayout) return;
 
-  // Question-answering and rote-review modes share practice_sheet. Their
-  // answer explanations use the same rich-text embeds as submitted analyses.
-  const ANALYSIS_PATH = /\/pc_evaluation\/(?:practice_sheet|practice_analysis|exam_analysis)\//;
+  // Practice, rote review, submitted analyses and error-book practice share
+  // rich-text explanation embeds, including the error book's readonly view.
+  const ANALYSIS_PATH = /\/pc_evaluation\/(?:practice_sheet|practice_analysis|exam_analysis|errbook\/practice)\//;
   const MARKER = "data-xet-analysis-layout";
   const EMBED_MARKER = "data-xet-analysis-embed";
   const CONTAINER_MARKER = "data-xet-analysis-container";
