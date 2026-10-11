@@ -141,7 +141,7 @@
               label.setAttribute(BADGE, ""); card.querySelector(".card-body")?.prepend(label);
               labels.set(card, label);
             }
-            label.textContent = `原题第 ${number} 题`;
+            label.textContent = `${number}.`;
           } else { label?.remove(); labels.delete(card); }
           if (parent.children[i] !== card) parent.insertBefore(card, parent.children[i] || null);
           if ((i + 1) % 20 === 0) {

@@ -331,7 +331,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.15.4**
+Current version: **1.15.5**
+
+1.15.5：错题本题号显示简化为“5.”形式，题号匹配和排序不变。
+
+1.15.5: Simplifies error-book number labels to “5.” without changing ordinal matching or sorting.
 
 1.15.4：补全错题本中缺少任务 ID 的题号，并在确认同一完整顺序时排序；冲突时恢复原生顺序，不猜填题号。完整题号读取无需滚动加载。
 

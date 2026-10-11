@@ -86,12 +86,12 @@ async (page) => {
     await waitOrder(expected);
     await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===17);
     const labels=await fixture.locator('[data-xet-original-question-number]').allTextContents();
-    if(JSON.stringify(labels)!==JSON.stringify(expected.map(n=>`原题第 ${n} 题`)))throw new Error('Original question-number gaps were lost');
+    if(JSON.stringify(labels)!==JSON.stringify(expected.map(n=>`${n}.`)))throw new Error('Original question-number gaps were lost');
     stage = 'missing task metadata';
     await fixture.evaluate(()=>vm.questionList.unshift(...[3,2].map(n=>({id:'qs_'+n,task_id:'',content:'Question '+n,checked:false}))));
     await waitOrder([2,3,...expected]);
     await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===19);
-    if(await fixture.locator('[data-fixture-id=qs_2] [data-xet-original-question-number]').innerText()!=='原题第 2 题')throw new Error('Missing task ID did not recover its number');
+    if(await fixture.locator('[data-fixture-id=qs_2] [data-xet-original-question-number]').innerText()!=='2.')throw new Error('Missing task ID did not recover its number');
     if(await fixture.locator('.xet-question-order-hint').count())throw new Error('Resolved metadata still showed missing-number hint');
     await fixture.locator('[data-fixture-id=qs_2]').click();
     if(JSON.stringify(await fixture.evaluate(()=>clicked))!==JSON.stringify({id:'qs_2',index:1}))throw new Error('Fallback sorting broke native click identity');
@@ -122,7 +122,7 @@ async (page) => {
     await fixture.locator('#search').fill('Question 4');
     stage = 'search';
     await waitOrder([41]);
-    if(await fixture.locator('[data-xet-original-question-number]').innerText()!=='原题第 41 题')throw new Error('Search renumbered the result');
+    if(await fixture.locator('[data-xet-original-question-number]').innerText()!=='41.')throw new Error('Search renumbered the result');
     await fixture.locator('#search').fill('');
     stage = 'clear search';
     await waitOrder(expected);
