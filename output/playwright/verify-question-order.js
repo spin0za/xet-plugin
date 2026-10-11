@@ -1,0 +1,156 @@
+async (page) => {
+  // An isolated MV3 profile and Vue 2 keyed cards reproduce the real site.
+  // All practice endpoints and management actions below are local fixtures.
+  const context = page.context();
+  const worker = context.serviceWorkers().find(w => w.url().endsWith('/src/background.js'));
+  if (!worker) throw new Error('Load the unpacked extension in an isolated profile');
+  const origin = 'https://merchant.pc.xiaoe-tech.com';
+  const source = 'wb_course_order_fixture', task = 'pt_order_fixture';
+  const cacheKey = `xetQuestionOrder:${origin}|${source}|${task}`;
+  const bookPath = `/p/t_pc/pc_evaluation/errbook/detail/123?tab=1&source_id=${source}`;
+  const practicePath = `/p/t_pc/pc_evaluation/practice_analysis/${source}?join_id=uwb_order_fixture&task_id=${task}`;
+  const wrong = [41,24,9,14,15,17,18,20,27,38,28,29,30,33,35,36,5];
+  const expected = [...wrong].sort((a,b) => a-b);
+  const fixture = await context.newPage();
+  const errors = [], requests = [];
+  let stage = 'initial fallback';
+  fixture.on('pageerror', error => errors.push(error.message));
+  const vue = await (await context.request.get('https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js')).text();
+  let random = 0, fail = false, count = 41;
+  const html = `<!doctype html><meta charset=utf-8><style>
+    body{margin:0;background:#eee;font:16px sans-serif}.errbook-detail-page{max-width:1000px;margin:20px auto}
+    .question-card{padding:20px;margin:12px 0;background:white;border-radius:12px;cursor:pointer}
+    .card-meta{color:#999;margin-top:8px}.type-tag{color:#1677ff}button{margin:6px;padding:8px}
+    </style><div id=app></div><script>${vue}</script><script>
+    const originalWrong=${JSON.stringify(wrong)};
+    const make=n=>({id:'qs_'+n,task_id:'${task}',content:'Question '+n,checked:false,answer:'do-not-store-answer'});
+    const query=new URLSearchParams(location.search);
+    const book=location.pathname.includes('/errbook/detail/');
+    const practiceClass=location.pathname.includes('practice_sheet')?'practice-sheet':'practice-analysis';
+    window.clicked=null;window.deleted=[];
+    window.vm=new Vue({el:'#app',data:{resourceId:'${source}',sourceId:'${source}',join_id:query.get('join_id')||'uwb_order_fixture',
+      taskId:'${task}',classifyId:'123',currentTab:Number(query.get('tab')||1),loading:false,searchText:'',manageMode:false,
+      questionList:originalWrong.map(make),practiceList:[],totalPracticeNum:41},
+      methods:{manage(){this.manageMode=!this.manageMode;this.questionList=this.questionList.map(q=>({...q,checked:false}))},
+        search(){this.questionList=originalWrong.filter(n=>('Question '+n).includes(this.searchText)).map(make)},
+        onQuestionClick(q,i){if(this.manageMode){this.$set(this.questionList,i,{...q,checked:!q.checked})}else clicked={id:q.id,index:i}},
+        remove(){deleted=this.questionList.filter(q=>q.checked).map(q=>q.id);this.questionList=this.questionList.filter(q=>!q.checked)}},
+      template:book?'<div class="errbook-detail-page"><input id="search" v-model="searchText" @input="search"><button id="manage" @click="manage">Manage</button><button id="delete" @click="remove">Delete fixture selections</button><div class="question-list"><div v-for="(q,i) in questionList" :key="q.id" class="question-card" :data-fixture-id="q.id" @click="onQuestionClick(q,i)"><div class="card-body"><div class="card-content">{{q.content}}</div><div class="card-meta"><span class="type-tag">单选题</span> 最近错误：2026-10-10</div></div></div></div></div>':
+        '<div class="'+practiceClass+'">Original practice fixture</div>'});
+    </script>`;
+  await fixture.route(`${origin}/**`, async route => {
+    const request = route.request();
+    if (request.method() === 'POST') {
+      const path = new URL(request.url()).pathname;
+      requests.push({path, payload:request.postDataJSON()});
+      if (fail) return route.fulfill({status:503,body:'offline'});
+      if (path === '/xe.practice.bff/task/answer.config.get/1.0.0') return route.fulfill({json:{code:0,data:{random_setting:random,task_total_qs:count}}});
+      if (path === '/evaluation_wechat/practices/commit_record') return route.fulfill({json:{code:0,data:{list:Array.from({length:count},(_,i)=>({id:'qs_'+(i+1),answer:'do-not-store-answer'}))}}});
+      throw new Error(`Unexpected endpoint: ${path}`);
+    }
+    return route.fulfill({contentType:'text/html; charset=utf-8',body:html});
+  });
+  const displayed = () => fixture.locator('.question-card').evaluateAll(cards => cards.map(c=>Number(c.dataset.fixtureId.slice(3))));
+  const waitOrder = async values => {
+    await fixture.waitForFunction(values => JSON.stringify([...document.querySelectorAll('.question-card')].map(c=>Number(c.dataset.fixtureId.slice(3))))===JSON.stringify(values),values);
+  };
+  const readCache = () => worker.evaluate(async key => (await chrome.storage.local.get(key))[key],cacheKey);
+  const disable = async disabled => worker.evaluate(({origin,disabled}) => chrome.storage.local.set({disabledSites:disabled?[origin]:[]}),{origin,disabled});
+  try {
+    await worker.evaluate(async ({origin,cacheKey}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false}); },{origin,cacheKey});
+    await fixture.goto(origin+bookPath);
+    await fixture.locator('.xet-question-order-hint').waitFor({timeout:10000});
+    if (JSON.stringify(await displayed())!==JSON.stringify(wrong) || await fixture.locator('[data-xet-original-question-number]').count()) throw new Error('Missing mappings fabricated an ordinal');
+    await fixture.goto(origin+practicePath);
+    stage = 'capture original analysis';
+    await worker.evaluate(async key => {for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Original numbering not captured');},cacheKey);
+    const saved=await readCache();
+    if(saved.ids.length!==41 || JSON.stringify(saved).includes('answer')) throw new Error('Stored more than question identity metadata');
+    await fixture.goto(origin+bookPath);
+    stage = 'restore original order';
+    await waitOrder(expected);
+    await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===17);
+    const labels=await fixture.locator('[data-xet-original-question-number]').allTextContents();
+    if(JSON.stringify(labels)!==JSON.stringify(expected.map(n=>`原题第 ${n} 题`)))throw new Error('Original question-number gaps were lost');
+    await fixture.locator('.question-card').first().click();
+    if((await fixture.evaluate(()=>clicked)).id!=='qs_5')throw new Error('Sorted card opened another question');
+    await fixture.locator('#manage').click();
+    stage = 'manage mode';
+    await waitOrder(expected);
+    await fixture.locator('[data-fixture-id=qs_5]').click();
+    if(JSON.stringify(await fixture.evaluate(()=>vm.questionList.filter(q=>q.checked).map(q=>q.id)))!==JSON.stringify(['qs_5']))throw new Error('Sorted management selected the wrong native index');
+    await fixture.locator('#search').fill('Question 4');
+    stage = 'search';
+    await waitOrder([41]);
+    if(await fixture.locator('[data-xet-original-question-number]').innerText()!=='原题第 41 题')throw new Error('Search renumbered the result');
+    await fixture.locator('#search').fill('');
+    stage = 'clear search';
+    await waitOrder(expected);
+    await fixture.locator('[data-fixture-id=qs_5]').click();
+    await fixture.locator('#delete').click();
+    stage = 'fixture deletion';
+    await waitOrder(expected.filter(n=>n!==5));
+    if(JSON.stringify(await fixture.evaluate(()=>deleted))!==JSON.stringify(['qs_5']))throw new Error('Fixture deletion targeted the wrong question');
+    await disable(true);
+    stage = 'disable restoration';
+    await fixture.waitForFunction(()=>!document.querySelector('[data-xet-original-question-number]'));
+    await waitOrder(wrong.filter(n=>n!==5));
+    if(await fixture.locator('[data-xet-question-order-id],.xet-question-order-hint').count())throw new Error('Disable did not clean up metadata and hints');
+    await disable(false);
+    stage = 'reenable';
+    await waitOrder(expected.filter(n=>n!==5));
+    await fixture.evaluate(()=>vm.questionList.push({id:'qs_999',task_id:vm.taskId,content:'Unmatched question',checked:false}));
+    await fixture.locator('.xet-question-order-hint').waitFor();
+    if(await fixture.locator('[data-fixture-id=qs_999] [data-xet-original-question-number]').count())throw new Error('Unknown question got a guessed number');
+    await fixture.goto(origin+bookPath.replace('tab=1','tab=2'));
+    await fixture.waitForTimeout(300);
+    if(await fixture.locator('[data-xet-original-question-number],.xet-question-order-hint').count())throw new Error('Unrelated error-book tabs modified');
+    random=1;
+    stage = 'random practice';
+    await fixture.goto(origin+practicePath);
+    await worker.evaluate(async key=>{for(let i=0;i<100;i++){if(!(await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Random practice retained fixed ordinals');},cacheKey);
+    await fixture.goto(origin+bookPath);
+    await fixture.locator('.xet-question-order-hint').waitFor();
+    await waitOrder(wrong);
+    random=0;
+    stage = 'practice-sheet capture';
+    await fixture.goto(origin+practicePath.replace('practice_analysis','practice_sheet'));
+    await worker.evaluate(async key=>{for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Practice-sheet capture failed');},cacheKey);
+    stage = 'batched rendering with native deletion';
+    count=60;
+    await fixture.goto(origin+practicePath);
+    await worker.evaluate(async key=>{for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key]?.ids.length===60)return;await new Promise(r=>setTimeout(r,100));}throw new Error('Updated numbering was not captured');},cacheKey);
+    await fixture.goto(origin+bookPath);
+    await waitOrder(expected);
+    await fixture.evaluate(()=>{
+      const watcher=new MutationObserver(()=>{
+        if(document.querySelectorAll('[data-xet-original-question-number]').length>=20){
+          watcher.disconnect();vm.questionList.pop();
+        }
+      });
+      watcher.observe(document.querySelector('.question-list'),{childList:true,subtree:true});
+      vm.questionList.push(...Array.from({length:19},(_,i)=>({id:'qs_'+(i+42),task_id:vm.taskId,content:'More questions',checked:false})));
+    });
+    await waitOrder([...expected,...Array.from({length:18},(_,i)=>i+42)]);
+    await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===35);
+    if(await fixture.locator('[data-fixture-id=qs_60]').count())throw new Error('Batched render resurrected a deleted native card');
+    stage = 'network failure fallback';
+    fail=true;
+    await worker.evaluate(key=>chrome.storage.local.remove(key),cacheKey);
+    await fixture.goto(origin+practicePath);
+    await fixture.waitForTimeout(300);
+    await fixture.goto(origin+bookPath);
+    await fixture.locator('.xet-question-order-hint').waitFor();
+    await waitOrder(wrong);
+    if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Failed read generated guessed numbers');
+    if(requests.some(r=>!/answer.config.get|commit_record/.test(r.path)))throw new Error('Mutating endpoint requested');
+    if(errors.length)throw new Error(errors.join('\n'));
+    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent mapping','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
+  } catch(error) {
+    throw new Error(JSON.stringify({stage,message:error.message,errors,requests,cache:await readCache(),
+      display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),
+      native:await fixture.evaluate(()=>vm.questionList.map(q=>q.id))}));
+  } finally {
+    await disable(false); await fixture.close();
+  }
+}

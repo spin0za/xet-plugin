@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "question-order-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -395,6 +395,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:question-order-context") {
+    return respond(sendResponse, "read-question-order-context", () =>
+      globalThis.XetQuestionOrderSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:analysis-context" || message?.type === "xet:analysis-feedback") {
     return respond(sendResponse, "read-analysis-context", () =>
       globalThis.XetPracticeAnalysisSource.resolve(message, sender, { siteAccess, readSettings }));

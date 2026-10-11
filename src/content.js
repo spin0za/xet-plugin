@@ -1,6 +1,5 @@
 (() => {
-  // Keep the original singleton key so injecting an update into an existing
-  // tab cannot create duplicate observers or keyboard listeners.
+  // Keep the singleton key to avoid duplicate observers or keyboard listeners.
   const INSTANCE_KEY = "__xetUltraQualityInstance";
   const modules = globalThis.__xetPlayerHelperModules;
   const siteAccess = globalThis.XetSiteAccess;
@@ -11,6 +10,7 @@
     !modules.analysisLayout ||
     !modules.analysisActions ||
     !modules.textSelection ||
+    !modules.questionOrder ||
     !modules.playerInteractions ||
     !modules.fullscreen ||
     !modules.frameCoordinator ||
@@ -33,12 +33,7 @@
     return;
   }
 
-  const settings = {
-    enabled: true,
-    volumeEnabled: true,
-    disabledSites: [],
-    topOrigin: "",
-  };
+  const settings = { enabled: true, volumeEnabled: true, disabledSites: [], topOrigin: "" };
   let settingsLoaded = false;
   let frameCoordinator = null;
   let featuresStarted = false;
@@ -97,6 +92,7 @@
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const textSelection = modules.textSelection.createTextSelectionController();
+  const questionOrder = modules.questionOrder.createQuestionOrderController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -121,6 +117,7 @@
     analysisLayout.start();
     analysisActions.start();
     textSelection.start();
+    questionOrder.start();
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
@@ -152,6 +149,7 @@
     analysisLayout.stop();
     analysisActions.stop();
     textSelection.stop();
+    questionOrder.stop();
     quality.stop();
     volume.stop();
     download.stop();
