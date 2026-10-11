@@ -3,6 +3,8 @@
   if (modules.questionOrder) return;
   const PREFIX = "xetQuestionOrder:";
   const BADGE = "data-xet-original-question-number";
+  const READY = "xet:question-order-ready";
+  const STOP_WATCH = "xet:question-order-stop-watch";
   const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}";
 
   function routeKey() {
@@ -20,14 +22,17 @@
       new Set(record.ids).size === record.ids.length;
   }
 
-  function resolveOrdering(questions, stored, prefix) {
+  function compileOrders(stored, prefix) {
     // A missing task ID is site metadata loss, not evidence of a new task.
     // Fall back only within this origin/source and only to unanimous ordinals.
-    const records = Object.entries(stored).filter(([name, record]) => name.startsWith(prefix) &&
+    return Object.entries(stored).filter(([name, record]) => name.startsWith(prefix) &&
       /^[\w-]{0,160}$/.test(name.slice(prefix.length)) && validOrder(record)).map(([name, record]) => ({
         task: name.slice(prefix.length), signature: JSON.stringify(record.ids),
         numbers: new Map(record.ids.map((id, i) => [id, i + 1])),
       }));
+  }
+
+  function resolveOrdering(questions, stored, prefix, records = compileOrders(stored, prefix)) {
     const byTask = new Map(records.map(record => [record.task, record]));
     const usedOrders = new Set();
     const numbers = questions.map(q => {
@@ -45,12 +50,56 @@
     return { numbers, sortable };
   }
 
+  function createOrderCache(storage, origin) {
+    const prefix = `${PREFIX}${origin}|`, indexes = new Map(), updates = new Map();
+    let records = null, read = null, epoch = 0;
+    async function warm() {
+      if (records) return;
+      if (read) return read;
+      const current = epoch;
+      read = (async () => {
+        // One disk read per enabled page lifetime, not once per render. Keep
+        // only this merchant's numbering metadata, never unrelated settings.
+        const all = await storage.get(null);
+        if (current !== epoch) return;
+        records = Object.fromEntries(Object.entries(all).filter(([name]) => name.startsWith(prefix)));
+        for (const [name, value] of updates) {
+          if (value === undefined) delete records[name]; else records[name] = value;
+        }
+        updates.clear();
+      })();
+      try { await read; } finally { if (current === epoch) read = null; }
+    }
+    async function index(source) {
+      await warm();
+      if (!records) return [];
+      const sourcePrefix = `${prefix}${source}|`;
+      if (!indexes.has(sourcePrefix)) indexes.set(sourcePrefix, compileOrders(records, sourcePrefix));
+      return indexes.get(sourcePrefix);
+    }
+    function update(changes) {
+      let affected = false;
+      for (const [name, change] of Object.entries(changes)) {
+        if (!name.startsWith(prefix)) continue;
+        affected = true;
+        indexes.delete(name.slice(0, name.lastIndexOf("|") + 1));
+        if (!records) updates.set(name, change.newValue);
+        else if (change.newValue === undefined) delete records[name];
+        else records[name] = change.newValue;
+      }
+      return affected;
+    }
+    function clear() { epoch++; records = read = null; indexes.clear(); updates.clear(); }
+    return Object.freeze({ warm, index, update, clear });
+  }
+
   function createQuestionOrderController({ request = message => chrome.runtime.sendMessage(message),
     storage = chrome.storage.local } = {}) {
     let started = false, key = "", timer = null, frame = null, observer = null;
-    let generation = 0, loading = false, pending = false, retryAt = 0, capturedJoin = "";
+    let generation = 0, loading = false, pending = false, needsRetry = false, capturedJoin = "";
     let abort = null, style = null, hint = null, restoreOrder = [];
     const labels = new Map();
+    const cache = createOrderCache(storage, location.origin);
     const observe = () => observer?.observe(document.body, { childList: true, subtree: true });
     const cacheKey = (source, task) => `${PREFIX}${location.origin}|${source}|${task}`;
 
@@ -66,7 +115,8 @@
 
     function clear() {
       generation++; abort?.abort(); abort = null;
-      loading = pending = false; capturedJoin = ""; retryAt = 0;
+      loading = pending = needsRetry = false; capturedJoin = "";
+      window.dispatchEvent(new Event(STOP_WATCH));
       observer?.disconnect();
       for (const label of labels.values()) label.remove();
       labels.clear(); hint?.remove(); hint = null;
@@ -106,16 +156,9 @@
     }
 
     async function render(context, current) {
-      const tasks = [...new Set(context.questions.map(q => q.taskId))];
-      const names = tasks.map(task => cacheKey(context.sourceId, task));
-      let stored = await storage.get(names);
-      if (tasks.includes("") && !validOrder(stored[cacheKey(context.sourceId, "")])) {
-        // Chrome 119 has no getKeys API. Read once on fallback, then strictly
-        // filter to this merchant/source; never infer numbers from another book.
-        stored = await storage.get(null);
-      }
+      const records = await cache.index(context.sourceId);
       if (!started || current !== generation || routeKey() !== key) return;
-      const { numbers, sortable } = resolveOrdering(context.questions, stored, cacheKey(context.sourceId, ""));
+      const { numbers, sortable } = resolveOrdering(context.questions, {}, "", records);
       const cards = [...document.querySelectorAll(".errbook-detail-page .question-list > .question-card")];
       if (cards.length !== context.cardIds.length) return;
       const byId = new Map(cards.map(card => [card.getAttribute("data-xet-question-order-id"), card]));
@@ -164,19 +207,21 @@
     async function refresh() {
       const next = routeKey();
       if (next !== key) { clear(); key = next; }
-      if (!started || !key || Date.now() < retryAt) return;
+      if (!started || !key) return;
       if (loading) { pending = true; return; }
       loading = true; pending = false;
       const current = generation;
       abort ||= new AbortController();
       try {
+        if (location.pathname.includes("/errbook/detail/")) void cache.warm().catch(() => {});
         const result = await request({ type: "xet:question-order-context", key });
-        if (!started || current !== generation || routeKey() !== key) return;
-        if (!result?.ok || result.context?.key !== key) { retryAt = Date.now() + 3000; return; }
-        retryAt = 0;
+        if (!started) { window.dispatchEvent(new Event(STOP_WATCH)); return; }
+        if (current !== generation || routeKey() !== key) return;
+        if (!result?.ok || result.context?.key !== key) { needsRetry = true; return; }
+        needsRetry = false;
         if (result.context.kind === "practice") await capture(result.context, abort.signal, current);
         else await render(result.context, current);
-      } catch { if (current === generation) retryAt = Date.now() + 5000; }
+      } catch { if (current === generation) needsRetry = true; }
       finally { if (current === generation) { loading = false; if (pending) schedule(); } }
     }
     function schedule() {
@@ -185,7 +230,7 @@
       frame = requestAnimationFrame(() => { frame = null; void refresh(); });
     }
     function storageChanged(changes, area) {
-      if (area === "local" && Object.keys(changes).some(name => name.startsWith(PREFIX))) schedule();
+      if (area === "local" && cache.update(changes)) schedule();
     }
     function start() {
       if (started || window.top !== window) return;
@@ -196,20 +241,25 @@
             [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1))) schedule();
       });
       observe();
-      timer = setInterval(() => { if (routeKey() !== key || Date.now() >= retryAt && retryAt > 0) schedule(); }, 1000);
-      window.addEventListener("popstate", schedule); chrome.storage.onChanged.addListener(storageChanged);
+      // Fallback only: readiness/DOM/storage/navigation signals always run now,
+      // even when the preceding attempt failed. Never impose a cooldown gate.
+      timer = setInterval(() => { if (routeKey() !== key || needsRetry) schedule(); }, 1000);
+      window.addEventListener("popstate", schedule); window.addEventListener("pageshow", schedule);
+      window.addEventListener(READY, schedule); chrome.storage.onChanged.addListener(storageChanged);
       schedule();
     }
     function stop() {
       if (!started) return;
       started = false; clear(); key = "";
+      cache.clear();
       observer?.disconnect(); observer = null;
       clearInterval(timer); timer = null;
       if (frame !== null) cancelAnimationFrame(frame); frame = null;
       style?.remove(); style = null;
-      window.removeEventListener("popstate", schedule); chrome.storage.onChanged.removeListener(storageChanged);
+      window.removeEventListener("popstate", schedule); window.removeEventListener("pageshow", schedule);
+      window.removeEventListener(READY, schedule); chrome.storage.onChanged.removeListener(storageChanged);
     }
     return Object.freeze({ start, stop });
   }
-  modules.questionOrder = Object.freeze({ createQuestionOrderController, routeKey, validOrder, resolveOrdering });
+  modules.questionOrder = Object.freeze({ createQuestionOrderController, routeKey, validOrder, resolveOrdering, createOrderCache });
 })();

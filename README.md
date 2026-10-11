@@ -30,6 +30,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；去掉覆盖整段题目文字的导入加粗，保留局部强调、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
 - 打开固定顺序的原练习或解析后，插件会在本机记录题目 ID 与题号；对应的错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。首次没有记录时，请先打开原练习或解析一次；随机出题或无法对应的题目不猜填题号。不保存答案，也不改写网站数据。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 题号读取使用完整练习记录接口，无需逐题滚动加载。错题缺少任务 ID 时，可从同网站、同原练习的已验证记录中补全无冲突的题号；只有能够确认同一完整顺序时才合并排序，存在冲突时不猜填。
+- 本地题号表提前读取，当前页面内复用匹配索引；题目就绪、历史返回或记录更新后立即显示，无固定重试冷却等待。加载状态变化也会触发更新，停用后清理监听与内存缓存。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
@@ -104,6 +105,7 @@ node tests/practice-analysis-source-smoke.js
 node tests/question-order-source-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
+node tests/question-order-performance-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
@@ -140,6 +142,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
 - Remembers question IDs and original numbers locally after opening a fixed-order practice or analysis. Its error-book list displays the original numbers and follows the original order without changing search, management, or site records. Open the original practice or analysis once to initialize the mapping; randomized or unmatched questions are never assigned guessed numbers. Answers are not stored. Mappings have no count limit or automatic eviction when new practices are added; recapturing the same practice task updates its existing record, subject to Chrome's total local-storage quota.
 - Reads full practice records without scrolling through lazy-rendered questions. Missing task IDs can recover unambiguous numbers from verified mappings for the same merchant and source; sorting requires a confirmed common full order, and conflicts are never guessed.
+- Preloads local numbering and reuses lookup indexes within the page. Readiness, history return and mapping updates trigger rendering without a fixed retry cooldown; reactive loading changes are detected, and disabling cleans up watchers and memory caches.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
@@ -212,6 +215,7 @@ node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
+node tests/question-order-performance-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
 node tests/quality-preference-smoke.js
@@ -283,6 +287,7 @@ tests/
   analysis-icons-smoke.js
   practice-analysis-source-smoke.js
   question-order-resolution-smoke.js
+  question-order-performance-smoke.js
   question-typography-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
@@ -303,9 +308,13 @@ tests/
 
 `verify-text-selection.js` uses the same isolated real-extension profile to reproduce the site's selection/context-menu restrictions and verify native mouse selection, Ctrl+C, drag without submitting answers, dynamic questions, route changes and site disable. Clipboard permissions are granted only to the fixture in the test browser; the extension requests no additional clipboard permissions.
 
-`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证无需滚动的完整原题号记录、缺少任务 ID 的补全与排序、冲突时不猜填并恢复原序、跨网站保留 50 组旧记录、重复读取不新增记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。
+`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证加载完成（含无 DOM 变化）和历史返回时及时显示、监听清理、无需滚动的完整原题号记录、缺少任务 ID 的补全与排序、冲突时不猜填并恢复原序、跨网站保留 50 组旧记录、重复读取不新增记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。
 
-`verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify original-number capture, retention of 50 prior mappings across sites, recapture without duplicate records, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
+`verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify immediate loading completion (including no DOM changes) and history return, watcher cleanup, original-number capture, retention of 50 prior mappings across sites, recapture without duplicate records, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
+
+`question-order-performance-smoke.js` 验证就绪通知不等待计时器、预读及返回时复用本地索引、记录变更失效缓存、并发读取与停用期间的竞态；仅使用模拟数据。
+
+`question-order-performance-smoke.js` verifies readiness without waiting for timer ticks, preloading and history-return cache reuse, mapping invalidation, concurrent reads and disable-time races using synthetic data only.
 
 `verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
 
@@ -331,7 +340,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.15.5**
+Current version: **1.15.6**
+
+1.15.6：移除题号显示的固定重试等待；预读并复用本地索引，加载完成和返回页面时直接更新，记录变更同步失效缓存，停用后清理监听。
+
+1.15.6: Removes fixed numbering retry delays, preloads and reuses local indexes, renders on reactive readiness and history return, and invalidates caches on mapping changes with cleanup on disable.
 
 1.15.5：错题本题号显示简化为“5.”形式，题号匹配和排序不变。
 

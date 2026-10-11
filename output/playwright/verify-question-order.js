@@ -17,7 +17,7 @@ async (page) => {
   const wrong = [41,24,9,14,15,17,18,20,27,38,28,29,30,33,35,36,5];
   const expected = [...wrong].sort((a,b) => a-b);
   const fixture = await context.newPage();
-  const errors = [], requests = [];
+  const errors = [], requests = [], readinessMs = [];
   let stage = 'initial fallback';
   fixture.on('pageerror', error => errors.push(error.message));
   const vue = await (await context.request.get('https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js')).text();
@@ -34,7 +34,7 @@ async (page) => {
     const practiceClass=location.pathname.includes('practice_sheet')?'practice-sheet':'practice-analysis';
     window.clicked=null;window.deleted=[];
     window.vm=new Vue({el:'#app',data:{resourceId:'${source}',sourceId:'${source}',join_id:query.get('join_id')||'uwb_order_fixture',
-      taskId:'${task}',classifyId:'123',currentTab:Number(query.get('tab')||1),loading:false,searchText:'',manageMode:false,
+      taskId:'${task}',classifyId:'123',currentTab:Number(query.get('tab')||1),loading:query.has('delayed'),searchText:'',manageMode:false,
       questionList:originalWrong.map(make),practiceList:[],totalPracticeNum:41},
       methods:{manage(){this.manageMode=!this.manageMode;this.questionList=this.questionList.map(q=>({...q,checked:false}))},
         search(){this.questionList=originalWrong.filter(n=>('Question '+n).includes(this.searchText)).map(make)},
@@ -70,6 +70,19 @@ async (page) => {
     if(Object.keys(stored).filter(key=>key.startsWith('xetQuestionOrder:')).length!==51)throw new Error('Recapture created duplicate numbering mappings');
   };
   const disable = async disabled => worker.evaluate(({origin,disabled}) => chrome.storage.local.set({disabledSites:disabled?[origin]:[]}),{origin,disabled});
+  const measureReady = action => fixture.evaluate(action => new Promise((resolve, reject) => {
+    const start = performance.now();
+    const finish = () => {
+      if (document.querySelectorAll('[data-xet-original-question-number]').length === 17) {
+        observer.disconnect(); clearTimeout(timeout); resolve(performance.now() - start);
+      }
+    };
+    const observer = new MutationObserver(finish);
+    observer.observe(document.body, {childList:true,subtree:true});
+    const timeout = setTimeout(() => {observer.disconnect();reject(new Error('Ready page did not show cached numbering within 1 second'));},1000);
+    if (action === 'loading') vm.loading = false; // Deliberately absent from the template: no DOM signal.
+    else history.back();
+  }),action);
   try {
     await worker.evaluate(async ({cacheKey,retained}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({...retained,disabledSites:[],keepAliveEnabled:false}); },{cacheKey,retained});
     await fixture.goto(origin+bookPath);
@@ -81,6 +94,20 @@ async (page) => {
     const saved=await readCache();
     if(saved.ids.length!==41 || JSON.stringify(saved).includes('answer')) throw new Error('Stored more than question identity metadata');
     await checkRetention();
+    stage = 'reactive readiness without a DOM mutation';
+    await fixture.goto(origin+bookPath+'&delayed=1');
+    await fixture.waitForFunction(()=>window.__xetQuestionOrderReadiness?.instance===vm);
+    if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Numbered an unready page');
+    readinessMs.push(await measureReady('loading'));
+    await waitOrder(expected);
+    stage = 'history-back readiness';
+    await fixture.evaluate(()=>{
+      history.pushState({},'','/p/t_pc/course_pc_detail/video/fixture');dispatchEvent(new PopStateEvent('popstate'));
+    });
+    await fixture.waitForFunction(()=>!document.querySelector('[data-xet-original-question-number]'));
+    if(await fixture.evaluate(()=>Boolean(window.__xetQuestionOrderReadiness)))throw new Error('Readiness watcher leaked outside its route');
+    readinessMs.push(await measureReady('back'));
+    await waitOrder(expected);
     await fixture.goto(origin+bookPath);
     stage = 'restore original order';
     await waitOrder(expected);
@@ -134,6 +161,7 @@ async (page) => {
     await disable(true);
     stage = 'disable restoration';
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-original-question-number]'));
+    if(await fixture.evaluate(()=>Boolean(window.__xetQuestionOrderReadiness)))throw new Error('Site disable did not remove the Vue readiness watcher');
     await waitOrder(wrong.filter(n=>n!==5));
     if(await fixture.locator('[data-xet-question-order-id],.xet-question-order-hint').count())throw new Error('Disable did not clean up metadata and hints');
     await disable(false);
@@ -186,7 +214,7 @@ async (page) => {
     if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Failed read generated guessed numbers');
     if(requests.some(r=>!/answer.config.get|commit_record/.test(r.path)))throw new Error('Mutating endpoint requested');
     if(errors.length)throw new Error(errors.join('\n'));
-    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent full-order mapping without scrolling','missing task IDs recover numbers and sorting','fallback retains native click and management identities','ambiguous fallback restores native order without guessing','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
+    return {passed:true,readinessMs,originalNumbers:expected,verified:['real Vue 2 keyed cards','immediate reactive readiness without a DOM mutation','immediate history-back restoration','readiness watcher cleanup','first-visit fallback','persistent full-order mapping without scrolling','missing task IDs recover numbers and sorting','fallback retains native click and management identities','ambiguous fallback restores native order without guessing','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
   } catch(error) {
     throw new Error(JSON.stringify({stage,message:error.message,errors,requests,cache:await readCache(),
       display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),

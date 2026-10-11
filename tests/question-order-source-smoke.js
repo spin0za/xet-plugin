@@ -11,10 +11,15 @@ async function main() {
     questionList: [{ id: "qs_1", task_id: "pt_fixture", answer: "secret" }, { id: "qs_2", task_id: "pt_fixture" }],
     _vnode: { children: cards.map((elm, i) => ({ key: `qs_${i + 1}`, elm })) } };
   const page = { __vue__: instance, querySelectorAll: () => cards };
-  const context = { URL, Set, Map, location: { href: `${origin}${bookPath}?tab=1&source_id=wb_course_fixture` },
+  const window = new EventTarget();
+  const context = { URL, Set, Map, Event, window, location: { href: `${origin}${bookPath}?tab=1&source_id=wb_course_fixture` },
     document: { querySelector: () => page } };
   vm.runInNewContext(fs.readFileSync("src/question-order-source.js", "utf8"), context);
   const { readQuestionOrderContext, resolve } = context.XetQuestionOrderSource;
+  let installs = 0, disposed = 0, notify, readinessEvents = 0;
+  instance.$watch = (_getter, callback) => { installs++; notify = callback; return () => disposed++; };
+  instance.$nextTick = callback => callback();
+  window.addEventListener("xet:question-order-ready", () => readinessEvents++);
   const snapshot = JSON.parse(JSON.stringify(readQuestionOrderContext(bookKey)));
   assert.deepEqual(snapshot.questions, [{ id: "qs_1", taskId: "pt_fixture" }, { id: "qs_2", taskId: "pt_fixture" }]);
   assert.ok(!JSON.stringify(snapshot).includes("secret"));
@@ -22,6 +27,11 @@ async function main() {
   assert.deepEqual(Array.from(readQuestionOrderContext(bookKey).cardIds), ["qs_2", "qs_1"], "card identity follows Vue keys, not DOM indexes");
   assert.equal(readQuestionOrderContext(bookKey + "stale"), null);
   instance.loading = true; assert.equal(readQuestionOrderContext(bookKey), null); instance.loading = false;
+  notify(); assert.equal(readinessEvents, 1, "loading completion notifies even without a DOM mutation");
+  assert.equal(installs, 1, "repeated context reads reuse one readiness watcher");
+  window.dispatchEvent(new Event("xet:question-order-stop-watch"));
+  assert.equal(disposed, 1, "disable/route changes dispose the native watcher");
+  notify(); assert.equal(readinessEvents, 1, "disposed watchers cannot issue stale notifications");
   instance.currentTab = 2; assert.equal(readQuestionOrderContext(bookKey), null); instance.currentTab = 1;
   instance.questionList[1].id = "qs_1"; assert.equal(readQuestionOrderContext(bookKey), null); instance.questionList[1].id = "qs_2";
   instance._vnode = null; assert.equal(readQuestionOrderContext(bookKey), null, "unknown rendering structure fails closed");

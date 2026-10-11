@@ -15,6 +15,31 @@
       match[1] === "practice_sheet" ? ".practice-sheet" : ".practice-analysis");
     const instance = page?.__vue__;
     if (!instance || instance._isDestroyed) return null;
+    // A loading flag or join ID can become ready without adding a DOM node.
+    // Observe identities/readiness only; never change the site's Vue state.
+    const property = "__xetQuestionOrderReadiness";
+    if (window[property]?.instance !== instance) window[property]?.stop();
+    if (!window[property] && typeof instance.$watch === "function") {
+      const state = { instance, unwatch: null };
+      state.stop = () => {
+        state.unwatch?.();
+        window.removeEventListener("xet:question-order-stop-watch", state.stop);
+        instance.$off?.("hook:beforeDestroy", state.stop);
+        if (window[property] === state) delete window[property];
+      };
+      state.unwatch = instance.$watch(() => [instance.loading, instance.questionList,
+        instance.join_id, instance.resourceId, instance.sourceId, instance.taskId,
+        instance.classifyId, instance.currentTab], () => {
+        instance.$nextTick(() => {
+          if (!instance._isDestroyed && window[property] === state) {
+            window.dispatchEvent(new Event("xet:question-order-ready"));
+          }
+        });
+      });
+      window[property] = state;
+      window.addEventListener("xet:question-order-stop-watch", state.stop);
+      instance.$once?.("hook:beforeDestroy", state.stop);
+    }
     if (!book) {
       if (instance.resourceId !== sourceId || !id.test(instance.join_id || "") ||
           (instance.taskId || "") !== taskId) return null;
