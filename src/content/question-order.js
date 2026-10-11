@@ -75,12 +75,8 @@
       const record = { version: 1, ids: paper?.list?.map(q => q.id), savedAt: Date.now() };
       if (!validOrder(record) || (context.taskId && record.ids.length !== Number(config.task_total_qs))) return;
       if (!started || current !== generation || routeKey() !== key) return;
+      // Keep prior mappings: they restore original numbers, not disposable cache.
       await storage.set({ [cacheKey(context.sourceId, context.taskId)]: record });
-      // Bound metadata across sites, including worst-case 160-character IDs.
-      const saved = await storage.get(null);
-      const old = Object.keys(saved).filter(name => name.startsWith(PREFIX))
-        .sort((a, b) => (saved[b]?.savedAt || 0) - (saved[a]?.savedAt || 0)).slice(20);
-      if (old.length) await storage.remove(old);
       capturedJoin = context.joinId;
     }
 

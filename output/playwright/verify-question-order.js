@@ -7,6 +7,10 @@ async (page) => {
   const origin = 'https://merchant.pc.xiaoe-tech.com';
   const source = 'wb_course_order_fixture', task = 'pt_order_fixture';
   const cacheKey = `xetQuestionOrder:${origin}|${source}|${task}`;
+  const retained = Object.fromEntries(Array.from({length:50},(_,i)=>[
+    `xetQuestionOrder:https://prior-${i}.pc.xiaoe-tech.com|wb_course_prior_${i}|pt_prior_${i}`,
+    {version:1,ids:[`qs_prior_${i}`],savedAt:i+1},
+  ]));
   const bookPath = `/p/t_pc/pc_evaluation/errbook/detail/123?tab=1&source_id=${source}`;
   const practicePath = `/p/t_pc/pc_evaluation/practice_analysis/${source}?join_id=uwb_order_fixture&task_id=${task}`;
   const wrong = [41,24,9,14,15,17,18,20,27,38,28,29,30,33,35,36,5];
@@ -55,9 +59,18 @@ async (page) => {
     await fixture.waitForFunction(values => JSON.stringify([...document.querySelectorAll('.question-card')].map(c=>Number(c.dataset.fixtureId.slice(3))))===JSON.stringify(values),values);
   };
   const readCache = () => worker.evaluate(async key => (await chrome.storage.local.get(key))[key],cacheKey);
+  const checkRetention = async () => {
+    const stored=await worker.evaluate(()=>chrome.storage.local.get(null));
+    for(const [key,value] of Object.entries(retained)) {
+      const record=stored[key];
+      if(record?.version!==value.version || record?.savedAt!==value.savedAt ||
+        JSON.stringify(record?.ids)!==JSON.stringify(value.ids))throw new Error('Previously saved numbering was evicted or changed');
+    }
+    if(Object.keys(stored).filter(key=>key.startsWith('xetQuestionOrder:')).length!==51)throw new Error('Recapture created duplicate numbering mappings');
+  };
   const disable = async disabled => worker.evaluate(({origin,disabled}) => chrome.storage.local.set({disabledSites:disabled?[origin]:[]}),{origin,disabled});
   try {
-    await worker.evaluate(async ({origin,cacheKey}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false}); },{origin,cacheKey});
+    await worker.evaluate(async ({cacheKey,retained}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({...retained,disabledSites:[],keepAliveEnabled:false}); },{cacheKey,retained});
     await fixture.goto(origin+bookPath);
     await fixture.locator('.xet-question-order-hint').waitFor({timeout:10000});
     if (JSON.stringify(await displayed())!==JSON.stringify(wrong) || await fixture.locator('[data-xet-original-question-number]').count()) throw new Error('Missing mappings fabricated an ordinal');
@@ -66,6 +79,7 @@ async (page) => {
     await worker.evaluate(async key => {for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Original numbering not captured');},cacheKey);
     const saved=await readCache();
     if(saved.ids.length!==41 || JSON.stringify(saved).includes('answer')) throw new Error('Stored more than question identity metadata');
+    await checkRetention();
     await fixture.goto(origin+bookPath);
     stage = 'restore original order';
     await waitOrder(expected);
@@ -120,6 +134,7 @@ async (page) => {
     count=60;
     await fixture.goto(origin+practicePath);
     await worker.evaluate(async key=>{for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key]?.ids.length===60)return;await new Promise(r=>setTimeout(r,100));}throw new Error('Updated numbering was not captured');},cacheKey);
+    await checkRetention();
     await fixture.goto(origin+bookPath);
     await waitOrder(expected);
     await fixture.evaluate(()=>{
@@ -145,12 +160,13 @@ async (page) => {
     if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Failed read generated guessed numbers');
     if(requests.some(r=>!/answer.config.get|commit_record/.test(r.path)))throw new Error('Mutating endpoint requested');
     if(errors.length)throw new Error(errors.join('\n'));
-    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent mapping','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
+    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent mapping','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
   } catch(error) {
     throw new Error(JSON.stringify({stage,message:error.message,errors,requests,cache:await readCache(),
       display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),
       native:await fixture.evaluate(()=>vm.questionList.map(q=>q.id))}));
   } finally {
+    await worker.evaluate(keys=>chrome.storage.local.remove(keys),[cacheKey,...Object.keys(retained)]);
     await disable(false); await fixture.close();
   }
 }

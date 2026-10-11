@@ -27,7 +27,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
-- 打开固定顺序的原练习或解析后，插件会在本机记录题目 ID 与题号；对应的错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。首次没有记录时，请先打开原练习或解析一次；随机出题或无法对应的题目不猜填题号。不保存答案，也不改写网站数据。
+- 打开固定顺序的原练习或解析后，插件会在本机记录题目 ID 与题号；对应的错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。首次没有记录时，请先打开原练习或解析一次；随机出题或无法对应的题目不猜填题号。不保存答案，也不改写网站数据。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
@@ -133,7 +133,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
-- Remembers question IDs and original numbers locally after opening a fixed-order practice or analysis. Its error-book list displays the original numbers and follows the original order without changing search, management, or site records. Open the original practice or analysis once to initialize the mapping; randomized or unmatched questions are never assigned guessed numbers. Answers are not stored.
+- Remembers question IDs and original numbers locally after opening a fixed-order practice or analysis. Its error-book list displays the original numbers and follows the original order without changing search, management, or site records. Open the original practice or analysis once to initialize the mapping; randomized or unmatched questions are never assigned guessed numbers. Answers are not stored. Mappings have no count limit or automatic eviction when new practices are added; recapturing the same practice task updates its existing record, subject to Chrome's total local-storage quota.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
@@ -291,9 +291,9 @@ tests/
 
 `verify-text-selection.js` uses the same isolated real-extension profile to reproduce the site's selection/context-menu restrictions and verify native mouse selection, Ctrl+C, drag without submitting answers, dynamic questions, route changes and site disable. Clipboard permissions are granted only to the fixture in the test browser; the extension requests no additional clipboard permissions.
 
-`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证原题号记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。
+`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证原题号记录、跨网站保留 50 组旧记录、重复读取不新增记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。
 
-`verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify original-number capture, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
+`verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify original-number capture, retention of 50 prior mappings across sites, recapture without duplicate records, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
 
 ## 许可证 / License
 
@@ -315,7 +315,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.15.0**
+Current version: **1.15.1**
+
+1.15.1：取消题号记录的 20 组上限及自动淘汰；新增练习不再删除旧映射，同一练习任务更新原记录。
+
+1.15.1: Removes the 20-mapping limit and automatic eviction for original question numbers. New practices preserve earlier mappings; recapturing the same practice task updates its existing record.
 
 1.15.0：固定顺序练习的错题本列表显示原题号并按原题顺序排列；在打开原练习或解析后自动记录本地对应关系，保留搜索、管理和跳转，不猜填随机或未知题号。
 
