@@ -95,6 +95,20 @@ async (page) => {
     const saved=await readCache();
     if(saved.ids.length!==41 || JSON.stringify(saved).includes('answer')) throw new Error('Stored more than question identity metadata');
     await checkRetention();
+    const cachedVisits = [];
+    for (const path of [practicePath.replace('uwb_order_fixture','uwb_another_attempt'),
+      practicePath.replace('practice_analysis','practice_sheet')]) {
+      stage = 'cached manual practice/analysis visit';
+      const before = requests.length;
+      await fixture.goto(origin+path);
+      await fixture.waitForFunction(()=>window.__xetQuestionOrderReadiness?.instance===vm);
+      // Give an erroneously repeated extraction time to reach the mock API.
+      await fixture.waitForTimeout(250);
+      cachedVisits.push(requests.length-before);
+      if (requests.length!==before || JSON.stringify(await readCache())!==JSON.stringify(saved)) {
+        throw new Error('Cached manual visit repeated extraction or rewrote the mapping');
+      }
+    }
     stage = 'reactive readiness without a DOM mutation';
     await fixture.goto(origin+bookPath+'&delayed=1');
     await fixture.waitForFunction(()=>window.__xetQuestionOrderReadiness?.instance===vm);
@@ -176,6 +190,9 @@ async (page) => {
     if(await fixture.locator('[data-xet-original-question-number],.xet-question-order-hint').count())throw new Error('Unrelated error-book tabs modified');
     random=1;
     stage = 'random practice';
+    // Cached fixed mappings intentionally bypass network revalidation. A fresh
+    // uncached random practice must still refuse to persist attempt ordinals.
+    await worker.evaluate(key=>chrome.storage.local.remove(key),cacheKey);
     await fixture.goto(origin+practicePath);
     await worker.evaluate(async key=>{for(let i=0;i<100;i++){if(!(await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Random practice retained fixed ordinals');},cacheKey);
     await fixture.goto(origin+bookPath);
@@ -187,6 +204,7 @@ async (page) => {
     await worker.evaluate(async key=>{for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Practice-sheet capture failed');},cacheKey);
     stage = 'batched rendering with native deletion';
     count=60;
+    await worker.evaluate(key=>chrome.storage.local.remove(key),cacheKey);
     await fixture.goto(origin+practicePath);
     await worker.evaluate(async key=>{for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key]?.ids.length===60)return;await new Promise(r=>setTimeout(r,100));}throw new Error('Updated numbering was not captured');},cacheKey);
     await checkRetention();
@@ -215,7 +233,7 @@ async (page) => {
     if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Failed read generated guessed numbers');
     if(requests.some(r=>!/answer.config.get|commit_record/.test(r.path)))throw new Error('Mutating endpoint requested');
     if(errors.length)throw new Error(errors.join('\n'));
-    return {passed:true,readinessMs,originalNumbers:expected,verified:['real Vue 2 keyed cards','immediate reactive readiness without a DOM mutation','immediate history-back restoration','readiness watcher cleanup','first-visit fallback','persistent full-order mapping without scrolling','missing task IDs recover numbers and sorting','fallback retains native click and management identities','ambiguous fallback restores native order without guessing','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
+    return {passed:true,cachedVisits,readinessMs,originalNumbers:expected,verified:['real Vue 2 keyed cards','cached manual practice and analysis skip requests and writes','immediate reactive readiness without a DOM mutation','immediate history-back restoration','readiness watcher cleanup','first-visit fallback','persistent full-order mapping without scrolling','missing task IDs recover numbers and sorting','fallback retains native click and management identities','ambiguous fallback restores native order without guessing','retains 50 prior mappings across sites','cleared cache permits recapture without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','uncached random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
   } catch(error) {
     throw new Error(JSON.stringify({stage,message:error.message,errors,requests,cache:await readCache(),
       display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),

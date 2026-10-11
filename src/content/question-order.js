@@ -135,6 +135,15 @@
 
     async function capture(context, signal, current) {
       if (capturedJoin === context.joinId) return "ready";
+      const records = await cache.index(context.sourceId);
+      if (!started || current !== generation || routeKey() !== key) return;
+      // Persisted orders are complete, verified fixed-order mappings. Attempts
+      // share them only within the exact merchant/source/task, never by join ID
+      // or the taskless fallback used to display error-book cards.
+      if (records.some(record => record.task === context.taskId)) {
+        capturedJoin = context.joinId;
+        return "ready";
+      }
       // A random practice has attempt-specific numbers, not a single original
       // order. Do not overwrite a reliable mapping with a shuffled attempt.
       const config = await post(context.taskId ? "/xe.practice.bff/task/answer.config.get/1.0.0"
@@ -145,6 +154,7 @@
       const fixed = setting === 0 || setting === "0";
       if (!fixed) {
         await storage.remove(cacheKey(context.sourceId, context.taskId));
+        cache.update({ [cacheKey(context.sourceId, context.taskId)]: {} });
         capturedJoin = context.joinId; return "random";
       }
       const paper = await post("/evaluation_wechat/practices/commit_record", {
@@ -155,6 +165,7 @@
       if (!started || current !== generation || routeKey() !== key) return;
       // Keep prior mappings: they restore original numbers, not disposable cache.
       await storage.set({ [cacheKey(context.sourceId, context.taskId)]: record });
+      cache.update({ [cacheKey(context.sourceId, context.taskId)]: { newValue: record } });
       capturedJoin = context.joinId;
       return "ready";
     }
@@ -246,6 +257,7 @@
         needsRetry = false;
         if (result.context.kind === "practice") {
           const status = await capture(result.context, abort.signal, current);
+          if (current === generation) needsRetry = status === "failed";
           if (status) await finishHelper(status);
         }
         else await render(result.context, current);
@@ -267,7 +279,15 @@
       frame = requestAnimationFrame(() => { frame = null; void refresh(); });
     }
     function storageChanged(changes, area) {
-      if (area === "local" && cache.update(changes)) schedule();
+      if (area !== "local" || !cache.update(changes)) return;
+      const [path, source, task] = key.split("|");
+      const change = changes[cacheKey(source, task)];
+      if (path && !path.includes("/errbook/detail/") && change && !validOrder(change.newValue)) {
+        // Deleting/corrupting a completed mapping must permit a fresh capture
+        // even if this page already skipped extraction for its current attempt.
+        capturedJoin = "";
+      }
+      schedule();
     }
     function start() {
       if (started || window.top !== window) return;

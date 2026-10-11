@@ -96,7 +96,7 @@ async function main() {
   vm.runInNewContext(fs.readFileSync("src/content/question-order.js", "utf8"), helperEnv);
   let helperRecord;
   const hiddenController = helperEnv.__xetPlayerHelperModules.questionOrder.createQuestionOrderController({
-    storage: { async set(value) { helperRecord = Object.values(value)[0]; } },
+    storage: { async get() { return {}; }, async set(value) { helperRecord = Object.values(value)[0]; } },
     request: async message => {
       if (message.type === "xet:question-order-job-finish") { helperStatuses.push(message.status); return { ok: true }; }
       return { ok: true, context: { key: helperKey, kind: "practice", sourceId: source, taskId: task, joinId: "uwb_fixture" } };
