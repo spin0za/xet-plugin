@@ -7,6 +7,7 @@ async (page) => {
   const origin = 'https://merchant.pc.xiaoe-tech.com';
   const source = 'wb_course_order_fixture', task = 'pt_order_fixture';
   const cacheKey = `xetQuestionOrder:${origin}|${source}|${task}`;
+  const conflictKey = `xetQuestionOrder:${origin}|${source}|pt_conflict_fixture`;
   const retained = Object.fromEntries(Array.from({length:50},(_,i)=>[
     `xetQuestionOrder:https://prior-${i}.pc.xiaoe-tech.com|wb_course_prior_${i}|pt_prior_${i}`,
     {version:1,ids:[`qs_prior_${i}`],savedAt:i+1},
@@ -86,6 +87,31 @@ async (page) => {
     await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===17);
     const labels=await fixture.locator('[data-xet-original-question-number]').allTextContents();
     if(JSON.stringify(labels)!==JSON.stringify(expected.map(n=>`原题第 ${n} 题`)))throw new Error('Original question-number gaps were lost');
+    stage = 'missing task metadata';
+    await fixture.evaluate(()=>vm.questionList.unshift(...[3,2].map(n=>({id:'qs_'+n,task_id:'',content:'Question '+n,checked:false}))));
+    await waitOrder([2,3,...expected]);
+    await fixture.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===19);
+    if(await fixture.locator('[data-fixture-id=qs_2] [data-xet-original-question-number]').innerText()!=='原题第 2 题')throw new Error('Missing task ID did not recover its number');
+    if(await fixture.locator('.xet-question-order-hint').count())throw new Error('Resolved metadata still showed missing-number hint');
+    await fixture.locator('[data-fixture-id=qs_2]').click();
+    if(JSON.stringify(await fixture.evaluate(()=>clicked))!==JSON.stringify({id:'qs_2',index:1}))throw new Error('Fallback sorting broke native click identity');
+    await fixture.locator('#manage').click();
+    await waitOrder([2,3,...expected]);
+    await fixture.locator('[data-fixture-id=qs_2]').click();
+    if(JSON.stringify(await fixture.evaluate(()=>vm.questionList.filter(q=>q.checked).map(q=>q.id)))!==JSON.stringify(['qs_2']))throw new Error('Fallback sorting broke management selection');
+    stage = 'ambiguous taskless mapping';
+    await worker.evaluate(({key})=>chrome.storage.local.set({[key]:{version:1,
+      ids:Array.from({length:41},(_,i)=>'qs_'+(i===1?3:i===2?2:i+1)),savedAt:1}}),{key:conflictKey});
+    await waitOrder([3,2,...wrong]);
+    await fixture.locator('.xet-question-order-hint').waitFor();
+    if(await fixture.locator('[data-fixture-id=qs_2] [data-xet-original-question-number], [data-fixture-id=qs_3] [data-xet-original-question-number]').count())throw new Error('Ambiguous taskless number was guessed');
+    await worker.evaluate(key=>chrome.storage.local.remove(key),conflictKey);
+    await waitOrder([2,3,...expected]);
+    await disable(true);
+    await waitOrder([3,2,...wrong]);
+    await fixture.goto(origin+bookPath);
+    await disable(false);
+    await waitOrder(expected);
     await fixture.locator('.question-card').first().click();
     if((await fixture.evaluate(()=>clicked)).id!=='qs_5')throw new Error('Sorted card opened another question');
     await fixture.locator('#manage').click();
@@ -160,13 +186,13 @@ async (page) => {
     if(await fixture.locator('[data-xet-original-question-number]').count())throw new Error('Failed read generated guessed numbers');
     if(requests.some(r=>!/answer.config.get|commit_record/.test(r.path)))throw new Error('Mutating endpoint requested');
     if(errors.length)throw new Error(errors.join('\n'));
-    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent mapping','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
+    return {passed:true,originalNumbers:expected,verified:['real Vue 2 keyed cards','first-visit fallback','persistent full-order mapping without scrolling','missing task IDs recover numbers and sorting','fallback retains native click and management identities','ambiguous fallback restores native order without guessing','retains 50 prior mappings across sites','recapture updates without duplicate mappings','search gaps','click navigation','management native indexes','fixture deletion','site-disable restoration','unknown IDs','random practice','practice-sheet capture','batched render during native changes','network failure fallback'],requests:requests.length};
   } catch(error) {
     throw new Error(JSON.stringify({stage,message:error.message,errors,requests,cache:await readCache(),
       display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),
       native:await fixture.evaluate(()=>vm.questionList.map(q=>q.id))}));
   } finally {
-    await worker.evaluate(keys=>chrome.storage.local.remove(keys),[cacheKey,...Object.keys(retained)]);
+    await worker.evaluate(keys=>chrome.storage.local.remove(keys),[cacheKey,conflictKey,...Object.keys(retained)]);
     await disable(false); await fixture.close();
   }
 }

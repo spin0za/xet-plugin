@@ -20,6 +20,31 @@
       new Set(record.ids).size === record.ids.length;
   }
 
+  function resolveOrdering(questions, stored, prefix) {
+    // A missing task ID is site metadata loss, not evidence of a new task.
+    // Fall back only within this origin/source and only to unanimous ordinals.
+    const records = Object.entries(stored).filter(([name, record]) => name.startsWith(prefix) &&
+      /^[\w-]{0,160}$/.test(name.slice(prefix.length)) && validOrder(record)).map(([name, record]) => ({
+        task: name.slice(prefix.length), signature: JSON.stringify(record.ids),
+        numbers: new Map(record.ids.map((id, i) => [id, i + 1])),
+      }));
+    const byTask = new Map(records.map(record => [record.task, record]));
+    const usedOrders = new Set();
+    const numbers = questions.map(q => {
+      const exact = byTask.get(q.taskId);
+      const candidates = exact ? [exact] : q.taskId ? [] : records.filter(r => r.numbers.has(q.id));
+      const ordinals = new Set(candidates.map(r => r.numbers.get(q.id)).filter(Boolean));
+      if (ordinals.size !== 1) return undefined;
+      for (const record of candidates) usedOrders.add(record.signature);
+      return [...ordinals][0];
+    });
+    const tasks = new Set(questions.map(q => q.taskId));
+    const knownTasks = new Set(questions.map(q => q.taskId).filter(Boolean));
+    const sortable = tasks.size === 1 && (!tasks.has("") || byTask.has("")) ||
+      knownTasks.size <= 1 && usedOrders.size === 1 && questions.every((q, i) => q.taskId || numbers[i]);
+    return { numbers, sortable };
+  }
+
   function createQuestionOrderController({ request = message => chrome.runtime.sendMessage(message),
     storage = chrome.storage.local } = {}) {
     let started = false, key = "", timer = null, frame = null, observer = null;
@@ -83,10 +108,14 @@
     async function render(context, current) {
       const tasks = [...new Set(context.questions.map(q => q.taskId))];
       const names = tasks.map(task => cacheKey(context.sourceId, task));
-      const stored = await storage.get(names);
+      let stored = await storage.get(names);
+      if (tasks.includes("") && !validOrder(stored[cacheKey(context.sourceId, "")])) {
+        // Chrome 119 has no getKeys API. Read once on fallback, then strictly
+        // filter to this merchant/source; never infer numbers from another book.
+        stored = await storage.get(null);
+      }
       if (!started || current !== generation || routeKey() !== key) return;
-      const maps = new Map(tasks.map((task, i) => [task, validOrder(stored[names[i]])
-        ? new Map(stored[names[i]].ids.map((id, index) => [id, index + 1])) : new Map()]));
+      const { numbers, sortable } = resolveOrdering(context.questions, stored, cacheKey(context.sourceId, ""));
       const cards = [...document.querySelectorAll(".errbook-detail-page .question-list > .question-card")];
       if (cards.length !== context.cardIds.length) return;
       const byId = new Map(cards.map(card => [card.getAttribute("data-xet-question-order-id"), card]));
@@ -95,10 +124,10 @@
       const parent = cards[0]?.parentElement;
       if (!parent) { hint?.remove(); hint = null; return; }
       const numbered = context.questions.map((q, nativeIndex) => ({ ...q, card: byId.get(q.id), nativeIndex,
-        number: maps.get(q.taskId)?.get(q.id) }));
-      // Only sort a single source task. Across tasks, identical ordinal numbers
-      // are not comparable; retain the native task grouping instead.
-      if (tasks.length === 1) numbered.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.nativeIndex - b.nativeIndex);
+        number: numbers[nativeIndex] }));
+      // Missing task metadata may share a verified full order. Genuinely
+      // different tasks/orders remain incomparable and keep their native order.
+      if (sortable) numbered.sort((a, b) => (a.number ?? Infinity) - (b.number ?? Infinity) || a.nativeIndex - b.nativeIndex);
       observer.disconnect();
       try {
         for (let i = 0; i < numbered.length; i++) {
@@ -114,7 +143,7 @@
             }
             label.textContent = `原题第 ${number} 题`;
           } else { label?.remove(); labels.delete(card); }
-          if (tasks.length === 1 && parent.children[i] !== card) parent.insertBefore(card, parent.children[i] || null);
+          if (parent.children[i] !== card) parent.insertBefore(card, parent.children[i] || null);
           if ((i + 1) % 20 === 0) {
             observe();
             await new Promise(resolve => requestAnimationFrame(resolve));
@@ -127,7 +156,7 @@
           hint = document.createElement("p"); hint.className = "xet-question-order-hint";
           parent.before(hint);
         }
-        if (unknown) hint.textContent = "部分原题号暂不可确定：请先打开原练习或解析一次。随机出题的练习不使用固定题号。";
+        if (unknown) hint.textContent = "部分原题号暂不可确定：可能缺少原练习记录或题号存在冲突，请打开对应原练习或解析。随机出题的练习不使用固定题号。";
         else { hint?.remove(); hint = null; }
       } finally { if (started) observe(); }
     }
@@ -182,5 +211,5 @@
     }
     return Object.freeze({ start, stop });
   }
-  modules.questionOrder = Object.freeze({ createQuestionOrderController, routeKey, validOrder });
+  modules.questionOrder = Object.freeze({ createQuestionOrderController, routeKey, validOrder, resolveOrdering });
 })();
