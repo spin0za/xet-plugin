@@ -308,7 +308,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.14.0**
+Current version: **1.14.1**
+
+1.14.1：修复选项容器被误识别为不可选中文字的按钮；选项文字显示文本光标，保留点击、回车及空格答题，扩充真实选项结构回归测试。
+
+1.14.1: Fixes answer rows being mistakenly excluded as buttons, shows a text cursor over option content, preserves click/Enter/Space answer actions, and tests the real ARIA-button option structure.
 
 1.14.0：恢复练习相关页面题目与选项文字的原生选择、复制及右键菜单；拖选不误提交答案，网站停用时恢复原有限制。
 

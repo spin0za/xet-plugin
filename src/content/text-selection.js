@@ -4,7 +4,9 @@
 
   const EVALUATION_PATH = /\/pc_evaluation\/(?:practice_sheet|practice_analysis|exam_sheet|exam_analysis|errbook\/practice)\//;
   const TEXT = ".question-content, .question-option-item__content";
-  const CONTROLS = "input, textarea, select, button, [role=button], [contenteditable]:not([contenteditable=false]), video, audio, .xgplayer";
+  // Answer rows themselves have role=button. Their content is selectable text;
+  // unrelated buttons (including buttons nested in that content) stay excluded.
+  const CONTROLS = "input, textarea, select, button, [role=button]:not(.question-option-item), [contenteditable]:not([contenteditable=false]), video, audio, .xgplayer";
   const MARKER = "data-xet-text-selection";
   const STYLE = `
     html[${MARKER}] :is(${TEXT}),
@@ -12,6 +14,10 @@
       -webkit-user-select: text !important;
       user-select: text !important;
       -webkit-touch-callout: default !important;
+    }
+    html[${MARKER}] :is(${TEXT}),
+    html[${MARKER}] :is(${TEXT}) :not(:is(${CONTROLS})):not(:is(${CONTROLS}) *) {
+      cursor: text !important;
     }
   `;
 
@@ -62,6 +68,9 @@
     function handlePointerDown(event) {
       pointer = null;
       drag = null;
+      // A pushState transition may precede the route poll. Synchronize before
+      // tracking a drag so that the next poll cannot erase an active selection.
+      checkRoute();
       if (!isActive() || event.button !== 0) return;
       const root = textRoot(event.target);
       const option = root?.closest(".question-option-item, .question-select-item");

@@ -17,8 +17,12 @@ async (page) => {
     .question-content span { user-select: none; }
   </style><body class=forbidden_contextmenu>
     <div class=practice-answer-page style="user-select:none">
-      <div class=question-content><span>Question text can be selected and copied.</span></div>
-      <div class=question-option-item tabindex=0>
+      <div class=question-content><span>Question text can be selected and copied.</span>
+        <div id=custom-button role=button tabindex=0 style="cursor:pointer">Embedded control</div>
+      </div>
+      <!-- The real QuestionOptionItem component is an ARIA button. -->
+      <div class="question-option-item is-clickable" role=button tabindex=0>
+        <span class=question-option-item__marker>A</span>
         <div class=question-option-item__content><span>Option text can be selected without submitting an answer.</span></div>
       </div>
       <button id=mark>Mark</button><input id=answer value="Editable answer">
@@ -36,7 +40,9 @@ async (page) => {
       window.answers = 0;
       const option = document.querySelector('.question-option-item');
       option.onclick = () => answers++;
-      option.onkeydown = e => { if(e.key === 'Enter') option.click(); };
+      option.onkeydown = e => {
+        if(e.key === 'Enter' || e.key === ' ') { e.preventDefault(); option.click(); }
+      };
       window.marks = 0;
       document.querySelector('#mark').onclick = () => marks++;
       window.checkNativeEvent = (selector, type) => {
@@ -52,11 +58,12 @@ async (page) => {
     }), { origin, disabled });
     await fixture.waitForFunction(disabled => document.documentElement.hasAttribute('data-xet-text-selection') !== disabled, disabled);
   };
-  const dragText = async selector => {
+  const dragText = async (selector, hold = 0) => {
     await fixture.evaluate(() => getSelection().removeAllRanges());
     const box = await fixture.locator(selector).boundingBox();
     await fixture.mouse.move(box.x + 4, box.y + box.height / 2);
     await fixture.mouse.down();
+    if (hold) await fixture.waitForTimeout(hold);
     await fixture.mouse.move(box.x + 210, box.y + box.height / 2, { steps: 12 });
     await fixture.mouse.up();
     const text = await fixture.evaluate(() => getSelection().toString());
@@ -94,18 +101,29 @@ async (page) => {
       select: checkNativeEvent('.question-content span', 'selectstart'),
       menu: checkNativeEvent('.question-content span', 'contextmenu'),
       copy: checkNativeEvent('.question-content span', 'copy'),
+      optionSelect: checkNativeEvent('.question-option-item__content span', 'selectstart'),
+      optionMenu: checkNativeEvent('.question-option-item__content span', 'contextmenu'),
+      optionCopy: checkNativeEvent('.question-option-item__content span', 'copy'),
       outsideMenu: checkNativeEvent('#outside', 'contextmenu'),
       inputCopy: checkNativeEvent('#answer', 'copy'),
+      controlSelect: checkNativeEvent('#custom-button', 'selectstart'),
+      controlCursor: getComputedStyle(document.querySelector('#custom-button')).cursor,
+      optionCursor: getComputedStyle(document.querySelector('.question-option-item__content span')).cursor,
+      markerCursor: getComputedStyle(document.querySelector('.question-option-item__marker')).cursor,
       bodySelect: getComputedStyle(document.body).userSelect,
     }));
-    if (!allowed.select || !allowed.menu || !allowed.copy || allowed.outsideMenu ||
-        allowed.inputCopy || allowed.bodySelect !== 'none') {
+    if (!allowed.select || !allowed.menu || !allowed.copy ||
+        !allowed.optionSelect || !allowed.optionMenu || !allowed.optionCopy ||
+        allowed.outsideMenu || allowed.inputCopy || allowed.controlSelect ||
+        allowed.optionCursor !== 'text' || allowed.markerCursor !== 'pointer' ||
+        allowed.controlCursor !== 'pointer' || allowed.bodySelect !== 'none') {
       throw new Error(`Selection scope is incorrect: ${JSON.stringify(allowed)}`);
     }
     await fixture.locator('.question-option-item__content').click();
     await fixture.locator('.question-option-item').press('Enter');
+    await fixture.locator('.question-option-item').press('Space');
     await fixture.locator('#mark').click();
-    if (await fixture.evaluate(() => answers !== 2 || marks !== 1)) {
+    if (await fixture.evaluate(() => answers !== 3 || marks !== 1)) {
       throw new Error('Normal answer selection or mark action was blocked');
     }
     await fixture.locator('#answer').fill('Updated answer');
@@ -130,6 +148,12 @@ async (page) => {
       if (!await fixture.evaluate(() => checkNativeEvent('.question-content span', 'selectstart'))) {
         throw new Error(`Restriction remained active on ${route}`);
       }
+      const answerCount = await fixture.evaluate(() => answers);
+      // Force the route poll to run in the middle of a selection gesture.
+      await dragText('.question-option-item__content span', route.startsWith('exam_sheet/') ? 1100 : 0);
+      if (await fixture.evaluate(() => answers) !== answerCount) {
+        throw new Error(`Drag selection submitted an answer on ${route}`);
+      }
     }
     await fixture.evaluate(() => history.pushState({}, '', '/p/t_pc/course_pc_detail/video/fixture'));
     await fixture.waitForFunction(() => !document.documentElement.hasAttribute('data-xet-text-selection'));
@@ -147,9 +171,13 @@ async (page) => {
       copy: checkNativeEvent('.question-content span', 'copy'),
     }));
     if (JSON.stringify(original) !== JSON.stringify(restored)) throw new Error('Site disable did not restore restrictions');
+    if (await fixture.evaluate(() => checkNativeEvent('.question-option-item__content span', 'selectstart') ||
+      getComputedStyle(document.querySelector('.question-option-item__content span')).cursor !== 'pointer')) {
+      throw new Error('Site disable did not restore the option selection and cursor');
+    }
     await setDisabled(false);
     await dragText('.question-option-item__content span');
-    if (await fixture.evaluate(() => answers) !== 2) throw new Error('Restart duplicated click handling');
+    if (await fixture.evaluate(() => answers) !== 3) throw new Error('Restart duplicated click handling');
     if (errors.length) throw new Error(`Page errors: ${errors.join('; ')}`);
     return { original, allowed, nativeCopy: true, dragWithoutAnswer: true,
       normalAnswers: true, inputs: true, dynamicContent: true, routes, restored, restart: true, errors };
