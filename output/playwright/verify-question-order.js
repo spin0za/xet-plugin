@@ -21,7 +21,7 @@ async (page) => {
   let stage = 'initial fallback';
   fixture.on('pageerror', error => errors.push(error.message));
   const vue = await (await context.request.get('https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js')).text();
-  let random = 0, fail = false, count = 41;
+  let random = 1, fail = false, count = 41;
   const html = `<!doctype html><meta charset=utf-8><style>
     body{margin:0;background:#eee;font:16px sans-serif}.errbook-detail-page{max-width:1000px;margin:20px auto}
     .question-card{padding:20px;margin:12px 0;background:white;border-radius:12px;cursor:pointer}
@@ -88,6 +88,7 @@ async (page) => {
     await fixture.goto(origin+bookPath);
     await fixture.locator('.xet-question-order-hint').waitFor({timeout:10000});
     if (JSON.stringify(await displayed())!==JSON.stringify(wrong) || await fixture.locator('[data-xet-original-question-number]').count()) throw new Error('Missing mappings fabricated an ordinal');
+    random = 0;
     await fixture.goto(origin+practicePath);
     stage = 'capture original analysis';
     await worker.evaluate(async key => {for(let i=0;i<100;i++){if((await chrome.storage.local.get(key))[key])return;await new Promise(r=>setTimeout(r,100));}throw new Error('Original numbering not captured');},cacheKey);

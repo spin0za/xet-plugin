@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "question-order-source.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "question-order-source.js", "question-order-jobs.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -20,6 +20,8 @@ let keepAliveRequest = null;
 let keepAliveController = null;
 let keepAliveGeneration = 0;
 const contentRepairRequests = new Map();
+const questionOrderJobs = globalThis.XetQuestionOrderJobs?.create({ siteAccess, readSettings,
+  resolveContext: globalThis.XetQuestionOrderSource.resolve });
 
 async function recordBackgroundError(operation, error) {
   const message = String(error?.message || "Background operation failed")
@@ -376,12 +378,18 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith("xetQuestionOrderJob:")) {
+    return runBackgroundTask("question-order-timeout", () => questionOrderJobs.alarm(alarm));
+  }
   if (alarm.name === KEEP_ALIVE_ALARM) {
     return runBackgroundTask("alarm-keep-alive", () => requestKeepAlive("alarm"));
   }
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && changes.disabledSites) {
+    void runBackgroundTask("cancel-question-order-jobs", () => questionOrderJobs?.settingsChanged());
+  }
   if (
     area === "local" &&
     (changes.keepAliveEnabled || changes.keepAliveUrl || changes.disabledSites)
@@ -395,6 +403,12 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:question-order-auto-load") {
+    return respond(sendResponse, "auto-load-question-order", () => questionOrderJobs.start(message, sender));
+  }
+  if (message?.type === "xet:question-order-job-finish") {
+    return respond(sendResponse, "finish-question-order-job", () => questionOrderJobs.finish(message, sender));
+  }
   if (message?.type === "xet:question-order-context") {
     return respond(sendResponse, "read-question-order-context", () =>
       globalThis.XetQuestionOrderSource.resolve(message, sender, { siteAccess, readSettings }));
@@ -424,6 +438,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   return false;
+});
+
+chrome.tabs.onRemoved?.addListener(tabId => {
+  void runBackgroundTask("remove-question-order-job", () => questionOrderJobs?.removed(tabId));
 });
 
 void runBackgroundTask("initialize-settings", async () => {

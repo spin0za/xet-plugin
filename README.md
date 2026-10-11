@@ -28,9 +28,10 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
 - 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；去掉覆盖整段题目文字的导入加粗，保留局部强调、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
-- 打开固定顺序的原练习或解析后，插件会在本机记录题目 ID 与题号；对应的错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。首次没有记录时，请先打开原练习或解析一次；随机出题或无法对应的题目不猜填题号。不保存答案，也不改写网站数据。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
+- 错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。有本地记录时立即显示；缺少记录时，插件自动在后台打开对应的固定顺序原练习，读取完整题序、保存后关闭，不抢焦点，也不答题或交卷。与手动打开练习一样，网站可能新增或恢复答题记录。随机出题或无法对应的题目不猜填题号，不保存答案。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 题号读取使用完整练习记录接口，无需逐题滚动加载。错题缺少任务 ID 时，可从同网站、同原练习的已验证记录中补全无冲突的题号；只有能够确认同一完整顺序时才合并排序，存在冲突时不猜填。
 - 本地题号表提前读取，当前页面内复用匹配索引；题目就绪、历史返回或记录更新后立即显示，无固定重试冷却等待。加载状态变化也会触发更新，停用后清理监听与内存缓存。
+- 同一网站、原练习和任务的后台读取共用一个标签页；加载失败或两分钟超时后清理，停用网站时取消。任务状态保存在浏览器会话中，可跨后台进程重启恢复。用户主动激活或导航的标签页不再自动关闭。只使用已有的网站授权，不新增浏览器权限。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
@@ -106,6 +107,7 @@ node tests/question-order-source-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
 node tests/question-order-performance-smoke.js
+node tests/question-order-jobs-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
@@ -140,9 +142,10 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
-- Remembers question IDs and original numbers locally after opening a fixed-order practice or analysis. Its error-book list displays the original numbers and follows the original order without changing search, management, or site records. Open the original practice or analysis once to initialize the mapping; randomized or unmatched questions are never assigned guessed numbers. Answers are not stored. Mappings have no count limit or automatic eviction when new practices are added; recapturing the same practice task updates its existing record, subject to Chrome's total local-storage quota.
+- Displays original numbers and ordering in the error book without changing search or management. Cached numbers appear immediately; missing mappings automatically open a matching fixed-order practice in an inactive background tab, save the full question order, and close the helper without answering or submitting. Like manually opening a practice, this may create or resume an attempt on the site. Randomized or unmatched questions are never assigned guessed numbers, and answers are not stored. Mappings have no count limit or automatic eviction, subject to Chrome's total local-storage quota.
 - Reads full practice records without scrolling through lazy-rendered questions. Missing task IDs can recover unambiguous numbers from verified mappings for the same merchant and source; sorting requires a confirmed common full order, and conflicts are never guessed.
 - Preloads local numbering and reuses lookup indexes within the page. Readiness, history return and mapping updates trigger rendering without a fixed retry cooldown; reactive loading changes are detected, and disabling cleans up watchers and memory caches.
+- Concurrent error-book pages share one helper per merchant, source and task. Session-backed jobs survive worker restarts and clean up on failure, a two-minute deadline or site disable. Helpers activated or navigated by the user are not automatically closed. Existing site grants suffice; no new permissions are required.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
@@ -216,6 +219,7 @@ node tests/frame-policy-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
 node tests/question-order-performance-smoke.js
+node tests/question-order-jobs-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
 node tests/quality-preference-smoke.js
@@ -248,6 +252,8 @@ src/
   content.js
   site-access.js
   practice-analysis-source.js
+  question-order-source.js
+  question-order-jobs.js
   content/
     player-dom.js
     volume.js
@@ -258,6 +264,7 @@ src/
     analysis-actions.css
     text-selection.js
     question-typography.js
+    question-order.js
     player-interactions.js
     fullscreen.js
     frame-coordinator.js
@@ -274,6 +281,8 @@ output/playwright/
   verify-analysis-actions.js
   verify-text-selection.js
   verify-question-typography.js
+  verify-question-order.js
+  verify-question-order-auto.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
   verify-quality-preference.js
@@ -288,6 +297,7 @@ tests/
   practice-analysis-source-smoke.js
   question-order-resolution-smoke.js
   question-order-performance-smoke.js
+  question-order-jobs-smoke.js
   question-typography-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
@@ -316,6 +326,10 @@ tests/
 
 `question-order-performance-smoke.js` verifies readiness without waiting for timer ticks, preloading and history-return cache reuse, mapping invalidation, concurrent reads and disable-time races using synthetic data only.
 
+`question-order-jobs-smoke.js` 验证后台标签页去重、配置检查、授权边界、后台进程重启、完成与超时清理，以及用户激活或导航后的保护。`verify-question-order-auto.js` 在独立真实 MV3 浏览器与 Vue 2 夹具中验证首次自动读取、多个错题本共用一个后台练习、缓存命中不重新进入练习、缺少任务 ID 的补全、随机题目跳过和网络失败清理；所有练习请求均使用模拟数据，不读取真实答案。
+
+`question-order-jobs-smoke.js` checks coalescing, config validation, authorization, restart recovery and owned-tab cleanup. `verify-question-order-auto.js` uses real MV3 and Vue 2 fixtures in an isolated browser to verify automatic first capture, concurrent books sharing one helper, cache-only revisits, missing-task recovery, random-paper exclusion and failure cleanup. All practice requests use synthetic data.
+
 `verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
 
 `verify-question-typography.js` uses an isolated real-extension profile to verify imported question and option fonts, preservation of emphasis and sizes, formula and control exclusions, dynamic content, route changes and restoration on site disable. It never reads or changes real practice answers.
@@ -340,7 +354,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.15.6**
+Current version: **1.16.0**
+
+1.16.0：错题本缺少题号时自动后台打开原练习、读取完整题序并关闭；有缓存直接显示。后台任务去重、会话恢复和超时清理，不抢焦点、不答题、不交卷，也不新增权限。
+
+1.16.0: Automatically captures missing error-book numbering through an inactive original-practice tab, closes it after persistence, and renders cache hits immediately. Adds coalescing, session recovery and deadline cleanup without answering, submitting or adding permissions.
 
 1.15.6：移除题号显示的固定重试等待；预读并复用本地索引，加载完成和返回页面时直接更新，记录变更同步失效缓存，停用后清理监听。
 

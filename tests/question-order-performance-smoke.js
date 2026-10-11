@@ -82,6 +82,33 @@ async function main() {
   const obsolete = cache.warm(); cache.clear(); release({ [cacheKey]: saved }); await obsolete;
   const fresh = cache.index(source); release({ [cacheKey]: changed });
   assert.equal((await fresh)[0].numbers.get("qs_5"), 1, "a disposed load cannot repopulate the next session");
+
+  const helperPath = `/p/t_pc/pc_evaluation/practice_sheet/${source}`;
+  const helperKey = `${helperPath}|${source}|${task}||1`;
+  const helperStatuses = [], helperCalls = [];
+  const helperEnv = { ...env, __xetPlayerHelperModules: {}, queueMicrotask, AbortSignal,
+    location: { origin, pathname: helperPath, search: `?task_id=${task}&xet_order_job=00000000-0000-0000-0000-000000000000` },
+    requestAnimationFrame() { throw new Error("Hidden helper must not wait for an animation frame"); },
+    fetch: async path => { helperCalls.push(path); return { ok: true, json: async () => ({ code: 0,
+      data: path.includes("config") ? { random_setting: 0, task_total_qs: 5 }
+        : { list: saved.ids.map(id => ({ id, answer: "not-to-be-stored" })) } }) }; },
+  };
+  vm.runInNewContext(fs.readFileSync("src/content/question-order.js", "utf8"), helperEnv);
+  let helperRecord;
+  const hiddenController = helperEnv.__xetPlayerHelperModules.questionOrder.createQuestionOrderController({
+    storage: { async set(value) { helperRecord = Object.values(value)[0]; } },
+    request: async message => {
+      if (message.type === "xet:question-order-job-finish") { helperStatuses.push(message.status); return { ok: true }; }
+      return { ok: true, context: { key: helperKey, kind: "practice", sourceId: source, taskId: task, joinId: "uwb_fixture" } };
+    },
+  });
+  hiddenController.start();
+  for (let i = 0; i < 50; i++) await Promise.resolve();
+  assert.equal(helperStatuses[0], "ready", "finish only after full metadata persistence without a visible paint");
+  assert.equal(helperRecord.ids.length, 5);
+  assert.ok(!JSON.stringify(helperRecord).includes("answer"));
+  assert.equal(helperCalls.length, 2, "read-only config and record queries; do not answer or submit");
+  hiddenController.stop();
   console.log("question order immediate readiness, history return, cache reuse and invalidation smoke test passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

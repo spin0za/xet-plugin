@@ -99,6 +99,8 @@
     let generation = 0, loading = false, pending = false, needsRetry = false, capturedJoin = "";
     let abort = null, style = null, hint = null, restoreOrder = [];
     const labels = new Map();
+    const autoRequested = new Set();
+    let helperFinished = false;
     const cache = createOrderCache(storage, location.origin);
     const observe = () => observer?.observe(document.body, { childList: true, subtree: true });
     const cacheKey = (source, task) => `${PREFIX}${location.origin}|${source}|${task}`;
@@ -116,6 +118,7 @@
     function clear() {
       generation++; abort?.abort(); abort = null;
       loading = pending = needsRetry = false; capturedJoin = "";
+      autoRequested.clear(); helperFinished = false;
       window.dispatchEvent(new Event(STOP_WATCH));
       observer?.disconnect();
       for (const label of labels.values()) label.remove();
@@ -131,7 +134,7 @@
     }
 
     async function capture(context, signal, current) {
-      if (capturedJoin === context.joinId) return;
+      if (capturedJoin === context.joinId) return "ready";
       // A random practice has attempt-specific numbers, not a single original
       // order. Do not overwrite a reliable mapping with a shuffled attempt.
       const config = await post(context.taskId ? "/xe.practice.bff/task/answer.config.get/1.0.0"
@@ -142,17 +145,37 @@
       const fixed = setting === 0 || setting === "0";
       if (!fixed) {
         await storage.remove(cacheKey(context.sourceId, context.taskId));
-        capturedJoin = context.joinId; return;
+        capturedJoin = context.joinId; return "random";
       }
       const paper = await post("/evaluation_wechat/practices/commit_record", {
         practice_id: context.sourceId, task_id: context.taskId, join_id: context.joinId, filter_delete: false,
       }, signal);
       const record = { version: 1, ids: paper?.list?.map(q => q.id), savedAt: Date.now() };
-      if (!validOrder(record) || (context.taskId && record.ids.length !== Number(config.task_total_qs))) return;
+      if (!validOrder(record) || (context.taskId && record.ids.length !== Number(config.task_total_qs))) return "failed";
       if (!started || current !== generation || routeKey() !== key) return;
       // Keep prior mappings: they restore original numbers, not disposable cache.
       await storage.set({ [cacheKey(context.sourceId, context.taskId)]: record });
       capturedJoin = context.joinId;
+      return "ready";
+    }
+
+    async function autoLoad(context, records, numbers, current) {
+      const tasks = new Set(context.questions.filter((q, i) => q.taskId && !numbers[i]).map(q => q.taskId));
+      if (!records.length && context.questions.length && context.questions.every(q => !q.taskId)) tasks.add("");
+      for (const taskId of tasks) {
+        if (!started || current !== generation || autoRequested.has(taskId)) continue;
+        autoRequested.add(taskId);
+        try {
+          await request({ type: "xet:question-order-auto-load", key: context.key, taskId });
+        } catch { /* Keep existing numbers; do not repeatedly create attempts. */ }
+      }
+    }
+
+    async function finishHelper(status) {
+      if (helperFinished || !new URLSearchParams(location.search).has("xet_order_job")) return;
+      helperFinished = true;
+      try { await request({ type: "xet:question-order-job-finish", status }); }
+      catch { /* The worker's deadline alarm still cleans up this owned tab. */ }
     }
 
     async function render(context, current) {
@@ -199,9 +222,11 @@
           hint = document.createElement("p"); hint.className = "xet-question-order-hint";
           parent.before(hint);
         }
-        if (unknown) hint.textContent = "部分原题号暂不可确定：可能缺少原练习记录或题号存在冲突，请打开对应原练习或解析。随机出题的练习不使用固定题号。";
+        if (unknown) hint.textContent = "部分原题号尚未取得，插件会尝试后台读取。随机出题、来源缺失或顺序冲突的题目不猜填题号。";
         else { hint?.remove(); hint = null; }
       } finally { if (started) observe(); }
+      // Render cache hits before starting any network work or opening a tab.
+      void autoLoad(context, records, numbers, current);
     }
 
     async function refresh() {
@@ -219,14 +244,26 @@
         if (current !== generation || routeKey() !== key) return;
         if (!result?.ok || result.context?.key !== key) { needsRetry = true; return; }
         needsRetry = false;
-        if (result.context.kind === "practice") await capture(result.context, abort.signal, current);
+        if (result.context.kind === "practice") {
+          const status = await capture(result.context, abort.signal, current);
+          if (status) await finishHelper(status);
+        }
         else await render(result.context, current);
-      } catch { if (current === generation) needsRetry = true; }
+      } catch {
+        if (current === generation) { needsRetry = true; await finishHelper("failed"); }
+      }
       finally { if (current === generation) { loading = false; if (pending) schedule(); } }
     }
     function schedule() {
       if (!started || frame !== null) return;
       if (capturedJoin && routeKey() === key && !location.pathname.includes("/errbook/detail/")) return;
+      // Inactive tabs can suspend animation frames indefinitely. The helper
+      // reads metadata only and must not wait for a visible paint to proceed.
+      if (new URLSearchParams(location.search).has("xet_order_job")) {
+        frame = -1;
+        queueMicrotask(() => { frame = null; void refresh(); });
+        return;
+      }
       frame = requestAnimationFrame(() => { frame = null; void refresh(); });
     }
     function storageChanged(changes, area) {
