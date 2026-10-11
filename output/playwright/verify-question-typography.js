@@ -14,10 +14,15 @@ async (page) => {
     </style><div class=errbook-detail-page>
     <div class=card-content><div class=xe-preview__content>
       <p id=reference>客「すみません。お手洗いはどこですか。」</p>
-      <p><strong style="font-size:medium"><span id=imported style='font-size:12pt;line-height:18.4px;font-family:"Source Han Serif JP SemiBold",serif'>スタッフ「お客様にご案内（　　　）。ただいま、2階に無料茶道体験レッスンを行っております。」</span></strong></p>
       <p><font id=legacy face="Times New Roman">Imported legacy face</font></p>
       <p><span id=shorthand style="font:italic 18px serif">Imported shorthand font</span></p>
       <span id=outside style="font-family:serif">Outside question content</span>
+    </div></div>
+    <div class=card-content><div class=xe-preview__content>
+      <p><strong style="font-size:medium"><span id=imported style='font-size:12pt;line-height:18.4px;font-family:"Source Han Serif JP SemiBold",serif'>スタッフ「お客様にご案内（　　　）。ただいま、2階に無料茶道体験レッスンを行っております。」</span></strong><span></span></p>
+    </div></div>
+    <div class=card-content><div class=xe-preview__content>
+      <p>Ordinary text <strong id=partial>local emphasis</strong> ordinary text.</p>
     </div></div></div>
     <div class=question-content><div class=xe-preview__content>
       <span id=stem style="font-family:serif"><em id=emphasis style="font-family:serif;text-decoration:underline">Original practice question</em></span>
@@ -37,17 +42,18 @@ async (page) => {
       family:s.fontFamily,weight:s.fontWeight,size:s.fontSize,height:s.lineHeight,
       style:s.fontStyle,decoration:s.textDecorationLine,
     };};
-    return Object.fromEntries(['reference','imported','legacy','shorthand','stem','emphasis','option','formula','code','control','icon','player-label','unrelated'].map(id=>[id,props(id)]));
+    return Object.fromEntries(['reference','imported','partial','legacy','shorthand','stem','emphasis','option','formula','code','control','icon','player-label','unrelated'].map(id=>[id,props(id)]));
   });
   const check=async original=>{
     const result=await read();
     for(const id of ['imported','legacy','shorthand','stem','emphasis','option']) {
       if(result[id].family!==result.reference.family)throw new Error(`Font mismatch: ${id}`);
       for(const prop of ['weight','size','height','style','decoration']) {
-        if(result[id][prop]!==original[id][prop])throw new Error(`Changed ${id}'s ${prop}`);
+        const expected=id==='imported' && prop==='weight'?result.reference.weight:original[id][prop];
+        if(result[id][prop]!==expected)throw new Error(`Changed ${id}'s ${prop}`);
       }
     }
-    for(const id of ['formula','code','control','icon','player-label','unrelated']) {
+    for(const id of ['partial','formula','code','control','icon','player-label','unrelated']) {
       if(JSON.stringify(result[id])!==JSON.stringify(original[id]))throw new Error(`Typography leaked into ${id}`);
     }
     return result;
@@ -62,6 +68,7 @@ async (page) => {
     const originalHtml=await questionHtml();
     await toggle(false);
     await fixture.waitForFunction(()=>document.documentElement.hasAttribute('data-xet-question-typography'));
+    await fixture.waitForFunction(()=>getComputedStyle(document.getElementById('imported')).fontWeight==='400');
     const normalized=await check(original);
     if(JSON.stringify(await questionHtml())!==JSON.stringify(originalHtml))throw new Error('Normalization rewrote question HTML');
     const routes=['practice_sheet/fixture','practice_analysis/fixture','practice_sheet/fixture?mode=rote',
@@ -75,19 +82,29 @@ async (page) => {
       document.querySelector('.question-content .xe-preview__content').append(span);
     });
     if(await fixture.locator('#dynamic').evaluate(el=>getComputedStyle(el).fontFamily)!==normalized.reference.family)throw new Error('Dynamic question kept imported font');
+    await fixture.evaluate(()=>{
+      const root=document.createElement('div');root.className='card-content';
+      root.innerHTML='<p><b id=dynamic-bold>Entire dynamically loaded question</b></p>';
+      document.querySelector('.errbook-detail-page').append(root);
+    });
+    await fixture.waitForFunction(()=>getComputedStyle(document.getElementById('dynamic-bold')).fontWeight==='400');
+    await fixture.evaluate(()=>document.getElementById('dynamic-bold').parentElement.append(' now only partially emphasized'));
+    await fixture.waitForFunction(()=>getComputedStyle(document.getElementById('dynamic-bold')).fontWeight==='700');
     await fixture.evaluate(()=>{history.pushState({},'','/p/t_pc/course_pc_detail/video/fixture');dispatchEvent(new PopStateEvent('popstate'));});
     if(JSON.stringify(await read())!==JSON.stringify(original))throw new Error('Overrides leaked outside evaluation routes');
     await fixture.evaluate(()=>{history.pushState({},'','/p/t_pc/pc_evaluation/practice_sheet/fixture');dispatchEvent(new PopStateEvent('popstate'));});
+    await fixture.waitForFunction(()=>getComputedStyle(document.getElementById('imported')).fontWeight==='400');
     await check(original);
     await toggle(true);
     await fixture.waitForFunction(()=>!document.documentElement.hasAttribute('data-xet-question-typography'));
     if(JSON.stringify(await read())!==JSON.stringify(original))throw new Error('Site disable did not restore original fonts');
     await toggle(false);
     await fixture.waitForFunction(()=>document.documentElement.hasAttribute('data-xet-question-typography'));
+    await fixture.waitForFunction(()=>getComputedStyle(document.getElementById('imported')).fontWeight==='400');
     await check(original);
     if(errors.length)throw new Error(errors.join('\n'));
     return {passed:true,originalFont:original.imported.family,normalizedFont:normalized.imported.family,
-      routes,verified:['inline and legacy font faces','shorthand fonts','original HTML unchanged','preserves emphasis and sizing',
+      routes,verified:['inline and legacy font faces','shorthand fonts','original content unchanged','normalizes full-question bold','preserves partial emphasis and sizing',
         'formula/control exclusions','dynamic content','unrelated pages unchanged','site-disable restoration','restart'],errors};
   } finally {await toggle(false);await fixture.close();}
 }

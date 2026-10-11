@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 const marker = "data-xet-question-typography";
-const attributes = new Map(), styles = [], timers = new Set();
+const attributes = new Map(), styles = [], timers = new Set(), frames = new Map();
 const window = new EventTarget(); window.top = window;
 const html = {
   getAttribute: name => attributes.get(name) ?? null,
@@ -14,7 +14,9 @@ const html = {
 };
 const context = {
   window, location: { pathname: "/p/t_pc/pc_evaluation/practice_sheet/fixture" },
-  document: { documentElement: html, createElement() { return { remove() { styles.splice(styles.indexOf(this), 1); } }; } },
+  document: { documentElement: html, querySelectorAll: () => [], createElement() { return { remove() { styles.splice(styles.indexOf(this), 1); } }; } },
+  MutationObserver: class { observe() {} disconnect() {} },
+  requestAnimationFrame(fn) { frames.set(fn, fn); return fn; }, cancelAnimationFrame(fn) { frames.delete(fn); },
   setInterval(fn) { timers.add(fn); return fn; }, clearInterval(fn) { timers.delete(fn); },
 };
 vm.runInNewContext(fs.readFileSync("src/content/question-typography.js", "utf8"), context);
@@ -24,7 +26,8 @@ assert.equal(styles.length, 1); assert.equal(timers.size, 1);
 assert.ok(attributes.has(marker));
 assert.match(styles[0].textContent, /font-family: inherit !important/);
 assert.match(styles[0].textContent, /\.errbook-detail-page \.card-content/);
-assert.doesNotMatch(styles[0].textContent, /font-weight:|font-size:|line-height:/, "preserve intentional formatting");
+assert.match(styles[0].textContent, /\[data-xet-question-full-bold\] \{ font-weight: inherit !important/);
+assert.doesNotMatch(styles[0].textContent, /font-size:|line-height:/, "preserve intentional sizing");
 for (const route of ["practice_analysis/fixture", "exam_sheet/fixture", "exam_analysis/fixture",
   "errbook/practice/42", "errbook/detail/42", "practice_sheet/fixture"]) {
   context.location.pathname = `/p/t_pc/pc_evaluation/${route}`;
@@ -36,6 +39,7 @@ window.dispatchEvent(new Event("popstate"));
 assert.ok(!attributes.has(marker), "do not modify unrelated pages");
 controller.stop(); controller.stop();
 assert.equal(styles.length, 0); assert.equal(timers.size, 0);
+assert.equal(frames.size, 0, "cancel pending normalization on stop");
 html.setAttribute(marker, "original");
 controller.start(); controller.stop();
 assert.equal(html.getAttribute(marker), "original", "restore preexisting marker");
