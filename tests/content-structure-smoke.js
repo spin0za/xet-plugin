@@ -14,6 +14,7 @@ const expectedScripts = [
   "src/content/analysis-icons.js",
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
+  "src/content/text-selection.js",
   "src/content/player-interactions.js",
   "src/content/fullscreen.js",
   "src/content/frame-coordinator.js",
@@ -38,6 +39,7 @@ assert.match(entry, /createShortcutController/);
 assert.match(entry, /createQualityController/);
 assert.match(entry, /createVolumeController/);
 assert.match(entry, /createDownloadController/);
+assert.match(entry, /createTextSelectionController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);
 

@@ -10,6 +10,7 @@
     !modules?.playerDom ||
     !modules.analysisLayout ||
     !modules.analysisActions ||
+    !modules.textSelection ||
     !modules.playerInteractions ||
     !modules.fullscreen ||
     !modules.frameCoordinator ||
@@ -95,6 +96,7 @@
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
+  const textSelection = modules.textSelection.createTextSelectionController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -118,6 +120,7 @@
     featuresStarted = true;
     analysisLayout.start();
     analysisActions.start();
+    textSelection.start();
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
@@ -148,6 +151,7 @@
     fullscreen.stop();
     analysisLayout.stop();
     analysisActions.stop();
+    textSelection.stop();
     quality.stop();
     volume.stop();
     download.stop();
