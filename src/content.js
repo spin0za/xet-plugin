@@ -10,6 +10,7 @@
     !modules.analysisLayout ||
     !modules.analysisActions ||
     !modules.textSelection ||
+    !modules.questionTypography ||
     !modules.questionOrder ||
     !modules.playerInteractions ||
     !modules.fullscreen ||
@@ -92,6 +93,7 @@
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const textSelection = modules.textSelection.createTextSelectionController();
+  const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
@@ -117,6 +119,7 @@
     analysisLayout.start();
     analysisActions.start();
     textSelection.start();
+    questionTypography.start();
     questionOrder.start();
     frameCoordinator.start();
     fullscreen.start();
@@ -149,6 +152,7 @@
     analysisLayout.stop();
     analysisActions.stop();
     textSelection.stop();
+    questionTypography.stop();
     questionOrder.stop();
     quality.stop();
     volume.stop();

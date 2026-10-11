@@ -15,6 +15,7 @@ const expectedScripts = [
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
   "src/content/text-selection.js",
+  "src/content/question-typography.js",
   "src/content/question-order.js",
   "src/content/player-interactions.js",
   "src/content/fullscreen.js",
@@ -41,6 +42,7 @@ assert.match(entry, /createQualityController/);
 assert.match(entry, /createVolumeController/);
 assert.match(entry, /createDownloadController/);
 assert.match(entry, /createTextSelectionController/);
+assert.match(entry, /createQuestionTypographyController/);
 assert.match(entry, /createQuestionOrderController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);

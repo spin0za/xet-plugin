@@ -27,6 +27,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
+- 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；保留加粗、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
 - 打开固定顺序的原练习或解析后，插件会在本机记录题目 ID 与题号；对应的错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。首次没有记录时，请先打开原练习或解析一次；随机出题或无法对应的题目不猜填题号。不保存答案，也不改写网站数据。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
@@ -100,6 +101,7 @@ node tests/content-structure-smoke.js
 node tests/analysis-icons-smoke.js
 node tests/practice-analysis-source-smoke.js
 node tests/question-order-source-smoke.js
+node tests/question-typography-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
@@ -133,6 +135,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
+- Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Preserves bold, italics, underlines and sizes without rewriting question content; formula and control fonts remain unchanged.
 - Remembers question IDs and original numbers locally after opening a fixed-order practice or analysis. Its error-book list displays the original numbers and follows the original order without changing search, management, or site records. Open the original practice or analysis once to initialize the mapping; randomized or unmatched questions are never assigned guessed numbers. Answers are not stored. Mappings have no count limit or automatic eviction when new practices are added; recapturing the same practice task updates its existing record, subject to Chrome's total local-storage quota.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
@@ -204,6 +207,7 @@ The repository includes Playwright browser regressions covering legacy and curre
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
+node tests/question-typography-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
 node tests/quality-preference-smoke.js
@@ -245,6 +249,7 @@ src/
     analysis-actions.js
     analysis-actions.css
     text-selection.js
+    question-typography.js
     player-interactions.js
     fullscreen.js
     frame-coordinator.js
@@ -260,6 +265,7 @@ output/playwright/
   verify-analysis-frame-loading.js
   verify-analysis-actions.js
   verify-text-selection.js
+  verify-question-typography.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
   verify-quality-preference.js
@@ -272,6 +278,7 @@ tests/
   content-structure-smoke.js
   analysis-icons-smoke.js
   practice-analysis-source-smoke.js
+  question-typography-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
   playback-rate-smoke.js
@@ -295,6 +302,10 @@ tests/
 
 `verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify original-number capture, retention of 50 prior mappings across sites, recapture without duplicate records, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
 
+`verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
+
+`verify-question-typography.js` uses an isolated real-extension profile to verify imported question and option fonts, preservation of emphasis and sizes, formula and control exclusions, dynamic content, route changes and restoration on site disable. It never reads or changes real practice answers.
+
 ## 许可证 / License
 
 除另有说明及第三方素材外，本项目的原创代码与文档采用 [PolyForm Noncommercial License 1.0.0](LICENSE)。允许在许可证规定的非商业目的下使用、学习、修改和分发；商业使用需要向相关版权持有人另行取得授权。版权持有人仍保留对自己作品另行授权的权利。这属于源码可见（Source Available）项目，不属于 OSI 定义的开源软件。
@@ -315,7 +326,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.15.1**
+Current version: **1.15.2**
+
+1.15.2：统一原练习、解析与错题本中题干和选项的导入字体；保留强调、字号、公式及控件样式，停用后恢复原样。
+
+1.15.2: Normalizes imported question and option fonts across practice, analysis and error-book pages while preserving emphasis, sizes, formulas and controls, with restoration on site disable.
 
 1.15.1：取消题号记录的 20 组上限及自动淘汰；新增练习不再删除旧映射，同一练习任务更新原记录。
 
