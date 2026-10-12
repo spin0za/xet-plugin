@@ -9,6 +9,8 @@
 - 尊重 Chrome 的授权提示，不模拟点击“允许”、不绕过授权，不擅自开启长期调试端口或修改用户的浏览器启动设置。
 - 检查仅限任务涉及的页面。不读取或输出登录凭据，不无故刷新页面、中断播放或改变用户设置。完成任务后关闭自己建立的调试连接与测试浏览器，不关闭用户的 Chrome。
 - 独立浏览器已加载真实扩展时，不再手动注入同一套内容脚本，避免重复控制器造成假故障。
+- 在 WSL 中连接 Windows Chrome 时，Linux 的 localhost 不等于 Windows 的调试端口；可用 Windows Node 的 WebSocket 读取 Windows Chrome 的 DevToolsActivePort 并维持单条连接。现代 Chrome 的 `/json/list` 返回 404 不代表 WebSocket 不可用，不因此重复请求授权。
+- 修改后台或序列化 MAIN 脚本后，隔离 MV3 回归使用全新的测试配置目录，避免旧扩展缓存造成假故障。后台标签页的 requestAnimationFrame 可能暂停，检查交互界面时激活自己的测试页，完成后恢复原标签页并关闭测试页。
 
 ## 提交约定
 

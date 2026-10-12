@@ -26,6 +26,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
+- 在线练习背题模式在题型旁提供“撤销”：清空已保存的本次答案、恢复选项和答题卡，允许重新作答；只移除插件能确认由本次作答新增的错题，保留历史错题。页面重新加载或无法确认错题来源时保留错题，不猜测删除；移除失败可“重试撤销”。不撤回网站的历史统计。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
 - 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；去掉覆盖整段题目文字的导入加粗，保留局部强调、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
 - 错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。有本地记录时立即显示；缺少记录时，插件自动在后台打开对应的固定顺序原练习，读取完整题序、保存后关闭，不抢焦点，也不答题或交卷。与手动打开练习一样，网站可能新增或恢复答题记录。随机出题或无法对应的题目不猜填题号，不保存答案。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
@@ -37,7 +38,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
 - 输入框、搜索框、下拉框或可编辑笔记区域聚焦时自动停用快捷键；退出网页全屏的 `T` 和 `Esc` 除外。
-- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强、解析页按钮、文字选择增强、错题本题号排序和该网站的登录保活都会停止。
+- 可通过弹窗开发者模式在当前网站启用或停用插件；停用后自动画质、默认音量、快捷键、全屏增强、解析页按钮、背题撤销、文字选择增强、错题本题号排序和该网站的登录保活都会停止。
 - 商家自定义课程域名可按网站单独授权，并可在独立的网站管理页中集中撤销或恢复。
 - 可选的登录保活：Chrome 启动时检查，并在运行期间每 4 小时进行一次无界面请求。
 
@@ -104,6 +105,7 @@ node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/analysis-icons-smoke.js
 node tests/practice-analysis-source-smoke.js
+node tests/practice-undo-smoke.js
 node tests/question-order-source-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
@@ -142,6 +144,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
+- Adds an Undo button beside the question type in rote practice. It clears the saved answer, resets options and answer-card state, and allows re-answering. Only verified error-book entries newly added by this answer are removed; historical, unknown, or reload-preceding entries are preserved. Failed removal can be retried. Historical site statistics are not rolled back.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
 - Displays original numbers and ordering in the error book without changing search or management. Cached numbers appear immediately; missing mappings automatically open a matching fixed-order practice in an inactive background tab, save the full question order, and close the helper without answering or submitting. Like manually opening a practice, this may create or resume an attempt on the site. Randomized or unmatched questions are never assigned guessed numbers, and answers are not stored. Mappings have no count limit or automatic eviction, subject to Chrome's total local-storage quota.
@@ -153,7 +156,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
 - Disables shortcuts while an input, search box, select control, or editable notes area has focus, except `T` and `Esc` for exiting page fullscreen.
-- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, analysis actions, text-selection enhancements, error-book numbering and sorting, and keep-alive activity for that site.
+- Lets you enable or disable the extension on the current site under Developer mode. Disabling a site stops automatic quality, default volume, shortcuts, fullscreen enhancements, analysis actions, rote-practice undo, text-selection enhancements, error-book numbering and sorting, and keep-alive activity for that site.
 - Supports per-site grants for merchant-owned custom course domains, with a dedicated management page for revoking or restoring access.
 - Optionally keeps the session active at Chrome startup and every four hours while Chrome is running.
 
@@ -219,6 +222,7 @@ The repository includes Playwright browser regressions covering legacy and curre
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
 node tests/frame-policy-smoke.js
+node tests/practice-undo-smoke.js
 node tests/question-typography-smoke.js
 node tests/question-order-resolution-smoke.js
 node tests/question-order-performance-smoke.js
@@ -256,6 +260,7 @@ src/
   content.js
   site-access.js
   practice-analysis-source.js
+  practice-undo-source.js
   question-order-source.js
   question-order-jobs.js
   content/
@@ -266,6 +271,8 @@ src/
     analysis-feedback.js
     analysis-actions.js
     analysis-actions.css
+    practice-undo.js
+    practice-undo.css
     text-selection.js
     question-typography.js
     question-order.js
@@ -283,6 +290,7 @@ output/playwright/
   verify-analysis-player.js
   verify-analysis-frame-loading.js
   verify-analysis-actions.js
+  verify-practice-undo.js
   verify-text-selection.js
   verify-question-typography.js
   verify-question-order.js
@@ -299,6 +307,7 @@ tests/
   content-structure-smoke.js
   analysis-icons-smoke.js
   practice-analysis-source-smoke.js
+  practice-undo-smoke.js
   question-order-resolution-smoke.js
   question-order-performance-smoke.js
   question-order-cache-smoke.js
@@ -314,6 +323,10 @@ tests/
 ```
 
 ## 真实扩展集成测试 / Real extension integration test
+
+`verify-practice-undo.js` 验证真实 MV3 扩展的背题撤销按钮、保存清空、重新作答、历史错题保留、新错题移除、失败重试、键盘操作及网站停用清理；接口使用隔离夹具，不操作个人账号。使用下述全新扩展测试配置运行：`playwright-cli run-code "$(<output/playwright/verify-practice-undo.js)"`。
+
+`verify-practice-undo.js` tests the real MV3 extension's undo UI, saved answer clearing, re-answering, old/new error-entry handling, retries, keyboard access and site-disable cleanup against isolated fixture endpoints, without touching a personal account. Run it with the fresh extension test profile described below.
 
 `verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理；`verify-analysis-frame-loading.js` 验证嵌入视频延迟加载、重定向、更换地址、路由切换和停用时的通信，并检查是否出现域名不匹配报错。这些测试需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
 

@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "question-order-source.js", "question-order-jobs.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -403,6 +403,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:practice-undo") {
+    return respond(sendResponse, "practice-undo", () =>
+      globalThis.XetPracticeUndoSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:question-order-auto-load") {
     return respond(sendResponse, "auto-load-question-order", () => questionOrderJobs.start(message, sender));
   }

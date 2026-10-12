@@ -9,6 +9,7 @@
     !modules?.playerDom ||
     !modules.analysisLayout ||
     !modules.analysisActions ||
+    !modules.practiceUndo ||
     !modules.textSelection ||
     !modules.questionTypography ||
     !modules.questionOrder ||
@@ -39,7 +40,6 @@
   let frameCoordinator = null;
   let featuresStarted = false;
   let naturalVisitRecorded = false;
-
   function isSiteEnabled() {
     return settingsLoaded && !settings.disabledSites.includes(location.origin) &&
       !settings.disabledSites.includes(settings.topOrigin);
@@ -48,7 +48,6 @@
   function isQualityEnabled() {
     return settings.enabled && isSiteEnabled();
   }
-
   async function loadSettings() {
     try {
       const stored = await chrome.runtime.sendMessage({
@@ -92,6 +91,7 @@
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
+  const practiceUndo = modules.practiceUndo.createPracticeUndoController();
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
@@ -106,7 +106,6 @@
   });
   const volume = modules.volume.createVolumeController({ playerDom: modules.playerDom });
   const download = modules.download.createDownloadController({ playerDom: modules.playerDom });
-
   function startFeatures() {
     if (featuresStarted) {
       if (settings.enabled) { quality.start(); quality.wake(); }
@@ -118,6 +117,7 @@
     featuresStarted = true;
     analysisLayout.start();
     analysisActions.start();
+    practiceUndo.start();
     textSelection.start();
     questionTypography.start();
     questionOrder.start();
@@ -137,7 +137,6 @@
       chrome.runtime.sendMessage({ type: "xet:natural-visit" }).catch(() => {});
     }
   }
-
   function stopFeatures() {
     if (!featuresStarted) return;
     featuresStarted = false;
@@ -151,6 +150,7 @@
     fullscreen.stop();
     analysisLayout.stop();
     analysisActions.stop();
+    practiceUndo.stop();
     textSelection.stop();
     questionTypography.stop();
     questionOrder.stop();
