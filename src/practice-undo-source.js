@@ -126,6 +126,23 @@
         finally { if (commits.get(id) === work) commits.delete(id); notify(); }
       }
       function ignoreAnswerEvent(...args) { return busy.size > 0 || originalIgnore.apply(v, args); }
+      // A native control changes its local answer BEFORE emitting to the parent.
+      // Merely ignoring the parent's event leaves a blue, unsaved selection.
+      const answerEvents = ["pointerdown", "click", "keydown", "beforeinput", "paste", "drop"];
+      function blockPendingAnswer(event) {
+        if (!busy.size || !live()) return;
+        // Keep Tab navigation, copying and caret movement available. Actual
+        // edits are guarded by beforeinput/paste/drop, activation by keydown.
+        if (event.type === "keydown" && !["Enter", " ", "Spacebar"].includes(event.key)) return;
+        const answer = event.target?.closest?.(".question-block__answer, .question-select, .question-judge, .question-textarea, .question-essay");
+        if (answer?.closest(".practice-sheet")?.__vue__ !== v) return;
+        event.preventDefault(); event.stopImmediatePropagation();
+      }
+      function freshQuestion(q) {
+        const fresh = { ...q };
+        if (Array.isArray(q.child_info)) fresh.child_info = q.child_info.map(freshQuestion);
+        return fresh;
+      }
       function resetQuestion(q) {
         v.$set(v.local_answers, q.id, { type: q.type, answer: [] });
         for (const [name, value] of Object.entries({ answer: [], answer_state: "", is_answer: 0,
@@ -144,12 +161,16 @@
         v.isHydratingPracticeQuestions = true;
         try {
           resetQuestion(q);
+          // Reinitialize the site's own answer components, including their
+          // private selection/input buffers and non-deep questionItem watchers.
+          const fresh = freshQuestion(q);
+          v.$set(v.practiceList, index, fresh);
           if (v.materialUserAnswerState) v.$set(v.materialUserAnswerState, q.id, {});
           v.$set(v.answerSheetArray[index], "hasAnswer", false);
           v.$set(v.answerSheetArray[index], "answerStatus", "default");
           if (v.currentQuestion?.id === q.id) {
             v.curAnswer = []; v.stateArr = []; v.questionStatusShow = true;
-            v.materialUserAnswer = {}; v.questionOption = q.option || [];
+            v.materialUserAnswer = {}; v.questionOption = fresh.option || [];
           }
           await v.$nextTick();
         } finally { v.isHydratingPracticeQuestions = wasHydrating; }
@@ -223,6 +244,7 @@
           if (v.reportErrorQuestion === trackedReport) v.reportErrorQuestion = originalReport;
           if (v.shouldIgnorePracticeAnswerEvent === ignoreAnswerEvent) v.shouldIgnorePracticeAnswerEvent = originalIgnore;
           window.removeEventListener(STOP, state.stop);
+          for (const event of answerEvents) window.removeEventListener(event, blockPendingAnswer, true);
           document.removeEventListener("visibilitychange", onVisible);
           if (window[STATE] === state) delete window[STATE];
           notify();
@@ -234,6 +256,7 @@
       state.unwatch = v.$watch(() => [v.practiceMode, v.join_id, v.practiceList,
         v.local_answers, v.answerSheetArray, v.submitStateMap], notify, { deep: true });
       window.addEventListener(STOP, state.stop);
+      for (const event of answerEvents) window.addEventListener(event, blockPendingAnswer, true);
       document.addEventListener("visibilitychange", onVisible);
       state.ready = refreshBaseline();
     }

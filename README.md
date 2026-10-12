@@ -335,9 +335,9 @@ tests/
 
 `verify-page-title.js` checks DOM-derived error-book tab titles, delayed and changed headings, site title resets, SPA navigation, updates without animation frames, and restoration on disable in an isolated MV3 profile with fixture pages.
 
-`verify-practice-undo.js` 验证真实 MV3 扩展的背题撤销按钮、保存清空、重新作答、历史错题保留、新错题移除、失败重试、键盘操作及网站停用清理；接口使用隔离夹具，不操作个人账号。使用下述全新扩展测试配置运行：`playwright-cli run-code "$(<output/playwright/verify-practice-undo.js)"`。
+`verify-practice-undo.js` 验证真实 MV3 扩展的背题撤销按钮、保存清空、选项高亮清除、重新作答、历史错题保留、新错题移除、失败重试、键盘操作及网站停用清理。夹具加载版本固定的公开 Vue 运行时与网站选项组件，需要联网；答题接口全部隔离，不操作个人账号。也验证撤销请求未结束时的点击与键盘不会制造未保存的蓝色选项。使用下述全新扩展测试配置运行：`playwright-cli run-code "$(<output/playwright/verify-practice-undo.js)"`。
 
-`verify-practice-undo.js` tests the real MV3 extension's undo UI, saved answer clearing, re-answering, old/new error-entry handling, retries, keyboard access and site-disable cleanup against isolated fixture endpoints, without touching a personal account. Run it with the fresh extension test profile described below.
+`verify-practice-undo.js` loads version-pinned public Vue/site selection components (network required) and tests the real MV3 extension's undo UI, private selection state and white markers after clearing, pending mouse/keyboard interactions, re-answering, old/new error-entry handling, retries and site-disable cleanup. Answer endpoints are isolated fixtures, without touching a personal account. Run it with the fresh extension test profile described below.
 
 `verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理；`verify-analysis-frame-loading.js` 验证嵌入视频延迟加载、重定向、更换地址、路由切换和停用时的通信，并检查是否出现域名不匹配报错。这些测试需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
 

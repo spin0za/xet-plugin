@@ -10,22 +10,36 @@ function fixture({ existing = false, book = true, type = 0, autoReportOnCommit =
     option: [{ id: "option_b", click: true, content: "selected" }] };
   if (type === 6) q.child_info = [{ ...q, id: "qs_child", type: 0 }];
   const writes = [], messages = [], listeners = new Map();
+  // Native selection controls keep their own answer, and FillBlank only
+  // reinitializes it when questionItem's identity changes (not a deep watch).
+  const controls = [q, ...(q.child_info || [])].map(question => ({
+    questionItem: question, answer: [...question.answer],
+  }));
   let instance, failures = {}, blockReport = null, releaseReport, sequence = 0;
   let saved = { id, answer: [...q.answer], answer_state: "false", is_answer: 1 };
   const v = {
     resourceId: source, taskId: task, join_id: "uwb_fixture", practiceMode: 0,
-    practiceList: [q], currentQuestion: q, updataing: false,
+    practiceList: [q], currentQuestionNum: 0,
+    get currentQuestion() { return this.practiceList[this.currentQuestionNum]; }, updataing: false,
     local_answers: { [id]: { type, answer: q.answer } }, submitStateMap: { [id]: true },
     userAnswerState: { [id]: false }, questionStatusShowMap: { [id]: false }, materialUserAnswerState: {},
     answerSheetArray: [{ hasAnswer: true, answerStatus: "error" }], curAnswer: q.answer,
-    $set: (target, name, value) => { target[name] = value; }, $nextTick: async () => {},
+    $set: (target, name, value) => { target[name] = value; },
+    async $nextTick() {
+      const questions = [this.practiceList[0], ...(this.practiceList[0].child_info || [])];
+      controls.forEach((control, i) => {
+        if (control.questionItem !== questions[i]) {
+          control.questionItem = questions[i]; control.answer = [...questions[i].answer];
+        }
+      });
+    },
     $watch: () => () => {}, $message: { success: x => messages.push(x), error: x => messages.push(x) },
     shouldIgnorePracticeAnswerEvent() { return false; },
     hasPracticeQuestionDraftAnswer(question) { return (this.local_answers[question.id]?.answer?.length || 0) > 0; },
-    getPracticeAnswerSheetIndex(question) { return this.practiceList.indexOf(question); },
+    getPracticeAnswerSheetIndex(question) { return this.practiceList.findIndex(q => q.id === question.id); },
     reportErrorQuestion() {},
     async handleCommitQs() {
-      assert.equal(this, v); saved = { id, answer: [...q.answer], answer_state: "false", is_answer: 1 };
+      assert.equal(this, v); saved = { id, answer: [...this.currentQuestion.answer], answer_state: "false", is_answer: 1 };
       if (autoReportOnCommit) entries.set(id, { id, updated_at: "inserted_by_commit", task_id: task });
       void this.reportErrorQuestion();
     },
@@ -36,9 +50,10 @@ function fixture({ existing = false, book = true, type = 0, autoReportOnCommit =
   const window = {
     dispatchEvent(event) { listeners.get(event.type)?.(); },
     addEventListener(type, handler) { listeners.set(type, handler); },
-    removeEventListener(type) { listeners.delete(type); },
+    removeEventListener(type, handler) { if (listeners.get(type) === handler) listeners.delete(type); },
   };
-  const document = { querySelector: () => instance ? { __vue__: instance } : null,
+  const root = { get __vue__() { return instance; } };
+  const document = { querySelector: () => instance ? root : null,
     addEventListener() {}, removeEventListener() {}, visibilityState: "visible" };
   async function fetch(endpoint, options) {
     const body = JSON.parse(options.body);
@@ -78,7 +93,17 @@ function fixture({ existing = false, book = true, type = 0, autoReportOnCommit =
     location, URL, Event, AbortSignal, fetch, console };
   vm.runInNewContext(fs.readFileSync("src/practice-undo-source.js", "utf8"), context);
   const action = (name = "sync", questionId) => context.XetPracticeUndoSource.practiceUndo(name, key, questionId);
-  return { action, v, q, id, key, entries, writes, failures, original, messages, context,
+  return { action, v, get q() { return v.practiceList[0]; }, id, key, entries, writes, failures, original, messages, context, controls,
+    hasAnswerGuards: () => listeners.has("click") || listeners.has("beforeinput"),
+    clickOption() {
+      let blocked = false;
+      const answer = { closest: selector => selector === ".practice-sheet" ? root : null };
+      const event = { target: { closest: selector => selector.includes(".question-block__answer") ? answer : null },
+        preventDefault() { blocked = true; }, stopImmediatePropagation() {} };
+      listeners.get("click")?.(event);
+      if (!blocked) controls[0].answer = ["option_b"];
+      return blocked;
+    },
     saved: () => saved, detach: () => { instance = null; },
     holdReport() { blockReport = new Promise(resolve => { releaseReport = resolve; }); },
     releaseReport() { releaseReport(); },
@@ -96,10 +121,12 @@ async function main() {
     assert.equal(f.saved().is_answer, 0); assert.equal(f.q.answer.length, 0);
     assert.equal(f.q.option[0].click, false); assert.equal(f.v.answerSheetArray[0].hasAnswer, false);
     assert.equal(f.v.submitStateMap[f.id], false);
+    assert.equal(f.controls[0].answer.length, 0, "Reset the native control, not only the parent answer");
     await f.action("stop");
     assert.equal(f.v.handleCommitQs, f.original.commit);
     assert.equal(f.v.reportErrorQuestion, f.original.report);
     assert.equal(f.v.shouldIgnorePracticeAnswerEvent, f.original.ignore);
+    assert.equal(f.hasAnswerGuards(), false, "Stopping removes pending-interaction guards");
   }
   // Previously answered/history-loaded questions have no provenance journal.
   { const f = fixture({ existing: true }); await f.action(); await f.action("undo", f.id);
@@ -150,6 +177,7 @@ async function main() {
   { const f = fixture(); await f.action(); f.holdReport(); await f.v.handleCommitQs();
     const first = f.action("undo", f.id); assert.equal((await f.action("undo", f.id)).reason, "busy");
     assert.equal(f.v.shouldIgnorePracticeAnswerEvent(), true);
+    assert.equal(f.clickOption(), true, "Block selection before a child mutates its local answer while undo is pending");
     f.releaseReport(); assert.equal((await first).removed, true); assert.equal(f.entries.has(f.id), false); }
   // Rote-only; unknown identities and route/document changes cannot write.
   { const f = fixture(); f.v.practiceMode = 1; assert.equal((await f.action()).ok, false); assert.equal(f.writes.length, 0); }
@@ -158,9 +186,24 @@ async function main() {
   for (const type of [1, 2, 3, 4, 5, 6]) {
     const f = fixture({ type }); await f.action(); assert.equal((await f.action("undo", f.id)).ok, true);
     assert.equal(f.q.answer.length, 0);
+    assert.ok(f.controls.every(control => control.answer.length === 0), "Clear every material/answer component");
     if (type === 4) assert.equal(f.q.option[0].content, "");
     if (type === 6) { assert.equal(f.saved().child[0].is_answer, 0); assert.equal(f.q.child_info[0].answer.length, 0); }
   }
+  { const f = fixture(); f.q.is_collected = true; f.q.correct_answer = ["option_a"];
+    const originalQuestion = f.q;
+    await f.action(); await f.action("undo", f.id);
+    assert.notEqual(f.q, originalQuestion, "Notify native components with a new question identity");
+    assert.equal(f.v.practiceList[0].is_collected, true);
+    assert.deepEqual(f.v.practiceList[0].correct_answer, ["option_a"]);
+    assert.equal(f.clickOption(), false, "Allow new selections after undo completes");
+    await f.action("stop"); assert.equal(f.clickOption(), false); }
+  { const f = fixture(), other = { id: "qs_other", type: 0, answer: ["A"] };
+    f.v.practiceList.push(other); f.v.currentQuestionNum = 1; f.v.curAnswer = other.answer;
+    await f.action(); await f.action("undo", f.id);
+    assert.equal(f.q.answer.length, 0); assert.equal(f.controls[0].answer.length, 0);
+    assert.equal(f.v.currentQuestion, other); assert.equal(f.v.curAnswer, other.answer);
+    assert.deepEqual(other.answer, ["A"], "Undoing an offscreen question must not reset the active question"); }
   // The MAIN bridge is restricted to authorized top-level documents.
   {
     const f = fixture(), source = f.context.XetPracticeUndoSource;
