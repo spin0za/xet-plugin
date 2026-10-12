@@ -2,14 +2,17 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.pageTitle) return;
   const PATH = /^\/p\/t_pc\/pc_evaluation\/errbook\/detail\/[\w-]+\/?$/;
-  const ROOT = ".errbook-detail-page";
-  const HEADER = `${ROOT} .page-header .back-btn span`;
-  const WATCH = `${ROOT} .page-header, title`;
+  const RECORD_PATH = /^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/;
+  const RECORD_ROOT = ".practice-record-page";
+  const ROOT = `.errbook-detail-page, ${RECORD_ROOT}`;
+  const HEADER = ".errbook-detail-page .page-header .back-btn span";
+  const WATCH = ".errbook-detail-page .page-header, title";
 
   function createPageTitleController() {
     let started = false, queued = false, observer = null, timer = null;
     let key = "", original = null, applied = "";
-    const routeKey = () => PATH.test(location.pathname) ? location.pathname + location.search : "";
+    const routeKey = () => PATH.test(location.pathname) || RECORD_PATH.test(location.pathname)
+      ? location.pathname + location.search : "";
     function restore() {
       // Do not undo a newer title assigned by the site during navigation.
       if (original !== null && document.title === applied) document.title = original;
@@ -21,7 +24,11 @@
       const next = routeKey();
       if (next !== key) { restore(); key = next; }
       if (!key) return;
-      const text = document.querySelector(HEADER)?.textContent.replace(/\s+/g, " ").trim();
+      // The record overview's inner tab is labelled differently; use the
+      // requested page name, not a changing tab/filter or a resource-card name.
+      const text = RECORD_PATH.test(location.pathname)
+        ? (document.querySelector(RECORD_ROOT) ? "练习记录" : "")
+        : document.querySelector(HEADER)?.textContent.replace(/\s+/g, " ").trim();
       if (!text) { restore(); return; }
       if (original === null || document.title !== applied) original = document.title;
       applied = text;

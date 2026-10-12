@@ -45,8 +45,34 @@ async (page) => {
     await setHeader("停用时不接管"); await expectTitle("网站课程标题");
     await toggle(false); await expectTitle("停用时不接管");
     await setHeader(" \n "); await expectTitle("网站课程标题");
+
+    // The record overview uses the requested page name, not its inner tabs.
+    await fixture.evaluate(() => {
+      history.pushState({}, "", "/p/t_pc/pc_evaluation/practice_record");
+      document.querySelector("#app").innerHTML = "";
+    });
+    await expectTitle("网站课程标题");
+    await fixture.evaluate(() => {
+      document.querySelector("#app").innerHTML = '<div class="practice-record-page"><div class="tab-header"><div class="main-tab-item active"><span>练习历史</span></div><div class="main-tab-item"><span>我的错题</span></div><div class="main-tab-item"><span>题目收藏</span></div></div><div class="resource-card__title">不要使用这个课程标题</div></div>';
+    });
+    await expectTitle("练习记录");
+    await fixture.evaluate(() => {
+      history.replaceState({}, "", "/p/t_pc/pc_evaluation/practice_record?tab=2&subTab=1");
+      document.querySelector(".main-tab-item.active").classList.remove("active");
+      document.querySelectorAll(".main-tab-item")[2].classList.add("active");
+      document.title = "";
+    });
+    await expectTitle("练习记录");
+    await toggle(true); await expectTitle("");
+    await toggle(false); await expectTitle("练习记录");
+    await fixture.evaluate(() => {
+      history.pushState({}, "", "/p/t_pc/course_pc_detail/video/id");
+      document.title = "另一门课程";
+    });
+    await expectTitle("另一门课程");
     if (errors.length) throw new Error(errors.join("; "));
-    return { domExtraction: true, delayedHeading: true, noHardcoding: true,
+    return { domExtraction: true, delayedHeading: true, errorBookNoHardcoding: true,
+      practiceRecordTitle: true, recordTabChanges: true, recordDisableRestore: true,
       siteTitleReset: true, routeCleanup: true, backgroundSafe: true, disableRestore: true };
   } finally {
     await toggle(false);

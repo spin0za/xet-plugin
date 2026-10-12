@@ -2,15 +2,17 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
 
-function fixture({ title = "", header = null, embedded = false } = {}) {
+function fixture({ title = "", header = null, embedded = false,
+  pathname = "/p/t_pc/pc_evaluation/errbook/detail/42", recordReady = false } = {}) {
   const listeners = new Map(), navigationListeners = new Map();
   let observer, interval, disconnected = false;
   const document = { title, documentElement: {},
     querySelector(selector) {
+      if (selector === ".practice-record-page") return recordReady ? {} : null;
       assert.equal(selector, ".errbook-detail-page .page-header .back-btn span");
       return header === null ? null : { textContent: header };
     } };
-  const location = { pathname: "/p/t_pc/pc_evaluation/errbook/detail/42", search: "?tab=1" };
+  const location = { pathname, search: "?tab=1" };
   const window = { addEventListener: (name, callback) => listeners.set(name, callback),
     removeEventListener: name => listeners.delete(name),
     navigation: { addEventListener: (name, callback) => navigationListeners.set(name, callback),
@@ -28,6 +30,7 @@ function fixture({ title = "", header = null, embedded = false } = {}) {
   const mutate = () => observer?.([{ target: { closest: () => true }, addedNodes: [], removedNodes: [] }]);
   return { controller, document, location, listeners, navigationListeners,
     setHeader(text) { header = text; mutate(); }, mutate, tick: () => interval?.(),
+    setRecordReady(value) { recordReady = value; mutate(); },
     disconnected: () => disconnected };
 }
 const flush = () => new Promise(setImmediate);
@@ -69,6 +72,24 @@ async function main() {
     f.location.pathname = "/other"; f.tick(); await flush(); assert.equal(f.document.title, ""); f.controller.stop(); }
   { const f = fixture({ embedded: true, header: "嵌入页面" }); f.controller.start();
     assert.equal(f.document.title, ""); assert.equal(f.listeners.size, 0); }
+  // The requested record-page name is independent of its internal tab labels.
+  for (const suffix of ["", "/"]) {
+    const f = fixture({ pathname: `/p/t_pc/pc_evaluation/practice_record${suffix}`, title: "网站标题", header: "旧的错题页标题" });
+    f.controller.start(); assert.equal(f.document.title, "网站标题");
+    f.setRecordReady(true); await flush(); assert.equal(f.document.title, "练习记录");
+    f.setHeader("题目收藏"); await flush(); assert.equal(f.document.title, "练习记录");
+    f.location.search = "?tab=2&subTab=1"; f.tick(); await flush(); assert.equal(f.document.title, "练习记录");
+    f.document.title = ""; f.mutate(); await flush(); assert.equal(f.document.title, "练习记录");
+    f.setRecordReady(false); await flush(); assert.equal(f.document.title, "");
+    f.setRecordReady(true); await flush(); assert.equal(f.document.title, "练习记录");
+    f.location.pathname = "/p/t_pc/pc_evaluation/errbook/detail/42";
+    f.listeners.get("popstate")(); await flush(); assert.equal(f.document.title, "题目收藏");
+    f.location.pathname = "/p/t_pc/pc_evaluation/practice_record";
+    f.listeners.get("popstate")(); await flush(); assert.equal(f.document.title, "练习记录");
+    f.controller.stop(); assert.equal(f.document.title, "");
+  }
+  { const f = fixture({ pathname: "/p/t_pc/pc_evaluation/practice_record_extra", recordReady: true });
+    f.controller.start(); assert.equal(f.document.title, ""); f.controller.stop(); }
   console.log("page title DOM extraction, delayed loading, navigation, site resets and cleanup smoke test passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
