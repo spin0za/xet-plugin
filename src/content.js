@@ -10,6 +10,7 @@
     !modules.analysisLayout ||
     !modules.analysisActions ||
     !modules.practiceUndo ||
+    !modules.pageTitle ||
     !modules.textSelection ||
     !modules.questionTypography ||
     !modules.questionOrder ||
@@ -92,9 +93,12 @@
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const practiceUndo = modules.practiceUndo.createPracticeUndoController();
+  const pageTitle = modules.pageTitle.createPageTitleController();
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
+  const pageFeatures = [analysisLayout, analysisActions, practiceUndo, pageTitle,
+    textSelection, questionTypography, questionOrder];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -115,12 +119,7 @@
       return;
     }
     featuresStarted = true;
-    analysisLayout.start();
-    analysisActions.start();
-    practiceUndo.start();
-    textSelection.start();
-    questionTypography.start();
-    questionOrder.start();
+    for (const feature of pageFeatures) feature.start();
     frameCoordinator.start();
     fullscreen.start();
     shortcuts.start();
@@ -148,12 +147,7 @@
     shortcuts.stop();
     frameCoordinator.stop();
     fullscreen.stop();
-    analysisLayout.stop();
-    analysisActions.stop();
-    practiceUndo.stop();
-    textSelection.stop();
-    questionTypography.stop();
-    questionOrder.stop();
+    for (const feature of pageFeatures) feature.stop();
     quality.stop();
     volume.stop();
     download.stop();

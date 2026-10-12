@@ -15,6 +15,7 @@ const expectedScripts = [
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
   "src/content/practice-undo.js",
+  "src/content/page-title.js",
   "src/content/text-selection.js",
   "src/content/question-typography.js",
   "src/content/question-order.js",
@@ -45,6 +46,7 @@ assert.match(entry, /createDownloadController/);
 assert.match(entry, /createTextSelectionController/);
 assert.match(entry, /createQuestionTypographyController/);
 assert.match(entry, /createQuestionOrderController/);
+assert.match(entry, /createPageTitleController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);
 
