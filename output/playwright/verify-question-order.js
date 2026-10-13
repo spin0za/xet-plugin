@@ -43,7 +43,9 @@ async (page) => {
       template:book?'<div class="errbook-detail-page"><input id="search" v-model="searchText" @input="search"><button id="manage" @click="manage">Manage</button><button id="delete" @click="remove">Delete fixture selections</button><div class="question-list"><div v-for="(q,i) in questionList" :key="q.id" class="question-card" :data-fixture-id="q.id" @click="onQuestionClick(q,i)"><div class="card-body"><div class="card-content">{{q.content}}</div><div class="card-meta"><span class="type-tag">单选题</span> 最近错误：2026-10-10</div></div></div></div></div>':
         '<div class="'+practiceClass+'">Original practice fixture</div>'});
     </script>`;
-  await fixture.route(`${origin}/**`, async route => {
+  // Include extension-created helper tabs; page-only routes would let their
+  // dummy merchant requests escape the fixture and leave jobs behind.
+  await context.route(`${origin}/**`, async route => {
     const request = route.request();
     if (request.method() === 'POST') {
       const path = new URL(request.url()).pathname;
@@ -239,7 +241,16 @@ async (page) => {
       display:await displayed(),labels:await fixture.locator('[data-xet-original-question-number]').allTextContents(),
       native:await fixture.evaluate(()=>vm.questionList.map(q=>q.id))}));
   } finally {
+    await disable(true); await fixture.close();
+    await worker.evaluate(async origin => {
+      for(let i=0;i<100;i++){
+        const jobs=Object.entries(await chrome.storage.session.get(null));
+        if(!jobs.some(([key,job])=>key.startsWith('xetQuestionOrderJob:')&&job.origin===origin))return;
+        await new Promise(resolve=>setTimeout(resolve,50));
+      }
+      throw new Error('Fixture background jobs were not cleaned up');
+    },origin);
     await worker.evaluate(keys=>chrome.storage.local.remove(keys),[cacheKey,conflictKey,...Object.keys(retained)]);
-    await disable(false); await fixture.close();
+    await disable(false); await context.unroute(`${origin}/**`);
   }
 }

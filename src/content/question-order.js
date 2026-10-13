@@ -100,6 +100,7 @@
     let abort = null, style = null, hint = null, restoreOrder = [];
     const labels = new Map();
     const autoRequested = new Set();
+    const autoResults = new Map();
     let helperFinished = false;
     const cache = createOrderCache(storage, location.origin);
     const observe = () => observer?.observe(document.body, { childList: true, subtree: true });
@@ -118,7 +119,7 @@
     function clear() {
       generation++; abort?.abort(); abort = null;
       loading = pending = needsRetry = false; capturedJoin = "";
-      autoRequested.clear(); helperFinished = false;
+      autoRequested.clear(); autoResults.clear(); helperFinished = false;
       window.dispatchEvent(new Event(STOP_WATCH));
       observer?.disconnect();
       for (const label of labels.values()) label.remove();
@@ -171,7 +172,7 @@
         ? { practice_id: context.sourceId, task_id: context.taskId } : { resource_id: context.sourceId }, signal);
       if (!started || current !== generation || routeKey() !== key) return;
       const setting = context.taskId ? config.random_setting : config.is_random;
-      const fixed = setting === 0 || setting === "0";
+      const fixed = setting === 0 || setting === "0" || setting === -1 || setting === "-1";
       if (!fixed) {
         await storage.remove(cacheKey(context.sourceId, context.taskId));
         cache.update({ [cacheKey(context.sourceId, context.taskId)]: {} });
@@ -194,18 +195,30 @@
       const tasks = new Set(context.questions.filter((q, i) => q.taskId && !numbers[i]).map(q => q.taskId));
       if (!records.length && context.questions.length && context.questions.every(q => !q.taskId)) tasks.add("");
       for (const taskId of tasks) {
-        if (!started || current !== generation || autoRequested.has(taskId)) continue;
+        if (!started || current !== generation) continue;
+        const checking = autoRequested.has(taskId);
+        if (checking && autoResults.get(taskId) !== "pending") continue;
         autoRequested.add(taskId);
+        const previous = autoResults.get(taskId);
         try {
-          await request({ type: "xet:question-order-auto-load", key: context.key, taskId });
-        } catch { /* Keep existing numbers; do not repeatedly create attempts. */ }
+          const result = await request({ type: checking ? "xet:question-order-job-status" : "xet:question-order-auto-load", key: context.key, taskId });
+          if (!started || current !== generation || routeKey() !== key) return;
+          autoResults.set(taskId, result?.ok ? result.status : "failed");
+        } catch {
+          if (!started || current !== generation || routeKey() !== key) return;
+          autoResults.set(taskId, "failed");
+        }
+        // Report the outcome, but never retry by creating repeated attempts.
+        needsRetry = [...autoResults.values()].includes("pending");
+        if (autoResults.get(taskId) !== previous) schedule();
       }
     }
 
     async function finishHelper(status) {
       if (helperFinished || !new URLSearchParams(location.search).has("xet_order_job")) return;
       helperFinished = true;
-      try { await request({ type: "xet:question-order-job-finish", status }); }
+      try { await request({ type: "xet:question-order-job-finish", status,
+        token: new URLSearchParams(location.search).get("xet_order_job") }); }
       catch { /* The worker's deadline alarm still cleans up this owned tab. */ }
     }
 
@@ -249,7 +262,12 @@
         }
         for (const [card, label] of labels) if (!card.isConnected) { label.remove(); labels.delete(card); }
         const unknown = numbered.some(q => !q.number);
-        setHint(parent, unknown ? "部分原题号尚未取得，插件会尝试后台读取。随机出题、来源缺失或顺序冲突的题目不猜填题号。" : "");
+        const outcomes = numbered.filter(q => !q.number).map(q => autoResults.get(q.taskId));
+        const feedback = outcomes.includes("failed") ? "原题号后台读取未能完成，请刷新页面重试；插件不会猜填题号。"
+          : outcomes.includes("unavailable") ? "无法确认原练习的固定顺序，后台读取未启动；随机或未知顺序的题目不猜填题号。"
+          : outcomes.includes("pending") ? "正在后台读取原题号，完成后会自动显示。"
+          : "部分原题号尚未取得；缺少来源信息或顺序冲突的题目不猜填题号。";
+        setHint(parent, unknown ? feedback : "");
       } finally { if (started) observe(); }
       // Render cache hits before starting any network work or opening a tab.
       void autoLoad(context, records, numbers, current);
@@ -282,11 +300,16 @@
       finally { if (current === generation) { loading = false; if (pending) schedule(); } }
     }
     function schedule() {
-      if (!started || frame !== null) return;
-      if (capturedJoin && routeKey() === key && !location.pathname.includes("/errbook/detail/")) return;
+      if (!started) return;
+      const helper = new URLSearchParams(location.search).has("xet_order_job");
+      // A native redirect can lose the marker before the worker restores it.
+      // Do not leave its first background animation frame parked indefinitely.
+      if (helper && frame !== null && frame !== -1) { cancelAnimationFrame(frame); frame = null; }
+      if (frame !== null) return;
+      if (capturedJoin && routeKey() === key && !location.pathname.includes("/errbook/detail/") && (!helper || helperFinished)) return;
       // Inactive tabs can suspend animation frames indefinitely. The helper
       // reads metadata only and must not wait for a visible paint to proceed.
-      if (new URLSearchParams(location.search).has("xet_order_job")) {
+      if (helper) {
         frame = -1;
         queueMicrotask(() => { frame = null; void refresh(); });
         return;

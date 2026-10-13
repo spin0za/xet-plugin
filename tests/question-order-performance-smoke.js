@@ -87,6 +87,32 @@ async function main() {
   assert.equal(storageReads, 2, "reenabling reloads updates missed while disabled");
   controller.stop();
 
+  // Do not silently keep claiming that a background read will start when
+  // configuration validation or the worker has already rejected the request.
+  delete records[cacheKey];
+  for (const [status, text] of [["pending", /正在后台读取原题号/],
+    ["unavailable", /后台读取未启动/], ["failed", /后台读取未能完成/]]) {
+    let starts = 0;
+    let jobStatus = "pending";
+    const feedbackController = createQuestionOrderController({ storage, request: async message => {
+      if (message.type === "xet:question-order-auto-load") { starts++; return { ok: true, status }; }
+      if (message.type === "xet:question-order-job-status") return { ok: true, status: jobStatus };
+      return { ok: true, context: { key, kind: "book", sourceId: source,
+        questions: [{ id: "qs_5", taskId: "" }], cardIds: ["qs_5"] } };
+    } });
+    feedbackController.start(); await flush();
+    assert.match(activeHint().textContent, text);
+    assert.equal(starts, 1, "Status rendering must not create an attempt loop");
+    assert.equal(activeHint().attributes.role, "status");
+    if (status === "pending") {
+      jobStatus = "failed";
+      for (const fn of timers) fn(); await flush();
+      assert.match(activeHint().textContent, /后台读取未能完成/, "A failed or expired helper must replace the pending message");
+      assert.equal(starts, 1, "Polling a failed job must not create another attempt");
+    }
+    feedbackController.stop();
+  }
+
   let release, reads = 0;
   const cache = createOrderCache({ get: async () => { reads++; return new Promise(resolve => { release = resolve; }); } }, origin);
   const first = cache.warm(), second = cache.index(source);

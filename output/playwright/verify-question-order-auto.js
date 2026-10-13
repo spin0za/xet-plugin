@@ -102,13 +102,14 @@ async (page) => {
     for(let i=0;i<100&&helpers.length<2;i++) await new Promise(resolve=>setTimeout(resolve,50));
     if(helpers.length!==2)throw new Error('Network failure helper not created');
     await waitClosed(helpers[1]);
+    await book.waitForFunction(()=>document.querySelector('.xet-question-order-hint')?.textContent.includes('后台读取未能完成'));
     if(await book.locator('[data-xet-original-question-number]').count())throw new Error('Failure fabricated numbers');
     if(requests.some(r=>!['/xe.practice.bff/task/answer.config.get/1.0.0','/evaluation_wechat/practices/join','/evaluation_wechat/practices/commit_record'].includes(r.path)))throw new Error('Unexpected write endpoint');
     if(errors.length)throw new Error(errors.join('; '));
     return {autoNumbering:['1.','2.','4.'],fullPaperCount:record.ids.length,
       numericBookIds:true,numericBookNavigation:true,mismatchRejectedWithFeedback:true,feedbackRecovery:true,
       coalescedJoinCount:joins,cachedReloadNewJoins:0,helpersClosed:helpers.every(p=>p.isClosed()),
-      randomSkipped:true,networkFailureCleaned:true,errors};
+      randomSkipped:true,networkFailureCleaned:true,networkFailureReported:true,errors};
   } finally {
     context.off('page',watch); await context.unroute(`${origin}/**`);
     for(const helper of context.pages())if(helper.url().startsWith(origin)&&helper.url().includes('xet_order_job=')&&!helper.isClosed())await helper.close();

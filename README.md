@@ -32,6 +32,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；去掉覆盖整段题目文字的导入加粗，保留局部强调、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
 - 错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。有本地记录时立即显示；缺少记录时，插件自动在后台打开对应的固定顺序原练习，读取完整题序、保存后关闭，不抢焦点，也不答题或交卷。与手动打开练习一样，网站可能新增或恢复答题记录。随机出题或无法对应的题目不猜填题号，不保存答案。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 题号读取使用完整练习记录接口，无需逐题滚动加载。错题缺少任务 ID 时，可从同网站、同原练习的已验证记录中补全无冲突的题号；只有能够确认同一完整顺序时才合并排序，存在冲突时不猜填。
+- 错题本未提供课程任务 ID 时，先通过网站自身的练习信息接口补全；支持网站以 `-1` 表示默认固定顺序。原练习跳转到配置页时，只在插件创建的未激活后台页中调用网站原有的固定顺序、完整题数开始操作；不操作手动打开的配置页。无法验证来源或固定顺序时明确提示，不反复创建答题记录。
 - 同一网站、原练习和任务的完整题号一旦保存，之后手动打开练习或解析也直接复用，不重复查询配置、提取题序或改写记录；不同答题记录共用题号。首次读取失败仍可重试，缓存缺失或损坏时重新读取；不影响网站正常加载题目的请求。
 - 本地题号表提前读取，当前页面内复用匹配索引；题目就绪、历史返回或记录更新后立即显示，无固定重试冷却等待。加载状态变化也会触发更新，停用后清理监听与内存缓存。
 - 同一网站、原练习和任务的后台读取共用一个标签页；加载失败或两分钟超时后清理，停用网站时取消。任务状态保存在浏览器会话中，可跨后台进程重启恢复。用户主动激活或导航的标签页不再自动关闭。只使用已有的网站授权，不新增浏览器权限。
@@ -152,6 +153,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
 - Displays original numbers and ordering in the error book without changing search or management. Cached numbers appear immediately; missing mappings automatically open a matching fixed-order practice in an inactive background tab, save the full question order, and close the helper without answering or submitting. Like manually opening a practice, this may create or resume an attempt on the site. Randomized or unmatched questions are never assigned guessed numbers, and answers are not stored. Mappings have no count limit or automatic eviction, subject to Chrome's total local-storage quota.
 - Reads full practice records without scrolling through lazy-rendered questions. Missing task IDs can recover unambiguous numbers from verified mappings for the same merchant and source; sorting requires a confirmed common full order, and conflicts are never guessed.
+- Resolves missing course task IDs using the site's practice-info endpoint and recognizes its `-1` default-fixed setting. Native redirects to practice configuration are continued only inside the extension's inactive helper using the site's fixed, full-paper start action; manually opened configuration pages are untouched. Unverified source/order metadata receives explicit feedback without repeatedly creating attempts.
 - Preloads local numbering and reuses lookup indexes within the page. Readiness, history return and mapping updates trigger rendering without a fixed retry cooldown; reactive loading changes are detected, and disabling cleans up watchers and memory caches.
 - Once a complete order is saved for an exact merchant/practice/task, manual practice and analysis visits reuse it across attempts without repeating config/order queries or rewriting the record. Failed captures remain retryable; missing or invalid mappings are recaptured. The site's normal question-loading requests are unaffected.
 - Concurrent error-book pages share one helper per merchant, source and task. Session-backed jobs survive worker restarts and clean up on failure, a two-minute deadline or site disable. Helpers activated or navigated by the user are not automatically closed. Existing site grants suffice; no new permissions are required.
@@ -301,6 +303,7 @@ output/playwright/
   verify-question-typography.js
   verify-question-order.js
   verify-question-order-auto.js
+  verify-question-order-course.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
   verify-quality-preference.js
@@ -366,6 +369,10 @@ tests/
 `question-order-source-smoke.js` also checks matching numeric/string book IDs (including `228976328`), mismatched IDs/sources, invalid values and unsafe numbers. Recognition failures on populated pages show retry feedback rather than failing silently.
 
 `question-order-jobs-smoke.js` checks coalescing, config validation, authorization, restart recovery and owned-tab cleanup. `verify-question-order-auto.js` uses real MV3 and Vue 2 fixtures in an isolated browser to verify numeric-ID first capture and navigation, mismatch feedback and recovery, concurrent books sharing one helper, cache-only revisits, missing-task recovery, random-paper exclusion and failure cleanup. All practice requests use synthetic data.
+
+`verify-question-order-course.js` 复现课程错题全部缺少任务 ID、固定顺序返回 `-1`、原练习跳转配置页并丢失任务标记的完整链路：验证 34 题完整记录、7 个错题号、网站原有开始操作仅调用一次、后台页关闭、手动配置页不被操作，以及再次访问零额外请求。无头浏览器中的后台文档可见性由夹具模拟；标签页的激活状态和所有 MV3 代码保持真实。单元测试另覆盖读取已完成才恢复标记、隐藏页绘制暂停和失败/超时提示，避免仅用配置查询成功代替完整取号验证。
+
+`verify-question-order-course.js` reproduces all-taskless course cards, the site's `-1` fixed default, native configuration redirects and lost job markers. It verifies the full 34-question mapping, seven ordinals, one native start, owned-helper cleanup, untouched manual configuration and zero-request cache revisits. Headless document visibility is modeled in the fixture; actual tab activation and MV3 extension code remain real. Unit tests additionally cover capture-before-marker restoration, paused background frames and terminal failure feedback.
 
 `verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
 

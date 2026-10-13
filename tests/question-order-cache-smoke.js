@@ -8,12 +8,12 @@ const cacheKey = `xetQuestionOrder:${origin}|${source}|${task}`;
 const record = { version: 1, ids: ["qs_1", "qs_2", "qs_3"], savedAt: 123 };
 
 function fixture({ stored = {}, kind = "practice_sheet", helper = false, pageTask = task,
-  pageSource = source, pageOrigin = origin, fail = false, incomplete = false, failSave = false } = {}) {
+  pageSource = source, pageOrigin = origin, fail = false, incomplete = false, failSave = false, setting = 0 } = {}) {
   const frames = new Map(), timers = new Set(), listeners = new Set(), calls = [], statuses = [];
   const window = new EventTarget(); window.top = window;
   const location = { origin: pageOrigin, pathname: `/p/t_pc/pc_evaluation/${kind}/${pageSource}`,
     search: `?task_id=${pageTask}&join_id=uwb_new${helper ? "&xet_order_job=fixture" : ""}` };
-  const state = { reads: 0, writes: 0, fail, incomplete, failSave, joinId: "uwb_new" };
+  const state = { reads: 0, writes: 0, fail, incomplete, failSave, joinId: "uwb_new", hidden: false };
   const env = { window, location, Event, URLSearchParams, AbortController, AbortSignal, queueMicrotask,
     document: { body: {}, documentElement: { append() {} }, querySelectorAll: () => [],
       createElement: () => ({ remove() {} }) },
@@ -26,7 +26,7 @@ function fixture({ stored = {}, kind = "practice_sheet", helper = false, pageTas
       calls.push(path);
       if (state.fail) throw new Error("offline");
       return { ok: true, json: async () => ({ code: 0, data: path.includes("config") || path.endsWith("/detail")
-        ? { random_setting: 0, is_random: 0, task_total_qs: 3 }
+        ? { random_setting: setting, is_random: setting, task_total_qs: 3 }
         : { list: record.ids.slice(0, state.incomplete ? 2 : 3).map(id => ({ id, answer: "do-not-store" })) } }) };
     },
   };
@@ -44,11 +44,11 @@ function fixture({ stored = {}, kind = "practice_sheet", helper = false, pageTas
   } });
   async function flush() {
     for (let i = 0; i < 80; i++) {
-      for (const fn of [...frames.values()]) { frames.delete(fn); fn(); }
+      if (!state.hidden) for (const fn of [...frames.values()]) { frames.delete(fn); fn(); }
       await Promise.resolve();
     }
   }
-  return { state, stored, calls, statuses, window, location, controller, flush,
+  return { state, stored, calls, statuses, window, location, controller, flush, frames,
     tick() { for (const fn of timers) fn(); },
     change(changes, area = "local") {
       for (const [key, change] of Object.entries(changes)) {
@@ -107,6 +107,35 @@ async function main() {
     assert.equal(f.calls.length, before);
     f.controller.stop();
   }
+  for (const pageTask of ["", task]) for (const setting of [-1, "-1"]) {
+    const f = fixture({ pageTask, helper: true, setting });
+    f.controller.start(); await f.flush();
+    assert.equal(f.state.writes, 1, "Taskless legacy -1 papers must be captured, not mistaken for random papers");
+    assert.deepEqual(f.statuses, ["ready"]);
+    assert.equal(f.stored[`xetQuestionOrder:${origin}|${source}|${pageTask}`].ids.length, 3);
+    f.controller.stop();
+  }
+
+  const resumed = fixture({ setting: -1 });
+  resumed.state.hidden = true;
+  resumed.controller.start(); await resumed.flush();
+  assert.equal(resumed.frames.size, 1, "A redirected unmarked sheet can have a parked background frame");
+  resumed.location.search += "&xet_order_job=restored";
+  resumed.window.dispatchEvent(new Event("xet:question-order-ready")); await resumed.flush();
+  assert.equal(resumed.frames.size, 0, "Restoring the marker must cancel the parked frame immediately");
+  assert.equal(resumed.state.writes, 1, "Finish full capture without a visible paint");
+  assert.deepEqual(resumed.statuses, ["ready"]);
+  resumed.controller.stop();
+
+  const lateMarker = fixture({ setting: -1 });
+  lateMarker.controller.start(); await lateMarker.flush();
+  assert.equal(lateMarker.state.writes, 1);
+  assert.deepEqual(lateMarker.statuses, []);
+  lateMarker.location.search += "&xet_order_job=restored-after-capture";
+  lateMarker.window.dispatchEvent(new Event("xet:question-order-ready")); await lateMarker.flush();
+  assert.deepEqual(lateMarker.statuses, ["ready"], "A capture that precedes marker restoration must still finish/close the owned helper");
+  assert.equal(lateMarker.state.writes, 1, "Late completion must reuse the saved mapping");
+  lateMarker.controller.stop();
 
   const f = fixture({ stored: { [cacheKey]: record } });
   f.controller.start(); await f.flush();

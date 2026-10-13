@@ -413,6 +413,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:question-order-job-finish") {
     return respond(sendResponse, "finish-question-order-job", () => questionOrderJobs.finish(message, sender));
   }
+  if (message?.type === "xet:question-order-job-status") {
+    return respond(sendResponse, "question-order-job-status", () => questionOrderJobs.status(message, sender));
+  }
   if (message?.type === "xet:question-order-context") {
     return respond(sendResponse, "read-question-order-context", () =>
       globalThis.XetQuestionOrderSource.resolve(message, sender, { siteAccess, readSettings }));
@@ -446,6 +449,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.tabs.onRemoved?.addListener(tabId => {
   void runBackgroundTask("remove-question-order-job", () => questionOrderJobs?.removed(tabId));
+});
+chrome.tabs.onUpdated?.addListener((tabId, change) => {
+  void runBackgroundTask("advance-question-order-helper", () => questionOrderJobs?.updated(tabId, change));
 });
 
 void runBackgroundTask("initialize-settings", async () => {
