@@ -133,6 +133,26 @@
       restoreOrder = []; observe();
     }
 
+    function setHint(parent, text) {
+      if (!text) { hint?.remove(); hint = null; return; }
+      if (!hint?.isConnected) {
+        hint = document.createElement("p"); hint.className = "xet-question-order-hint";
+        hint.setAttribute("role", "status"); parent.before(hint);
+      }
+      // Repeated readiness retries must not repeatedly announce the same text.
+      if (hint.textContent !== text) hint.textContent = text;
+    }
+    function recognitionFailed() {
+      if (!started || routeKey() !== key || !location.pathname.includes("/errbook/detail/")) return;
+      const parent = document.querySelectorAll(".errbook-detail-page .question-list > .question-card")[0]?.parentElement;
+      // Do not insert errors in a loading/empty page, nor mutate unverified
+      // question identities or open a practice while recognition has failed.
+      if (!parent) return;
+      observer.disconnect();
+      try { setHint(parent, "暂时无法识别原题号，插件正在重试。若持续出现，请刷新页面或反馈此问题。"); }
+      finally { if (started) observe(); }
+    }
+
     async function capture(context, signal, current) {
       if (capturedJoin === context.joinId) return "ready";
       const records = await cache.index(context.sourceId);
@@ -229,12 +249,7 @@
         }
         for (const [card, label] of labels) if (!card.isConnected) { label.remove(); labels.delete(card); }
         const unknown = numbered.some(q => !q.number);
-        if (unknown && !hint?.isConnected) {
-          hint = document.createElement("p"); hint.className = "xet-question-order-hint";
-          parent.before(hint);
-        }
-        if (unknown) hint.textContent = "部分原题号尚未取得，插件会尝试后台读取。随机出题、来源缺失或顺序冲突的题目不猜填题号。";
-        else { hint?.remove(); hint = null; }
+        setHint(parent, unknown ? "部分原题号尚未取得，插件会尝试后台读取。随机出题、来源缺失或顺序冲突的题目不猜填题号。" : "");
       } finally { if (started) observe(); }
       // Render cache hits before starting any network work or opening a tab.
       void autoLoad(context, records, numbers, current);
@@ -253,7 +268,7 @@
         const result = await request({ type: "xet:question-order-context", key });
         if (!started) { window.dispatchEvent(new Event(STOP_WATCH)); return; }
         if (current !== generation || routeKey() !== key) return;
-        if (!result?.ok || result.context?.key !== key) { needsRetry = true; return; }
+        if (!result?.ok || result.context?.key !== key) { needsRetry = true; recognitionFailed(); return; }
         needsRetry = false;
         if (result.context.kind === "practice") {
           const status = await capture(result.context, abort.signal, current);
@@ -262,7 +277,7 @@
         }
         else await render(result.context, current);
       } catch {
-        if (current === generation) { needsRetry = true; await finishHelper("failed"); }
+        if (current === generation) { needsRetry = true; recognitionFailed(); await finishHelper("failed"); }
       }
       finally { if (current === generation) { loading = false; if (pending) schedule(); } }
     }

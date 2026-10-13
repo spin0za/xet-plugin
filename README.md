@@ -347,7 +347,7 @@ tests/
 
 `verify-text-selection.js` uses the same isolated real-extension profile to reproduce the site's selection/context-menu restrictions and verify native mouse selection, Ctrl+C, drag without submitting answers, dynamic questions, route changes and site disable. Clipboard permissions are granted only to the fixture in the test browser; the extension requests no additional clipboard permissions.
 
-`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证加载完成（含无 DOM 变化）和历史返回时及时显示、监听清理、无需滚动的完整原题号记录、缺少任务 ID 的补全与排序、冲突时不猜填并恢复原序、跨网站保留 50 组旧记录、重复读取不新增记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。
+`verify-question-order.js` 使用同样的独立真实扩展配置与 Vue 2 夹具，验证加载完成（含无 DOM 变化）和历史返回时及时显示、监听清理、无需滚动的完整原题号记录、缺少任务 ID 的补全与排序、冲突时不猜填并恢复原序、跨网站保留 50 组旧记录、重复读取不新增记录、搜索结果题号、排序后跳转与管理勾选、列表更新、停用恢复、随机题目和网络失败回退；删除操作仅作用于测试夹具，不修改真实错题本。题目已显示但原题号识别失败时，会显示重试提示，不再静默退出。
 
 `verify-question-order.js` uses the same isolated real-extension profile and Vue 2 fixtures to verify immediate loading completion (including no DOM changes) and history return, watcher cleanup, original-number capture, retention of 50 prior mappings across sites, recapture without duplicate records, search result numbers, navigation and management after sorting, native list updates, site-disable restoration, randomized questions, and network failure fallback. Deletion tests affect only fixtures, never a real error book.
 
@@ -359,9 +359,13 @@ tests/
 
 `question-order-cache-smoke.js` verifies zero-query/zero-write cache hits across practice, analysis and helper pages, cross-attempt reuse, merchant/task isolation, and retries after deletion, corruption or failed reads/saves. The real MV3 fixture `verify-question-order.js` also checks zero extra requests and unchanged records on repeated manual practice/analysis visits.
 
-`question-order-jobs-smoke.js` 验证后台标签页去重、配置检查、授权边界、后台进程重启、完成与超时清理，以及用户激活或导航后的保护。`verify-question-order-auto.js` 在独立真实 MV3 浏览器与 Vue 2 夹具中验证首次自动读取、多个错题本共用一个后台练习、缓存命中不重新进入练习、缺少任务 ID 的补全、随机题目跳过和网络失败清理；所有练习请求均使用模拟数据，不读取真实答案。
+`question-order-source-smoke.js` 同时覆盖数字与字符串错题本 ID（包括 `228976328`）、不同 ID/来源的拒绝，以及异常值和不安全数字的拒绝，确保类型兼容不放宽身份校验。
 
-`question-order-jobs-smoke.js` checks coalescing, config validation, authorization, restart recovery and owned-tab cleanup. `verify-question-order-auto.js` uses real MV3 and Vue 2 fixtures in an isolated browser to verify automatic first capture, concurrent books sharing one helper, cache-only revisits, missing-task recovery, random-paper exclusion and failure cleanup. All practice requests use synthetic data.
+`question-order-jobs-smoke.js` 验证后台标签页去重、配置检查、授权边界、后台进程重启、完成与超时清理，以及用户激活或导航后的保护。`verify-question-order-auto.js` 在独立真实 MV3 浏览器与 Vue 2 夹具中验证数字 ID 的首次自动读取、多个错题本共用一个后台练习、切换数字 ID 的错题本、身份不匹配提示及恢复、缓存命中不重新进入练习、缺少任务 ID 的补全、随机题目跳过和网络失败清理；所有练习请求均使用模拟数据，不读取真实答案。
+
+`question-order-source-smoke.js` also checks matching numeric/string book IDs (including `228976328`), mismatched IDs/sources, invalid values and unsafe numbers. Recognition failures on populated pages show retry feedback rather than failing silently.
+
+`question-order-jobs-smoke.js` checks coalescing, config validation, authorization, restart recovery and owned-tab cleanup. `verify-question-order-auto.js` uses real MV3 and Vue 2 fixtures in an isolated browser to verify numeric-ID first capture and navigation, mismatch feedback and recovery, concurrent books sharing one helper, cache-only revisits, missing-task recovery, random-paper exclusion and failure cleanup. All practice requests use synthetic data.
 
 `verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
 

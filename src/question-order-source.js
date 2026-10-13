@@ -45,7 +45,12 @@
           (instance.taskId || "") !== taskId) return null;
       return { key, kind: "practice", sourceId, taskId, joinId: instance.join_id };
     }
-    if (instance.sourceId !== sourceId || instance.classifyId !== match[2] ||
+    // Vue Router keeps numeric API IDs on in-site navigation; a direct URL
+    // supplies strings. Normalize safe scalar IDs without weakening identity
+    // checks or accepting precision-lost numbers/object coercion.
+    const classifyId = typeof instance.classifyId === "string" ? instance.classifyId
+      : Number.isSafeInteger(instance.classifyId) && instance.classifyId >= 0 ? String(instance.classifyId) : null;
+    if (instance.sourceId !== sourceId || classifyId !== match[2] ||
         Number(instance.currentTab) !== 1 || instance.loading ||
         !Array.isArray(instance.questionList) || instance.questionList.length > 2000) return null;
     const questions = instance.questionList.map(question => ({ id: question.id, taskId: question.task_id || "" }));

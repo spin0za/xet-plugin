@@ -13,7 +13,7 @@ async (page) => {
     const query=new URLSearchParams(location.search),book=location.pathname.includes('/errbook/detail/');
     const make=n=>({id:'qs_'+n,task_id:n===2?'':'${task}',content:'Question '+n});
     window.vm=new Vue({el:'#app',data:{sourceId:'${source}',resourceId:'${source}',taskId:'${task}',
-      classifyId:'123',currentTab:1,loading:false,join_id:'',questionList:[4,2,1].map(make),practiceList:[]},
+      classifyId:Number(location.pathname.split('/').pop())||123,currentTab:1,loading:false,join_id:'',questionList:[4,2,1].map(make),practiceList:[]},
       async created(){if(!book){const r=await fetch('/evaluation_wechat/practices/join',{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({practice_id:this.resourceId,task_id:this.taskId})});
         this.join_id=(await r.json()).data.join_id;}},
@@ -68,6 +68,22 @@ async (page) => {
     const record=await worker.evaluate(async key=>(await chrome.storage.local.get(key))[key],cacheKey);
     if(record.ids.length!==5 || JSON.stringify(record).includes('answer'))throw new Error('Persisted answers or incomplete lazy preview');
     const joins=requests.filter(r=>r.path.endsWith('/join')).length;
+    // Real Vue Router navigation between two books retains numeric IDs.
+    await book.evaluate(() => {
+      vm.classifyId=228976328;
+      history.pushState({},'',location.pathname.replace('/123','/228976328')+location.search);
+    });
+    await book.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===3 && vm.classifyId===228976328);
+    await book.waitForFunction(()=>document.querySelector('[data-xet-question-order-id]'));
+    await book.waitForTimeout(150);
+    if(requests.filter(r=>r.path.endsWith('/join')).length!==joins)throw new Error('Switching numeric book IDs repeated extraction despite cache');
+    await book.evaluate(()=>{vm.classifyId=999;});
+    await book.waitForFunction(()=>document.querySelector('.xet-question-order-hint')?.textContent.includes('无法识别原题号'));
+    if(await book.locator('.xet-question-order-hint').count()!==1 ||
+       await book.locator('.xet-question-order-hint').getAttribute('role')!=='status')throw new Error('Missing or duplicate accessible identity-failure feedback');
+    if(requests.filter(r=>r.path.endsWith('/join')).length!==joins)throw new Error('A mismatched book opened a new attempt');
+    await book.evaluate(()=>{vm.classifyId=228976328;});
+    await book.waitForFunction(()=>!document.querySelector('.xet-question-order-hint'));
     await book.reload();
     await book.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===3);
     if(requests.filter(r=>r.path.endsWith('/join')).length!==joins)throw new Error('Cached revisit opened another attempt');
@@ -90,6 +106,7 @@ async (page) => {
     if(requests.some(r=>!['/xe.practice.bff/task/answer.config.get/1.0.0','/evaluation_wechat/practices/join','/evaluation_wechat/practices/commit_record'].includes(r.path)))throw new Error('Unexpected write endpoint');
     if(errors.length)throw new Error(errors.join('; '));
     return {autoNumbering:['1.','2.','4.'],fullPaperCount:record.ids.length,
+      numericBookIds:true,numericBookNavigation:true,mismatchRejectedWithFeedback:true,feedbackRecovery:true,
       coalescedJoinCount:joins,cachedReloadNewJoins:0,helpersClosed:helpers.every(p=>p.isClosed()),
       randomSkipped:true,networkFailureCleaned:true,errors};
   } finally {

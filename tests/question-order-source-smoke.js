@@ -23,6 +23,26 @@ async function main() {
   const snapshot = JSON.parse(JSON.stringify(readQuestionOrderContext(bookKey)));
   assert.deepEqual(snapshot.questions, [{ id: "qs_1", taskId: "pt_fixture" }, { id: "qs_2", taskId: "pt_fixture" }]);
   assert.ok(!JSON.stringify(snapshot).includes("secret"));
+  // In-site Vue Router navigation preserves numeric API IDs, whereas direct
+  // URL navigation yields strings. Same book, same validation, either way.
+  for (const classifyId of [123, "123"]) {
+    instance.classifyId = classifyId;
+    assert.deepEqual(JSON.parse(JSON.stringify(readQuestionOrderContext(bookKey))), snapshot,
+      `Matching ${typeof classifyId} book ID must be accepted`);
+  }
+  for (const classifyId of [124, "124", null, undefined, true, [], [123],
+    { toString: () => "123" }, 123.5, -123, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    instance.classifyId = classifyId;
+    assert.equal(readQuestionOrderContext(bookKey), null, "Different or invalid book IDs must still fail closed");
+  }
+  instance.classifyId = 228976328;
+  context.location.href = `${origin}/p/t_pc/pc_evaluation/errbook/detail/228976328?tab=1&source_id=wb_course_fixture`;
+  assert.ok(readQuestionOrderContext("/p/t_pc/pc_evaluation/errbook/detail/228976328|wb_course_fixture|||1"),
+    "Regression for the reported numeric book ID");
+  instance.classifyId = "123"; context.location.href = `${origin}${bookPath}?tab=1&source_id=wb_course_fixture`;
+  instance.sourceId = "wb_other_source";
+  assert.equal(readQuestionOrderContext(bookKey), null, "ID normalization must not bypass source validation");
+  instance.sourceId = "wb_course_fixture";
   cards.reverse();
   assert.deepEqual(Array.from(readQuestionOrderContext(bookKey).cardIds), ["qs_2", "qs_1"], "card identity follows Vue keys, not DOM indexes");
   assert.equal(readQuestionOrderContext(bookKey + "stale"), null);
