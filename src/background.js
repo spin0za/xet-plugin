@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   keepAliveEnabled: false,
   keepAliveUrl: "",
   keepAliveLastActivityAt: 0,
+  questionOrderStrategy: "direct",
 };
 
 const KEEP_ALIVE_ALARM = "xet-keep-alive";
@@ -21,6 +22,8 @@ let keepAliveController = null;
 let keepAliveGeneration = 0;
 const contentRepairRequests = new Map();
 const questionOrderJobs = globalThis.XetQuestionOrderJobs?.create({ siteAccess, readSettings,
+  resolveContext: globalThis.XetQuestionOrderSource.resolve });
+const questionOrderDirect = globalThis.XetQuestionOrderDirect?.create({ siteAccess, readSettings,
   resolveContext: globalThis.XetQuestionOrderSource.resolve });
 
 async function recordBackgroundError(operation, error) {
@@ -378,6 +381,9 @@ chrome.runtime.onStartup.addListener(async () => {
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name.startsWith("xetQuestionOrderDirect:")) {
+    return runBackgroundTask("direct-question-order-timeout", () => questionOrderDirect.alarm(alarm));
+  }
   if (alarm.name.startsWith("xetQuestionOrderJob:")) {
     return runBackgroundTask("question-order-timeout", () => questionOrderJobs.alarm(alarm));
   }
@@ -387,8 +393,9 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === "local" && changes.disabledSites) {
+  if (area === "local" && (changes.disabledSites || changes.questionOrderStrategy)) {
     void runBackgroundTask("cancel-question-order-jobs", () => questionOrderJobs?.settingsChanged());
+    void runBackgroundTask("cancel-direct-question-order", () => questionOrderDirect?.settingsChanged());
   }
   if (
     area === "local" &&
@@ -408,13 +415,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       globalThis.XetPracticeUndoSource.resolve(message, sender, { siteAccess, readSettings }));
   }
   if (message?.type === "xet:question-order-auto-load") {
-    return respond(sendResponse, "auto-load-question-order", () => questionOrderJobs.start(message, sender));
+    return respond(sendResponse, "auto-load-question-order", async () =>
+      ((await readSettings()).questionOrderStrategy === "tabs" ? questionOrderJobs : questionOrderDirect).start(message, sender));
   }
   if (message?.type === "xet:question-order-job-finish") {
     return respond(sendResponse, "finish-question-order-job", () => questionOrderJobs.finish(message, sender));
   }
   if (message?.type === "xet:question-order-job-status") {
-    return respond(sendResponse, "question-order-job-status", () => questionOrderJobs.status(message, sender));
+    return respond(sendResponse, "question-order-job-status", async () =>
+      ((await readSettings()).questionOrderStrategy === "tabs" ? questionOrderJobs : questionOrderDirect).status(message, sender));
   }
   if (message?.type === "xet:question-order-context") {
     return respond(sendResponse, "read-question-order-context", () =>
@@ -449,9 +458,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 chrome.tabs.onRemoved?.addListener(tabId => {
   void runBackgroundTask("remove-question-order-job", () => questionOrderJobs?.removed(tabId));
+  void runBackgroundTask("remove-direct-question-order", () => questionOrderDirect?.removed(tabId));
 });
 chrome.tabs.onUpdated?.addListener((tabId, change) => {
   void runBackgroundTask("advance-question-order-helper", () => questionOrderJobs?.updated(tabId, change));
+  void runBackgroundTask("cancel-navigated-direct-question-order", () => questionOrderDirect?.updated(tabId, change));
 });
 
 void runBackgroundTask("initialize-settings", async () => {

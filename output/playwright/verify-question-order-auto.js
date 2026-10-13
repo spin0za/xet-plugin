@@ -58,7 +58,7 @@ async (page) => {
   };
   try {
     await clearCache();
-    await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false}));
+    await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false,questionOrderStrategy:'tabs'}));
     await Promise.all([book.goto(bookURL),second.goto(bookURL)]);
     await book.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===3);
     await second.waitForFunction(()=>document.querySelectorAll('[data-xet-original-question-number]').length===3);
@@ -114,5 +114,6 @@ async (page) => {
     context.off('page',watch); await context.unroute(`${origin}/**`);
     for(const helper of context.pages())if(helper.url().startsWith(origin)&&helper.url().includes('xet_order_job=')&&!helper.isClosed())await helper.close();
     await book.close(); await second.close();
+    await worker.evaluate(()=>chrome.storage.local.set({questionOrderStrategy:'direct'}));
   }
 }

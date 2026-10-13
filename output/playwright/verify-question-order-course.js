@@ -36,7 +36,7 @@ async (page) => {
       },
       methods:{async toPractice(){const r=await fetch('/evaluation_wechat/practices/join',{
         method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({practice_id:this.practiceId,task_id:this.taskId,
-          gen_config:{question_mode:this.questionMode,answer_num_mode:this.answerNumMode,practice_num:this.taskInfo.task_total_qs}})});
+          gen_config:{random_setting:this.questionMode,practice_mode:0,practice_num:this.taskInfo.task_total_qs}})});
         const data=await r.json();if(data.code===0)location.replace('/p/t_pc/pc_evaluation/practice_sheet/${source}?task_id='+this.taskId);}},
       template:book?'<div class="errbook-detail-page"><div class="question-list"><div v-for="q in questionList" :key="q.id" class="question-card"><div class="card-body">{{q.content}}</div></div></div></div>':
         config?'<div class="practice-config">Native configuration waiting to start</div>':'<div class="practice-sheet">Original practice</div>'});
@@ -54,7 +54,7 @@ async (page) => {
     if(path==='/evaluation_wechat/practices/join'){
       if(payload.task_id!==task)throw new Error('Opening a taskless course must not create an invalid attempt');
       if(payload.gen_config){
-        if(JSON.stringify(payload.gen_config)!==JSON.stringify({question_mode:0,answer_num_mode:0,practice_num:34}))throw new Error('Not a fixed full paper');
+        if(JSON.stringify(payload.gen_config)!==JSON.stringify({random_setting:0,practice_mode:0,practice_num:34}))throw new Error('Not a fixed full paper');
         starts++;attempt=true;
       }
       return route.fulfill({json:attempt?{code:0,data:{join_id:'uwb_fixture'}}:{code:100,data:{}}});
@@ -78,7 +78,7 @@ async (page) => {
   const book=await context.newPage(),manual=await context.newPage();
   try{
     await worker.evaluate(key=>chrome.storage.local.remove(key),cacheKey);
-    await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false}));
+    await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[],keepAliveEnabled:false,questionOrderStrategy:'tabs'}));
     await manual.goto(origin+`/p/t_pc/pc_evaluation/practiceConfig/${source}?task_id=${task}`);
     await manual.waitForFunction(()=>vm.taskInfo.task_total_qs===34);
     await book.goto(bookURL);
@@ -114,5 +114,6 @@ async (page) => {
     context.off('page',watch);
     for(const helper of helpers)if(!helper.isClosed())await helper.close();
     await book.close();await manual.close();await context.unroute(`${origin}/**`);
+    await worker.evaluate(()=>chrome.storage.local.set({questionOrderStrategy:'direct'}));
   }
 }

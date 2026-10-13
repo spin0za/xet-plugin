@@ -86,7 +86,7 @@ async (page) => {
     else history.back();
   }),action);
   try {
-    await worker.evaluate(async ({cacheKey,retained}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({...retained,disabledSites:[],keepAliveEnabled:false}); },{cacheKey,retained});
+    await worker.evaluate(async ({cacheKey,retained}) => { await chrome.storage.local.remove(cacheKey); await chrome.storage.local.set({...retained,disabledSites:[],keepAliveEnabled:false,questionOrderStrategy:'tabs'}); },{cacheKey,retained});
     await fixture.goto(origin+bookPath);
     await fixture.locator('.xet-question-order-hint').waitFor({timeout:10000});
     if (JSON.stringify(await displayed())!==JSON.stringify(wrong) || await fixture.locator('[data-xet-original-question-number]').count()) throw new Error('Missing mappings fabricated an ordinal');
@@ -252,5 +252,6 @@ async (page) => {
     },origin);
     await worker.evaluate(keys=>chrome.storage.local.remove(keys),[cacheKey,conflictKey,...Object.keys(retained)]);
     await disable(false); await context.unroute(`${origin}/**`);
+    await worker.evaluate(()=>chrome.storage.local.set({questionOrderStrategy:'direct'}));
   }
 }

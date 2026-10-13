@@ -30,12 +30,13 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 错题本列表的浏览器标签标题取自页面顶部标题文字，随加载和页面标题变化更新，不硬编码名称；练习记录页使用“练习记录”作为标签标题，不受内部页签、筛选条件影响。离开对应页面或停用插件时恢复网站标题。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
 - 题干与选项中从富文本带入的特殊字体统一继承页面默认字体，覆盖原练习、背题、解析和错题本；去掉覆盖整段题目文字的导入加粗，保留局部强调、斜体、下划线及字号，不修改题目内容，公式和控件字体保持不变。
-- 错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。有本地记录时立即显示；缺少记录时，插件自动在后台打开对应的固定顺序原练习，读取完整题序、保存后关闭，不抢焦点，也不答题或交卷。与手动打开练习一样，网站可能新增或恢复答题记录。随机出题或无法对应的题目不猜填题号，不保存答案。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
+- 错题本列表显示原题号，并按原题顺序排列，搜索与管理操作保持不变。有本地记录时立即显示；缺少记录时，默认从当前错题本页面直接请求网站接口，读取完整题序并保存，不打开练习页面、不新增标签页，也不答题或交卷。优先恢复未交卷记录，网站确认已交卷后才按固定顺序、完整题数开始新记录；因此仍可能新增正常答题记录。随机出题、受限或无法对应的题目不猜填题号，不保存答案。题号记录不设组数上限，不因新练习增加而自动淘汰；同一练习任务更新原记录，仍受 Chrome 本地存储总额度约束。
 - 题号读取使用完整练习记录接口，无需逐题滚动加载。错题缺少任务 ID 时，可从同网站、同原练习的已验证记录中补全无冲突的题号；只有能够确认同一完整顺序时才合并排序，存在冲突时不猜填。
-- 错题本未提供课程任务 ID 时，先通过网站自身的练习信息接口补全；支持网站以 `-1` 表示默认固定顺序。原练习跳转到配置页时，只在插件创建的未激活后台页中调用网站原有的固定顺序、完整题数开始操作；不操作手动打开的配置页。无法验证来源或固定顺序时明确提示，不反复创建答题记录。
+- 错题本未提供课程任务 ID 时，先通过网站自身的练习信息接口补全；支持网站以 `-1` 表示默认固定顺序。纯接口取号验证恢复记录的实际顺序与完整题数，不重建或改变用户已有的随机、部分题数或背题记录。无法验证来源或顺序时明确提示，不自动改用标签页、不反复创建答题记录。
 - 同一网站、原练习和任务的完整题号一旦保存，之后手动打开练习或解析也直接复用，不重复查询配置、提取题序或改写记录；不同答题记录共用题号。首次读取失败仍可重试，缓存缺失或损坏时重新读取；不影响网站正常加载题目的请求。
 - 本地题号表提前读取，当前页面内复用匹配索引；题目就绪、历史返回或记录更新后立即显示，无固定重试冷却等待。加载状态变化也会触发更新，停用后清理监听与内存缓存。
-- 同一网站、原练习和任务的后台读取共用一个标签页；加载失败或两分钟超时后清理，停用网站时取消。任务状态保存在浏览器会话中，可跨后台进程重启恢复。用户主动激活或导航的标签页不再自动关闭。只使用已有的网站授权，不新增浏览器权限。
+- 同一网站、原练习和任务的后台读取共用一个请求任务；停用网站、离开页面、关闭页面或两分钟超时时取消。任务状态、创建请求意图与已取得的记录 ID 保存在浏览器会话中，可跨后台进程重启恢复；创建响应丢失时不盲目重复创建。只使用已有的网站授权与登录状态，不读取 Cookie，不新增浏览器权限。
+- 旧后台标签页方案暂时保留为开发者回退路径，默认不启用；不会在接口失败后自动弹出标签。开发者可在扩展后台控制台设置 `chrome.storage.local.set({questionOrderStrategy: "tabs"})` 后刷新错题本，恢复时改为 `"direct"`。这不是普通功能开关，待新路径实际使用确认后再移除旧实现。
 - 支持点击播放器画面播放或暂停，不影响进度条、音量、倍速和全屏按钮；播放时静止约 3 秒后隐藏控件，移动鼠标或暂停时显示。
 - 普通课程、解析视频及直播/回放的全屏按钮与 `F` 使用相同入口；全屏和网页全屏均保留各播放器原有控件（倍速、音量、线路等），不替换为 Chrome 原生控件。移除移动端播放器覆盖整幅画面的渐变遮罩，退出后保留播放控件。
 - 在原生全屏和插件管理的网页全屏之间单次按键无缝切换；网页全屏使用黑色背景、隐藏网站导航及其他页面控件、保留底部播放控件，并在窗口尺寸变化时保持视频完整显示。
@@ -115,6 +116,7 @@ node tests/question-order-resolution-smoke.js
 node tests/question-order-performance-smoke.js
 node tests/question-order-cache-smoke.js
 node tests/question-order-jobs-smoke.js
+node tests/question-order-direct-smoke.js
 node tests/frame-policy-smoke.js
 node tests/volume-smoke.js
 node tests/playback-rate-smoke.js
@@ -151,12 +153,12 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Derives the error-book list's browser-tab title from its page heading without hardcoded labels. The practice-record overview uses “练习记录” as its tab title, independent of inner tabs and filters. Leaving either page or disabling the extension restores the site's title.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
-- Displays original numbers and ordering in the error book without changing search or management. Cached numbers appear immediately; missing mappings automatically open a matching fixed-order practice in an inactive background tab, save the full question order, and close the helper without answering or submitting. Like manually opening a practice, this may create or resume an attempt on the site. Randomized or unmatched questions are never assigned guessed numbers, and answers are not stored. Mappings have no count limit or automatic eviction, subject to Chrome's total local-storage quota.
+- Displays original numbers and ordering in the error book without changing search or management. Cached numbers appear immediately; missing mappings use same-origin site requests from the current book, without loading a practice page or opening a tab. Unfinished attempts are resumed; confirmed submitted attempts may start one fixed/full unanswered record. Random, partial, restricted or unmatched orders are never guessed, and answers are not stored. Mappings have no count limit or automatic eviction, subject to Chrome's total local-storage quota.
 - Reads full practice records without scrolling through lazy-rendered questions. Missing task IDs can recover unambiguous numbers from verified mappings for the same merchant and source; sorting requires a confirmed common full order, and conflicts are never guessed.
-- Resolves missing course task IDs using the site's practice-info endpoint and recognizes its `-1` default-fixed setting. Native redirects to practice configuration are continued only inside the extension's inactive helper using the site's fixed, full-paper start action; manually opened configuration pages are untouched. Unverified source/order metadata receives explicit feedback without repeatedly creating attempts.
+- Resolves missing course task IDs using the site's practice-info endpoint and recognizes its `-1` default-fixed setting. Direct requests verify the resumed attempt's actual generation settings and full length without replacing an existing random, partial or rote attempt. Unverified metadata receives explicit feedback without automatically opening a helper or repeatedly creating attempts.
 - Preloads local numbering and reuses lookup indexes within the page. Readiness, history return and mapping updates trigger rendering without a fixed retry cooldown; reactive loading changes are detected, and disabling cleans up watchers and memory caches.
 - Once a complete order is saved for an exact merchant/practice/task, manual practice and analysis visits reuse it across attempts without repeating config/order queries or rewriting the record. Failed captures remain retryable; missing or invalid mappings are recaptured. The site's normal question-loading requests are unaffected.
-- Concurrent error-book pages share one helper per merchant, source and task. Session-backed jobs survive worker restarts and clean up on failure, a two-minute deadline or site disable. Helpers activated or navigated by the user are not automatically closed. Existing site grants suffice; no new permissions are required.
+- Concurrent error-book pages share one request job per merchant, source and task. Session-backed state preserves mutation intent and returned record IDs across worker restarts; uncertain creation responses are never blindly replayed. Site disable, navigation, tab closure and a two-minute deadline cancel pending work. Existing site grants and authentication suffice; no cookie-reading or new permissions are required. The legacy tab strategy remains an explicit developer rollback (`questionOrderStrategy: "tabs"` in extension local storage); default `"direct"` never falls back to tabs automatically.
 - Clicking the player picture toggles playback without interfering with its controls. Controls hide after about three idle seconds during playback and reappear on mouse movement or pause.
 - Makes the fullscreen button and `F` use the same entry point for course, analysis, live and replay players. Native and page fullscreen preserve each player's existing controls (speed, volume, stream selection, etc.) rather than replacing them with Chrome's native controls. Removes the mobile skin's full-picture gradient overlay and keeps playback controls after exiting.
 - Switches directly between native fullscreen and extension-managed page fullscreen with one keystroke. Page fullscreen uses a black backdrop, hides the site's navigation and surrounding page controls, keeps the playback controls at the bottom, and preserves the complete video while the window is resized.
@@ -304,6 +306,7 @@ output/playwright/
   verify-question-order.js
   verify-question-order-auto.js
   verify-question-order-course.js
+  verify-question-order-direct.js
   verify-quality-lifecycle.js
   verify-highest-quality.js
   verify-quality-preference.js
@@ -322,6 +325,7 @@ tests/
   question-order-performance-smoke.js
   question-order-cache-smoke.js
   question-order-jobs-smoke.js
+  question-order-direct-smoke.js
   question-typography-smoke.js
   frame-policy-smoke.js
   volume-smoke.js
@@ -374,6 +378,10 @@ tests/
 
 `verify-question-order-course.js` reproduces all-taskless course cards, the site's `-1` fixed default, native configuration redirects and lost job markers. It verifies the full 34-question mapping, seven ordinals, one native start, owned-helper cleanup, untouched manual configuration and zero-request cache revisits. Headless document visibility is modeled in the fixture; actual tab activation and MV3 extension code remain real. Unit tests additionally cover capture-before-marker restoration, paused background frames and terminal failure feedback.
 
+`question-order-direct-smoke.js` 验证实际网站的纯接口参数、恢复与新建记录、完整顺序校验、不保存答案、并发去重、页面离开和网站停用取消、后台重启及响应丢失时不重复创建。`verify-question-order-direct.js` 使用独立真实 MV3 扩展、Vue 2 错题本与模拟接口，端到端验证 22/34 题题号、同时打开两个错题本时只创建一次、缓存再次访问零请求、恢复背题模式不改变配置、失败提示以及全程零新标签、零练习页面加载；旧方案回归显式切换到 `"tabs"`，测试结束恢复默认 `"direct"`。
+
+`question-order-direct-smoke.js` covers native direct API payloads, resume/new generation, full-only IDs, coalescing, cancellation, worker restarts and uncertain mutation responses. `verify-question-order-direct.js` uses real MV3/Vue 2 with isolated synthetic APIs to verify 22/34-question numbering, one generation across concurrent books, zero-request cache revisits, preserved existing rote mode, failure feedback, zero new tabs and zero practice-page loads. Legacy integration tests explicitly select `"tabs"` and restore default `"direct"` on completion.
+
 `verify-question-typography.js` 使用独立真实扩展配置，验证题干及选项的导入字体统一、强调与字号保留、公式和控件排除、动态内容、页面切换以及停用后的字体恢复，不读取或修改真实练习答案。
 
 `verify-question-typography.js` uses an isolated real-extension profile to verify imported question and option fonts, preservation of emphasis and sizes, formula and control exclusions, dynamic content, route changes and restoration on site disable. It never reads or changes real practice answers.
@@ -398,7 +406,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.16.1**
+Current version: **1.17.6**
+
+1.17.6：默认通过网站接口读取错题本完整原题号，不打开练习页面或新增标签；优先恢复已有记录，并保护已有随机、部分题数和背题设置。补齐请求去重、取消、后台重启与创建响应丢失的安全处理；旧标签页方案暂时保留，失败不自动回退。
+
+1.17.6: Defaults to direct site requests for full error-book numbering without practice-page loads or new tabs. Preserves existing attempts/settings, adds coalescing, cancellation and mutation-safe restart recovery, and retains the legacy tab strategy without automatic fallback.
 
 1.16.1：手动打开练习或解析时优先复用同一网站、原练习和任务的完整题号缓存，跳过重复查询与保存；不同答题记录共享映射，失败或缓存缺失、损坏仍可重读。
 
