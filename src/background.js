@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-marks-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -410,6 +410,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:practice-marks") {
+    return respond(sendResponse, "protect-practice-marks", () =>
+      globalThis.XetPracticeMarksSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:practice-undo") {
     return respond(sendResponse, "practice-undo", () =>
       globalThis.XetPracticeUndoSource.resolve(message, sender, { siteAccess, readSettings }));

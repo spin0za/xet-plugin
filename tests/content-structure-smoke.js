@@ -14,6 +14,7 @@ const expectedScripts = [
   "src/content/analysis-icons.js",
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
+  "src/content/practice-marks.js",
   "src/content/practice-undo.js",
   "src/content/page-title.js",
   "src/content/text-selection.js",

@@ -338,6 +338,10 @@ tests/
 
 ## 真实扩展集成测试 / Real extension integration test
 
+`practice-marks-smoke.js` 和真实 MV3 夹具 `verify-practice-marks.js` 复现网站交卷后清空 `is_marked`，验证做题/背题模式、保存中的标记、取消标记、交卷去重、恢复后再跳转、解析按钮及答题卡角标、刷新保留、不同答题记录隔离、恢复失败重试、响应不明确时不重交，以及停用后的原生方法恢复。答题接口使用模拟数据，不操作个人答案。
+
+`practice-marks-smoke.js` and the real MV3 fixture `verify-practice-marks.js` reproduce submission clearing `is_marked` and verify both practice modes, pending/canceled marks, duplicate-submit protection, restoration before navigation, analysis buttons/badges, reload persistence, attempt isolation, restore retries, uncertain-write safety, and cleanup on disable using synthetic APIs.
+
 `verify-page-title.js` 验证错题本标签标题的 DOM 提取、延迟加载、动态改名，以及练习记录页标题、内部页签切换、网站清空标题、单页导航、后台更新与停用恢复；同样使用独立的真实 MV3 测试配置及模拟页面。
 
 `verify-page-title.js` checks DOM-derived error-book titles, delayed and changed headings, the practice-record title and inner-tab changes, site title resets, SPA navigation, background-safe updates and restoration on disable in an isolated MV3 profile with fixture pages.
@@ -406,7 +410,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.17.6**
+Current version: **1.17.7**
+
+1.17.7：修复网站交卷接口清空题目标记的问题：交卷前读取已保存的标记，交卷成功后恢复到同一答题记录，再进入结果页。等待正在保存的标记，防止重复交卷；恢复失败可单独重试，交卷结果不明确时不自动重交。不改答案、不新增权限或本地题目标记缓存。
+
+1.17.7: Preserves server-saved question marks across submission by restoring them on the same attempt before opening the result. Waits for pending marks, coalesces duplicate submissions, retries restoration independently, and never resubmits an uncertain write. No answer changes, new permissions, or local mark cache.
 
 1.17.6：默认通过网站接口读取错题本完整原题号，不打开练习页面或新增标签；优先恢复已有记录，并保护已有随机、部分题数和背题设置。补齐请求去重、取消、后台重启与创建响应丢失的安全处理；旧标签页方案暂时保留，失败不自动回退。
 
