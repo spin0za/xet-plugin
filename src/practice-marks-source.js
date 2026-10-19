@@ -64,6 +64,26 @@
         }));
       }
     }
+    async function rememberSubmission(saved) {
+      if (saved.historySaved) return;
+      // The isolated bridge asks the worker to re-read this confirmed state.
+      // Wait for persistence before navigation; the event never carries answers.
+      const result = await new Promise(resolve => {
+        const done = event => {
+          let value; try { value = JSON.parse(event.detail); } catch { return; }
+          if (value?.joinId !== joinId) return;
+          clearTimeout(timer); window.removeEventListener("xet:practice-history-saved", done); resolve(value);
+        };
+        const timer = setTimeout(() => {
+          window.removeEventListener("xet:practice-history-saved", done); resolve(null);
+        }, 4000);
+        window.addEventListener("xet:practice-history-saved", done);
+        window.dispatchEvent(new CustomEvent("xet:practice-submitted", { detail: joinId }));
+      });
+      saved.historySaved = Boolean(result?.ok);
+      if (!result?.ok) feedback("已交卷，但插件未能保存本次记录，请保留结果页并稍后重试");
+      else if (!result.synced) feedback("交卷记录已保存在本机，Chrome 同步暂未完成，请在练习记录中重试");
+    }
     function protectedReport(...args) {
       if (!live()) return originalReport.apply(this, args);
       if (state.work) return state.work;
@@ -87,6 +107,7 @@
                 practice_id: resourceId, join_id: joinId, task_id: task, practice_mode: v.practiceMode,
               });
               saved.reported = true; saved.uncertain = false;
+              saved.submittedAt = Date.now();
               v.hasPracticeSubmit = true;
             } catch (error) {
               // A rejected write is safe to retry. A lost response is not:
@@ -95,7 +116,9 @@
             }
           }
           const saved = state.recovery;
+          if (saved.reported) await rememberSubmission(saved);
           await restore(saved);
+          if (saved.reported && !saved.historySaved) return;
           if (!saved.reported) {
             feedback("交卷结果暂无法确认，标记已恢复，请先查看练习记录"); return;
           }

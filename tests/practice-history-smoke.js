@@ -34,7 +34,7 @@ async function main() {
     'Resource updates and elapsed durations cannot stand in for an attempt timestamp');
   const ui=fs.readFileSync('src/content/practice-history.js','utf8');
   assert.doesNotMatch(ui,/网站未提供/,'Unknown times must not have a placeholder row');
-  assert.match(ui,/if \(record\.startedAt\)/);
+  assert.match(ui,/if \(record\.submittedAt \|\| record\.startedAt\)/);
   for (const value of [{ ...record, resourceId:42 }, { ...record, joinId:'../join' }, { ...record, taskId:'x&evil=y' }]) {
     assert.equal(data.normalize(value), null);
     assert.equal(await data.save(storage, origin, 'user_one', value), false);
@@ -71,6 +71,31 @@ async function main() {
   disabled=true;assert.equal((await api.resolve({key,action:'read'},sender,deps)).ok,false);
   assert.equal((await api.resolve({key,action:'read'},{...sender,frameId:1},deps)).ok,false);
   assert.equal((await api.resolve({key,action:'navigate'},sender,deps)).ok,false);
+  const cloudEntries = {}, cloud = { async get(k) {return k === null ? {...cloudEntries} : {[k]:cloudEntries[k]};},
+    async set(v) {Object.assign(cloudEntries,plain(v));} };
+  const submittedAt=Date.now();
+  await data.save(storage,origin,'user_one',{...record,submittedAt});
+  assert.equal((await data.synchronize(storage,cloud,origin,'user_one')).synced,true);
+  const emptyLocal={async get(){return{};},async set(){}};
+  assert.equal((await data.loadBoth(emptyLocal,cloud,origin,'user_one')).length,2,'Another device loads cloud-only records');
+  assert.equal((await data.loadBoth(emptyLocal,cloud,origin,'user_two')).length,0,'Cloud account partition');
+  await data.save(storage,origin,'user_one',{...record,submittedAt:submittedAt+10000});
+  assert.equal((await data.load(storage,origin,'user_one'))[0].submittedAt,submittedAt,'Revisits cannot overwrite confirmation time');
+  const unavailable={async get(){throw Error('offline');},async set(){throw Error('QUOTA_BYTES');}};
+  assert.equal((await data.synchronize(storage,unavailable,origin,'user_one')).synced,false);
+  assert.equal((await data.load(storage,origin,'user_one')).length,2,'Quota errors cannot evict local history');
+  assert.equal(data.normalize({...record,submittedAt:'2026-10-19'}).submittedAt,0);
+  assert.equal(data.normalize({...record,commit_time:submittedAt,updated_at:submittedAt}).submittedAt,0,'Do not infer dates');
+  sourceEnv.location.href=origin+'/p/t_pc/pc_evaluation/practice_sheet/wb_course_fixture?task_id=task_fixture';
+  const sheet={resourceId:'wb_course_fixture',join_id:'join_submission',taskId:'task_fixture',course_id:'course_fixture',practiceTitle:'题目'};
+  sourceEnv.document.querySelector=()=>({__vue__:sheet});
+  const sheetKey=new URL(sourceEnv.location.href).pathname+'?task_id=task_fixture';
+  assert.equal(api.readContext(sheetKey,'capture'),null,'Unconfirmed sheet is not a record');
+  sourceEnv.window.__xetPracticeMarks={active:true,owner:sheet,joinId:sheet.join_id,recovery:{reported:false,submittedAt}};
+  assert.equal(api.readContext(sheetKey,'capture'),null);
+  sourceEnv.window.__xetPracticeMarks.recovery.reported=true;
+  assert.equal(api.readContext(sheetKey,'capture').submittedAt,submittedAt);
+  assert.equal(api.readContext(sheetKey,'read'),null,'Do not capture merely opening a sheet');
   console.log('practice history scope, safe result links, dates, multi-attempt storage and read-only source smoke test passed');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});

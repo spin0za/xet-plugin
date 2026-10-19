@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {

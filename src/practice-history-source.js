@@ -8,6 +8,16 @@
       !window.USERID.includes("anonymous") ? window.USERID : "";
     const clean = value => typeof value === "string" && id.test(value) ? value : "";
     const text = value => typeof value === "string" ? value.slice(0, 1000) : "";
+    const sheet = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/practice_sheet\/([\w-]+)\/?$/);
+    if (sheet && action === "capture") {
+      const v = document.querySelector(".practice-sheet")?.__vue__, state = window.__xetPracticeMarks;
+      const saved = state?.recovery;
+      if (!account || !v || !state?.active || state.owner !== v || state.joinId !== v.join_id ||
+          v.resourceId !== sheet[1] || !clean(v.join_id) || !saved?.reported || !saved.submittedAt) return null;
+      return { kind: "attempt", key: expectedKey, account, resourceId: sheet[1], joinId: v.join_id,
+        taskId: clean(v.taskId), productId: clean(v.course_id || url.searchParams.get("product_id")),
+        title: text(v.practiceTitle || v.practice_title || document.title), submittedAt: saved.submittedAt };
+    }
     if (/^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(url.pathname)) {
       const page = document.querySelector(".practice-record-page");
       const stack = [page?.__vue__]; let v, count = 0;
@@ -22,7 +32,7 @@
         if (!v.loading && !v.noMore && typeof v.loadMore === "function") v.loadMore();
         return { kind: "loading" };
       }
-      if (action !== "read") return null;
+      if (!["read", "sync"].includes(action)) return null;
       const cards = [...page.querySelectorAll(".resource-card")];
       for (const card of cards) {
         card.removeAttribute("data-xet-history-row");
@@ -40,7 +50,7 @@
     }
     const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_result|practice_analysis)\/([\w-]+)\/?$/);
     const joinId = clean(url.searchParams.get("join_id"));
-    if (!match || !account || !joinId || action !== "read") return null;
+    if (!match || !account || !joinId || !["read", "capture"].includes(action)) return null;
     const root = document.querySelector(match[1] === "practice_analysis" ? ".practice-analysis" : ".practice-result");
     let node = root, v;
     while (node && !v) { v = node.__vue__; node = node.parentElement; }
@@ -52,9 +62,11 @@
       title: text(v.practice_title || v.practiceTitle || document.title), startedAt: null };
   }
 
+  // This is only an in-flight write lock; records themselves live in storage.
+  let writes = Promise.resolve();
   async function resolve(message, sender, { siteAccess, readSettings }) {
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0 ||
-        !["read", "more", "discover"].includes(message.action) || typeof message.key !== "string" || message.key.length > 1000) return { ok: false };
+        !["read", "more", "discover", "capture", "sync"].includes(message.action) || typeof message.key !== "string" || message.key.length > 1000) return { ok: false };
     const site = siteAccess.siteInfo(sender.url), settings = await readSettings();
     if (!site || settings.disabledSites.includes(site.origin) || !(await siteAccess.isAuthorized(site.origin))) return { ok: false };
     const target = sender.documentId ? { tabId: sender.tab.id, documentIds: [sender.documentId] }
@@ -64,6 +76,19 @@
     if (sender.documentId && result?.documentId !== sender.documentId) return { ok: false };
     const context = result?.result;
     if (!context) return { ok: false, reason: "not-ready" };
+    if (["capture", "sync"].includes(message.action)) {
+      if (!context.account || (message.action === "capture" ? context.kind !== "attempt" : context.kind !== "list")) return { ok: false };
+      const previous = writes;
+      const work = (async () => {
+        try { await previous; } catch { /* One failed write must not poison later submissions. */ }
+        const data = globalThis.__xetPlayerHelperModules.practiceHistoryData;
+        if (message.action === "capture" && !await data.save(chrome.storage.local, site.origin, context.account, context)) return { ok: false };
+        const status = await data.synchronize(chrome.storage.local, chrome.storage.sync, site.origin, context.account);
+        return { ok: true, ...status, context };
+      })();
+      writes = work;
+      return await work;
+    }
     if (message.action !== "discover") return { ok: true, context };
     if (context.kind !== "list" || !context.account) return { ok: false };
     // Recover links from already-open result/analysis pages; never open tabs,

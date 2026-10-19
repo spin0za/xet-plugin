@@ -21,7 +21,9 @@
     return { version: 1, resourceId: value.resourceId, joinId: value.joinId,
       taskId: value.taskId || "", productId: value.productId || "",
       title: typeof value.title === "string" ? value.title.slice(0, 1000) : "",
-      startedAt: startTime(value.startedAt) };
+      startedAt: startTime(value.startedAt),
+      submittedAt: typeof value.submittedAt === "number" && value.submittedAt > 946684800000 &&
+        value.submittedAt < 4102444800000 ? value.submittedAt : 0 };
   }
   function prefix(origin, account) {
     try {
@@ -48,7 +50,9 @@
     if (old && (old.resourceId !== record.resourceId || old.taskId && record.taskId && old.taskId !== record.taskId)) return false;
     const merged = { ...record, title: record.title || old?.title || "",
       productId: record.productId || old?.productId || "", taskId: record.taskId || old?.taskId || "",
-      startedAt: old?.startedAt || record.startedAt };
+      startedAt: old?.startedAt || record.startedAt,
+      submittedAt: old?.submittedAt && record.submittedAt ? Math.min(old.submittedAt, record.submittedAt)
+        : old?.submittedAt || record.submittedAt };
     if (JSON.stringify(old) !== JSON.stringify(merged)) await storage.set({ [key]: merged });
     return true;
   }
@@ -58,5 +62,39 @@
     return Object.entries(await storage.get(null)).filter(([key]) => key.startsWith(scope))
       .map(([key, value]) => { const r = normalize(value); return r && key === `${scope}${r.joinId}` ? r : null; }).filter(Boolean);
   }
-  modules.practiceHistoryData = Object.freeze({ startTime, normalize, prefix, resultUrl, save, load });
+  async function loadBoth(local, sync, origin, account) {
+    const records = await load(local, origin, account);
+    try {
+      for (const remote of await load(sync, origin, account)) {
+        const index = records.findIndex(r => r.joinId === remote.joinId);
+        if (index < 0) records.push(remote);
+        else {
+          const old = records[index];
+          if (old.resourceId !== remote.resourceId || old.taskId && remote.taskId && old.taskId !== remote.taskId) continue;
+          records[index] = { ...remote, title: old.title || remote.title, taskId: old.taskId || remote.taskId,
+            productId: old.productId || remote.productId, startedAt: old.startedAt || remote.startedAt,
+            submittedAt: old.submittedAt && remote.submittedAt ? Math.min(old.submittedAt, remote.submittedAt)
+              : old.submittedAt || remote.submittedAt };
+        }
+      }
+    } catch { /* Local records stay usable when Chrome Sync is unavailable. */ }
+    return records;
+  }
+  async function synchronize(local, sync, origin, account) {
+    const records = await loadBoth(local, sync, origin, account), scope = prefix(origin, account);
+    if (!scope) return { synced: false };
+    const values = Object.fromEntries(records.map(r => [scope + r.joinId, r]));
+    // Mirror remote records locally before attempting an upload. Never evict
+    // history to meet the sync quota, and never claim a failed upload succeeded.
+    const existing = await local.get(null);
+    const changed = Object.fromEntries(Object.entries(values).filter(([k, v]) => JSON.stringify(existing[k]) !== JSON.stringify(v)));
+    if (Object.keys(changed).length) await local.set(changed);
+    try {
+      const remote = await sync.get(null);
+      const updates = Object.fromEntries(Object.entries(values).filter(([k, v]) => JSON.stringify(remote[k]) !== JSON.stringify(v)));
+      if (Object.keys(updates).length) await sync.set(updates);
+      return { synced: true };
+    } catch { return { synced: false }; }
+  }
+  modules.practiceHistoryData = Object.freeze({ startTime, normalize, prefix, resultUrl, save, load, loadBoth, synchronize });
 })();

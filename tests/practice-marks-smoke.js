@@ -24,10 +24,18 @@ function setup(mode = 1) {
     } },
   };
   const nativeReport = v.handUpReport, nativeMark = v.updateQuestionMarkStatus;
-  const context = { URL, Promise, Set, AbortSignal, location: {
+  const context = { URL, Promise, Set, AbortSignal, Date, setTimeout, clearTimeout,
+    CustomEvent: class { constructor(type, init) { this.type = type; this.detail = init?.detail; } }, location: {
     href: `https://merchant.pc.xiaoe-tech.com${path}?task_id=task_fixture`, pathname: path,
   }, document: { querySelector: () => ({ __vue__: v }) },
-    window: { addEventListener(name, fn) { listeners.set(name, fn); }, removeEventListener(name, fn) {
+    window: { dispatchEvent(event) {
+      if (event.type === 'xet:practice-submitted') {
+        const saved = context.window.__xetPracticeMarks.recovery;
+        assert.equal(saved.reported, true); assert.ok(saved.submittedAt > 0);
+        calls.push({ endpoint:'local:history', submittedAt:saved.submittedAt, body:{} });
+        listeners.get('xet:practice-history-saved')?.({detail:JSON.stringify({joinId:event.detail,ok:true,synced:true})});
+      }
+    }, addEventListener(name, fn) { listeners.set(name, fn); }, removeEventListener(name, fn) {
       if (listeners.get(name) === fn) listeners.delete(name);
     } },
     async fetch(endpoint, options) {
@@ -85,6 +93,8 @@ async function main() {
     assert.equal(t.routes.length, 1);
     assert.equal(t.routes[0].query.join_id, "join_fixture");
     assert.equal(t.routes[0].query.task_id, "task_fixture");
+    assert.equal(t.calls.filter(c => c.endpoint === 'local:history').length, 1);
+    assert.ok(t.calls.findIndex(c => c.endpoint === 'local:history') < t.calls.findIndex(c => c.body.is_mark), 'Persist before restoring/navigating');
     assert.ok(!JSON.stringify(t.calls).includes("private answer"));
     t.api.protectPracticeMarks("stop", key);
     assert.equal(t.v.handUpReport, t.nativeReport);
@@ -114,12 +124,14 @@ async function main() {
     assert.equal(t.calls.filter(c => c.endpoint.endsWith("/report")).length, 1, "retry restores only, never resubmits");
     assert.equal(t.calls.filter(c => c.body.question_id === "qs_one").length, 1, "skip already restored marks");
     assert.equal(t.routes.length, 1);
+    assert.equal(t.calls.filter(c => c.endpoint === 'local:history').length, 1, 'Retry must not create another time');
   }
   {
     const t = setup(); t.flags.rejectReport = true;
     t.api.protectPracticeMarks("start", key);
     await t.v.handUpReport();
     assert.equal(t.calls.filter(c => c.body.is_mark).length, 0);
+    assert.equal(t.calls.filter(c => c.endpoint === 'local:history').length, 0, 'Rejected submissions have no time');
     t.flags.rejectReport = false;
     await t.v.handUpReport();
     assert.equal(t.routes.length, 1, "known rejection may safely be retried");
@@ -130,8 +142,29 @@ async function main() {
     await t.v.handUpReport(); await t.v.handUpReport();
     assert.equal(t.calls.filter(c => c.endpoint.endsWith("/report")).length, 1);
     assert.equal(t.routes.length, 0);
+    assert.equal(t.calls.filter(c => c.endpoint === 'local:history').length, 0, 'Lost responses must not invent confirmation');
     assert.equal(t.marks.qs_one, true);
     assert.ok(t.notices.every(n => n.includes("暂无法确认")));
+  }
+  {
+    const t = setup();
+    t.context.window.dispatchEvent = event => {
+      if (event.type === 'xet:practice-submitted') t.listeners.get('xet:practice-history-saved')?.({
+        detail:JSON.stringify({joinId:event.detail,ok:false})});
+    };
+    t.api.protectPracticeMarks('start',key);
+    await t.v.handUpReport();
+    const firstTime=t.context.window.__xetPracticeMarks.recovery.submittedAt;
+    assert.equal(t.routes.length,0,'A failed durable save must not discard the in-memory confirmation by navigating');
+    assert.ok(t.marks.qs_one && t.marks.qs_three,'History storage failure must not skip mark restoration');
+    t.context.window.dispatchEvent = event => {
+      if (event.type === 'xet:practice-submitted') t.listeners.get('xet:practice-history-saved')?.({
+        detail:JSON.stringify({joinId:event.detail,ok:true,synced:false})});
+    };
+    await t.v.handUpReport();
+    assert.equal(t.routes.length,1,'A durable local fallback may navigate even when sync is full');
+    assert.equal(t.context.window.__xetPracticeMarks.recovery.submittedAt,firstTime);
+    assert.equal(t.calls.filter(c=>c.endpoint.endsWith('/report')).length,1);
   }
   {
     const t = setup(); t.flags.badSnapshot = true;

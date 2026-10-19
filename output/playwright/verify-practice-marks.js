@@ -15,15 +15,15 @@ async (page) => {
     return `<main class="practice-analysis"><aside class="answer-card__content__card">${list.map((q,i)=>
       `<div class="answer-card__content__card__item"><span>${i+1}</span></div>`).join('')}</aside>
       ${list.map((q,i)=>`<section class="analysis-item" id="analysis-${i+1}"><header class="question-header"><div class="question-type">单选题</div></header></section>`).join('')}</main>
-      <script>document.querySelector('.practice-analysis').__vue__={resourceId:'${resource}',join_id:'${join}',practiceList:${JSON.stringify(list)}};</script>`;
+      <script>window.USERID='user_marks_fixture';document.querySelector('.practice-analysis').__vue__={resourceId:'${resource}',join_id:'${join}',practiceList:${JSON.stringify(list)}};</script>`;
   }
   function sheetHtml(mode) {
     return `<main class="practice-sheet"><h1>练习标记回归夹具</h1><button id="mark">标记第二题</button>
       <button id="cancel">取消第二题标记</button><button id="submit">交卷</button><div class="question-block__answer"><button id="answer">答案按钮</button></div></main>
       <script>
       const post=async(path,body)=>{const r=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json()};
-      window.nativeReports=0;window.answerClicks=0;window.flagWrites=0;
-      const v={resourceId:'${resource}',join_id:'join_marks_fixture',taskId:'${task}',course_id:'course_fixture',practiceMode:${mode},hasPracticeSubmit:false,
+      window.USERID='user_marks_fixture';window.nativeReports=0;window.answerClicks=0;window.flagWrites=0;
+      const v={resourceId:'${resource}',join_id:'join_marks_fixture',taskId:'${task}',course_id:'course_fixture',practiceTitle:'模拟练习',practiceMode:${mode},hasPracticeSubmit:false,
         $message:{error:text=>{window.lastNotice=text}},handleDeleteLocalStorage(){window.cleaned=true},
         async updateQuestionMarkStatus(id,value){return post('/xe.practice.bff/common/question.mark/1.0.0',{
           source_type:1,source_id:this.resourceId,join_id:this.join_id,question_id:id,is_mark:value?1:0})},
@@ -88,6 +88,12 @@ async (page) => {
       assert(await fixture.locator('#analysis-2 [data-xet-action=mark]').getAttribute('aria-pressed') === 'false', 'Canceled mark returned');
       assert(await fixture.evaluate(() => window.nativeReports) === 0, 'Unprotected native report also ran');
       assert(await fixture.evaluate(() => window.answerClicks) === 0, 'Changed an answer');
+      const saved=await worker.evaluate(async origin=>{
+        const k=`xetPracticeHistory:${origin}|user_marks_fixture|join_marks_fixture`;
+        return {local:(await chrome.storage.local.get(k))[k],sync:(await chrome.storage.sync.get(k))[k]};
+      },origin);
+      assert(saved.local?.submittedAt > 0 && saved.local.submittedAt === saved.sync?.submittedAt,'Submission not persisted locally and in sync');
+      assert(saved.sync.joinId==='join_marks_fixture' && saved.sync.taskId===task,'Wrong saved result identity');
       await fixture.reload();
       await fixture.waitForFunction(() => document.querySelectorAll('.xet-analysis-actions').length === 3);
       assert(await fixture.locator('.xet-analysis-card-mark').count() === 2, 'Reload lost server-restored marks');

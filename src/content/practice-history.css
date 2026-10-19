@@ -36,38 +36,56 @@
   line-height: 1.6 !important;
   -webkit-line-clamp: unset !important;
 }
-.practice-record-page[data-xet-history-list] .xet-history-details {
-  margin-block-start: 6px;
-  color: #666;
-  font-size: 14px;
-  line-height: 1.7;
+.practice-record-page[data-xet-history-results] .practice-history-tab .list-grid,
+.practice-record-page[data-xet-history-results] .practice-history-tab .list-empty,
+.practice-record-page[data-xet-history-results] .practice-history-tab .list-loading,
+.practice-record-page[data-xet-history-results] .practice-history-tab .scroll-footer {
+  display: none !important;
 }
-.practice-record-page[data-xet-history-list] .xet-history-attempts {
-  margin: 4px 0 0;
+.practice-record-page[data-xet-history-list] .xet-history-records {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
-.practice-record-page[data-xet-history-list] .xet-history-attempts li {
+.practice-record-page[data-xet-history-list] .xet-history-records li {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 20px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 16px 20px;
+  border-radius: 8px;
+  background: #f5f7fa;
+  line-height: 1.7;
 }
-.practice-record-page[data-xet-history-list] .xet-history-attempts a {
+.practice-record-page[data-xet-history-list] .xet-history-records span,
+.practice-record-page[data-xet-history-list] .xet-history-status {
+  font-size: 14px;
+  color: #666;
+}
+.practice-record-page[data-xet-history-list] .xet-history-status:empty { display: none; }
+.practice-record-page[data-xet-history-list] .xet-history-status { padding: 16px 0; }
+.practice-record-page[data-xet-history-list] .xet-history-status button {
+  color: #1472ff;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.practice-record-page[data-xet-history-list] .xet-history-records a {
+  display: block;
+  font-size: 16px;
+  overflow-wrap: anywhere;
   color: #1472ff;
   min-block-size: 28px;
   padding-block: 2px;
   text-decoration: none;
 }
-.practice-record-page[data-xet-history-list] .xet-history-attempts a:hover { text-decoration: underline; }
-.practice-record-page[data-xet-history-list] .xet-history-attempts a:focus-visible {
+.practice-record-page[data-xet-history-list] .xet-history-records a:hover { text-decoration: underline; }
+.practice-record-page[data-xet-history-list] .xet-history-records a:focus-visible,
+.practice-record-page[data-xet-history-list] .xet-history-status button:focus-visible {
   outline: 2px solid #1472ff;
   outline-offset: 3px;
 }
-.practice-record-page[data-xet-history-list] [data-xet-history-practice] .card-line {
-  display: none !important;
-}
-.practice-record-page[data-xet-history-list] [data-xet-history-practice="missing"] { cursor: default; }
 .practice-record-page[data-xet-history-list] .xet-history-more {
   display: block;
   margin: 16px auto;
