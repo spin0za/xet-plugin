@@ -10,6 +10,7 @@
     !modules.analysisLayout ||
     !modules.analysisActions ||
     !modules.practiceMarks ||
+    !modules.practiceHistory ||
     !modules.practiceUndo ||
     !modules.pageTitle ||
     !modules.textSelection ||
@@ -95,11 +96,12 @@
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const practiceUndo = modules.practiceUndo.createPracticeUndoController();
   const practiceMarks = modules.practiceMarks.createPracticeMarksController();
+  const practiceHistory = modules.practiceHistory.createPracticeHistoryController();
   const pageTitle = modules.pageTitle.createPageTitleController();
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
-  const pageFeatures = [analysisLayout, analysisActions, practiceMarks, practiceUndo, pageTitle,
+  const pageFeatures = [analysisLayout, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
     textSelection, questionTypography, questionOrder];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,

@@ -15,6 +15,8 @@ const expectedScripts = [
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
   "src/content/practice-marks.js",
+  "src/content/practice-history-data.js",
+  "src/content/practice-history.js",
   "src/content/practice-undo.js",
   "src/content/page-title.js",
   "src/content/text-selection.js",
@@ -31,7 +33,7 @@ const expectedScripts = [
 ];
 
 assert.deepEqual(registration.js, expectedScripts);
-assert.deepEqual(registration.css, ["src/content/fullscreen.css", "src/content/download.css", "src/content/analysis-actions.css", "src/content/practice-undo.css"]);
+assert.deepEqual(registration.css, ["src/content/fullscreen.css", "src/content/download.css", "src/content/analysis-actions.css", "src/content/practice-undo.css", "src/content/practice-history.css"]);
 
 for (const path of [...registration.js, ...registration.css]) {
   assert.ok(fs.existsSync(path), `${path} should exist`);

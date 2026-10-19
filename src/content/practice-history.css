@@ -1,0 +1,88 @@
+.practice-record-page[data-xet-history-list] .list-grid {
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  gap: 12px !important;
+}
+.practice-record-page[data-xet-history-list] .resource-card {
+  display: flex !important;
+  align-items: center;
+  inline-size: 100% !important;
+  min-inline-size: 0;
+  box-sizing: border-box;
+}
+.practice-record-page[data-xet-history-list] .resource-card__cover {
+  flex: 0 0 104px;
+  inline-size: 104px !important;
+  block-size: 72px !important;
+  margin-inline-start: 12px;
+  border-radius: 5px;
+}
+.practice-record-page[data-xet-history-list] .resource-card__cover img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+.practice-record-page[data-xet-history-list] .resource-card__info {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 16px !important;
+}
+.practice-record-page[data-xet-history-list] .resource-card__title {
+  white-space: normal !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  overflow-wrap: anywhere;
+  line-height: 1.6 !important;
+  -webkit-line-clamp: unset !important;
+}
+.practice-record-page[data-xet-history-list] .xet-history-details {
+  margin-block-start: 6px;
+  color: #666;
+  font-size: 14px;
+  line-height: 1.7;
+}
+.practice-record-page[data-xet-history-list] .xet-history-attempts {
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.practice-record-page[data-xet-history-list] .xet-history-attempts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 20px;
+}
+.practice-record-page[data-xet-history-list] .xet-history-attempts a {
+  color: #1472ff;
+  min-block-size: 28px;
+  padding-block: 2px;
+  text-decoration: none;
+}
+.practice-record-page[data-xet-history-list] .xet-history-attempts a:hover { text-decoration: underline; }
+.practice-record-page[data-xet-history-list] .xet-history-attempts a:focus-visible {
+  outline: 2px solid #1472ff;
+  outline-offset: 3px;
+}
+.practice-record-page[data-xet-history-list] [data-xet-history-practice] .card-line {
+  display: none !important;
+}
+.practice-record-page[data-xet-history-list] [data-xet-history-practice="missing"] { cursor: default; }
+.practice-record-page[data-xet-history-list] .xet-history-more {
+  display: block;
+  margin: 16px auto;
+  padding: 8px 24px;
+  min-block-size: 36px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #1472ff;
+  cursor: pointer;
+}
+.practice-record-page[data-xet-history-list] .xet-history-more:focus-visible {
+  outline: 2px solid #1472ff;
+  outline-offset: 3px;
+}
+@media (width < 600px) {
+  .practice-record-page[data-xet-history-list] .resource-card__cover { display: none; }
+}

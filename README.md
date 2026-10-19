@@ -26,6 +26,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
+- 练习记录页的卡片改为列表，完整显示标题，保留原有分类、筛选与分页，并提供“加载更多”。练习条目不再跳去开始新练习：已取得作答编号时打开对应结果页，多次作答分别保留入口；缺少编号时明确提示。自动保存已加载的结果／解析页入口，也可从同账号、同网站已打开的页面恢复，不新开标签、不创建或提交练习。入口仅保存在本机，并按网站及账号隔离；不保存答案。网站提供作答开始时间时显示该时间，否则明确标注未提供，不拿发布时间或更新时间冒充；不能据此恢复网站没有返回、且本机从未取得的全部旧作答记录。
 - 在线练习背题模式在题型旁提供“撤销”：清空已保存的本次答案、恢复选项和答题卡，允许重新作答；只移除插件能确认由本次作答新增的错题，保留历史错题。页面重新加载或无法确认错题来源时保留错题，不猜测删除；移除失败可“重试撤销”。不撤回网站的历史统计。
 - 错题本列表的浏览器标签标题取自页面顶部标题文字，随加载和页面标题变化更新，不硬编码名称；练习记录页使用“练习记录”作为标签标题，不受内部页签、筛选条件影响。离开对应页面或停用插件时恢复网站标题。
 - 练习、背题、解析及错题本中的题目与选项文字可直接拖选，使用 Ctrl+C 或浏览器右键菜单复制；拖选选项文字不会同时提交答案。不修改网站的服务端设置，停用插件后恢复原有限制。
@@ -149,6 +150,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
+- Changes record cards into full-title lists while preserving categories, filters and pagination, with an explicit Load more button. Known practice attempts open their result pages instead of starting new practices; multiple attempts retain separate links. Loaded result/analysis links are saved locally, isolated by merchant and account, and can be recovered from already-open same-account pages without opening tabs or creating/submitting practices. No answers are stored. Real attempt start times are shown when supplied; unknown times are explicit, never substituted with publication/update dates. Historical attempts absent from both server metadata and the local index cannot be reconstructed automatically.
 - Adds an Undo button beside the question type in rote practice. It clears the saved answer, resets options and answer-card state, and allows re-answering. Only verified error-book entries newly added by this answer are removed; historical, unknown, or reload-preceding entries are preserved. Failed removal can be retried. Historical site statistics are not rolled back.
 - Derives the error-book list's browser-tab title from its page heading without hardcoded labels. The practice-record overview uses “练习记录” as its tab title, independent of inner tabs and filters. Leaving either page or disabling the extension restores the site's title.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
@@ -342,6 +344,8 @@ tests/
 
 `practice-marks-smoke.js` and the real MV3 fixture `verify-practice-marks.js` reproduce submission clearing `is_marked` and verify both practice modes, pending/canceled marks, duplicate-submit protection, restoration before navigation, analysis buttons/badges, reload persistence, attempt isolation, restore retries, uncertain-write safety, and cleanup on disable using synthetic APIs.
 
+`practice-history-smoke.js` 与真实 MV3 夹具 `verify-practice-history.js` 验证四个历史分类的列表布局、超长标题换行、正确结果链接、多次作答和账号隔离、开始时间与发布时间分离、已有页面入口恢复、缺少记录时禁止新练习跳转、分页及停用恢复。接口与答题记录均为隔离测试数据，不操作真实个人记录。
+
 `verify-page-title.js` 验证错题本标签标题的 DOM 提取、延迟加载、动态改名，以及练习记录页标题、内部页签切换、网站清空标题、单页导航、后台更新与停用恢复；同样使用独立的真实 MV3 测试配置及模拟页面。
 
 `verify-page-title.js` checks DOM-derived error-book titles, delayed and changed headings, the practice-record title and inner-tab changes, site title resets, SPA navigation, background-safe updates and restoration on disable in an isolated MV3 profile with fixture pages.
@@ -410,7 +414,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.17.7**
+Current version: **1.17.8**
+
+1.17.8：练习记录改为完整标题列表，新增加载更多；练习条目优先使用按网站和账号隔离的本地作答入口打开对应结果页，缺少记录时不再跳去新练习。可从已打开的结果／解析页补回入口；仅显示网站明确提供的作答开始时间。网站未返回的旧作答编号及时间不猜填，不自动开始练习补取。
+
+1.17.8: Full-title record lists, explicit pagination, and account/merchant-scoped local result links instead of new-practice redirects. Recovers known links from open result/analysis pages and shows genuine start times only when provided. Missing historical attempt IDs/times are never guessed or acquired by starting practices.
 
 1.17.7：修复网站交卷接口清空题目标记的问题：交卷前读取已保存的标记，交卷成功后恢复到同一答题记录，再进入结果页。等待正在保存的标记，防止重复交卷；恢复失败可单独重试，交卷结果不明确时不自动重交。不改答案、不新增权限或本地题目标记缓存。
 
