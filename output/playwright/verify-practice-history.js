@@ -80,7 +80,10 @@ async (page) => {
     assert(metrics.whiteSpace==='normal'&&metrics.titleHeight>50,'Title still truncated');
     assert(!metrics.publicationVisible,'Publication date remains visible');
     const details=await fixture.locator('.xet-history-details').first().innerText();
-    assert(details.includes('2026-10-18 12:34:56')&&details.includes('网站未提供'),'Incorrect start time');
+    assert(details.includes('2026-10-18 12:34:56')&&!details.includes('网站未提供'),'Incorrect start time or unknown placeholder');
+    assert(await fixture.locator('.resource-card').first().locator('.xet-history-attempts span').count()===1,'Missing start time rendered a row');
+    assert(await fixture.locator('.resource-card').nth(2).locator('.xet-history-attempts span').count()===0,'Observed result invented a timestamp');
+    assert(!(await fixture.locator('.resource-card').nth(2).innerText()).includes('练习开始时间'),'Unknown time label remains');
     assert(await fixture.locator('a[href*="join_other"]').count()===0,'Leaked another account');
     stage='missing record cannot start new practice';
     await fixture.locator('.resource-card').nth(1).click();

@@ -63,12 +63,16 @@
         } else {
           const list = document.createElement("ul"); list.className = "xet-history-attempts";
           attempts.forEach((record, index) => {
-            const li = document.createElement("li"), time = document.createElement("span"), link = document.createElement("a");
-            time.textContent = `练习开始时间：${record.startedAt || "网站未提供"}`;
+            const li = document.createElement("li"), link = document.createElement("a");
+            if (record.startedAt) {
+              const time = document.createElement("span");
+              time.textContent = `练习开始时间：${record.startedAt}`;
+              li.append(time);
+            }
             link.href = data.resultUrl(location.origin, record);
             link.textContent = attempts.length > 1 ? `查看结果（记录 ${index + 1}）` : "查看结果";
             link.setAttribute("aria-label", `${row.title}，${link.textContent}`);
-            li.append(time, link); list.append(li);
+            li.append(link); list.append(li);
           });
           node.append(list);
         }

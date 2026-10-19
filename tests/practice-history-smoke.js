@@ -30,6 +30,11 @@ async function main() {
   assert.equal(url.searchParams.has('isJustCommitted'), false, 'History is not another submission');
   for (const startedAt of [null, undefined, '', 0, true, {}, '发布时间：2026-01-01', 'invalid']) assert.equal(data.startTime(startedAt), '');
   assert.equal(data.normalize({ ...record, startedAt:null, created_at:'2026-01-01' }).startedAt, '');
+  assert.equal(data.normalize({ ...record, startedAt:null, updated_at:'2026-10-19 12:00:00', answer_time_sec:180 }).startedAt, '',
+    'Resource updates and elapsed durations cannot stand in for an attempt timestamp');
+  const ui=fs.readFileSync('src/content/practice-history.js','utf8');
+  assert.doesNotMatch(ui,/网站未提供/,'Unknown times must not have a placeholder row');
+  assert.match(ui,/if \(record\.startedAt\)/);
   for (const value of [{ ...record, resourceId:42 }, { ...record, joinId:'../join' }, { ...record, taskId:'x&evil=y' }]) {
     assert.equal(data.normalize(value), null);
     assert.equal(await data.save(storage, origin, 'user_one', value), false);
