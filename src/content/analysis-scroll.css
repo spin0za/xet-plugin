@@ -2,8 +2,11 @@
    question viewport inside an independently scrolling page/footer. Do not set
    html/body overflow: the fullscreen controllers must retain their scroll lock. */
 .practice-analysis[data-xet-analysis-scroll] .analysis-base-layout__content {
+  display: grid !important;
+  grid-template-columns: 240px minmax(0, 1fr);
+  column-gap: 16px;
   height: auto !important;
-  align-items: flex-start !important;
+  align-items: start !important;
 }
 
 .practice-analysis[data-xet-analysis-scroll] :is(
@@ -17,7 +20,23 @@
 }
 
 .practice-analysis[data-xet-analysis-scroll] .analysis-card {
-  flex-shrink: 0;
+  grid-area: 1 / 1;
+  margin: 0 !important;
+  width: 100% !important;
+}
+
+/* Flatten only non-semantic layout divs. Grid relocates the existing Vue-bound
+   checkbox without reparenting, cloning, or replacing native event handlers. */
+.practice-analysis[data-xet-analysis-scroll] :is(.analysis-regional, .analysis) {
+  display: contents !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-only-content {
+  grid-area: 1 / 2;
+  min-inline-size: 0;
+  padding: 16px !important;
+  border-radius: 12px;
+  background: #fff;
 }
 
 .practice-analysis[data-xet-analysis-scroll] .analysis-card[data-xet-analysis-sticky-card] {
@@ -31,11 +50,35 @@
 }
 
 .practice-analysis[data-xet-analysis-scroll] .analysis-only-error {
+  grid-area: 1 / 1;
+  align-self: start;
+  display: flex !important;
+  align-items: center;
+  box-sizing: border-box;
+  inline-size: 100%;
+  height: 56px !important;
+  margin-block-start: calc(var(--xet-analysis-card-height, 0px) + 16px);
+  padding: 0 16px;
+  background: #fff !important;
+  border-radius: 12px !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-only-error :is(.error-item-font, .error-item) {
+  position: static !important;
+  margin: 0 !important;
+  line-height: normal !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-only-error .error-item-font,
+.practice-analysis[data-xet-analysis-scroll] .analysis-only-error:not(:has(.error-item)) {
+  display: none !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll]:has(.analysis-card[data-xet-analysis-sticky-card]) .analysis-only-error {
   position: sticky !important;
-  top: var(--xet-analysis-scroll-offset, 96px);
-  z-index: 2;
+  top: calc(var(--xet-analysis-scroll-offset, 96px) + var(--xet-analysis-card-height, 0px) + 16px);
 }
 
 .practice-analysis[data-xet-analysis-scroll] .analysis-item {
-  scroll-margin-block-start: calc(var(--xet-analysis-scroll-offset, 96px) + 56px);
+  scroll-margin-block-start: var(--xet-analysis-scroll-offset, 96px);
 }

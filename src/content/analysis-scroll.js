@@ -18,6 +18,7 @@
       card?.removeAttribute(STICKY);
       root?.removeAttribute(MARKER);
       root?.style.removeProperty("--xet-analysis-scroll-offset");
+      root?.style.removeProperty("--xet-analysis-card-height");
       root = card = null;
       if (jump !== null) cancelAnimationFrame(jump);
       jump = null;
@@ -53,9 +54,12 @@
       const header = root.querySelector(".analysis-base-layout__header");
       const offset = Math.max(0, header?.getBoundingClientRect().bottom || 0) + 16;
       root.style.setProperty("--xet-analysis-scroll-offset", `${offset}px`);
+      const cardHeight = card?.getBoundingClientRect().height || 0;
+      root.style.setProperty("--xet-analysis-card-height", `${cardHeight}px`);
+      const filterHeight = root.querySelector(".analysis-only-error")?.getBoundingClientRect().height || 0;
       // A long answer card must also flow with the document, not introduce a
       // second scrollbar or leave its last rows inaccessible below the viewport.
-      card?.toggleAttribute(STICKY, card.getBoundingClientRect().height <= window.innerHeight - offset - 16);
+      card?.toggleAttribute(STICKY, cardHeight + (filterHeight ? filterHeight + 16 : 0) <= window.innerHeight - offset - 16);
     }
 
     function schedule() {

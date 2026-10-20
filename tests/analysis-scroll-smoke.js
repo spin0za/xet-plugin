@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const vm = require('node:vm');
 const source = fs.readFileSync('src/content/analysis-scroll.js','utf8');
 
-function setup({embedded=false, innerOffset=0, ready=true}={}) {
+function setup({embedded=false, innerOffset=0, ready=true, filterHeight=0}={}) {
   const frames=new Map(),listeners=new Map(),navigation=new Map(),resizes=[],scrolls=[];
   let count=0,observer,scrollHeight=480;
   class Element {
@@ -11,12 +11,13 @@ function setup({embedded=false, innerOffset=0, ready=true}={}) {
     setAttribute(n){this.attrs.add(n)} removeAttribute(n){this.attrs.delete(n)}
     toggleAttribute(n,on){on?this.attrs.add(n):this.attrs.delete(n)}
   }
-  const root=new Element(),card=new Element(),header=new Element(),target=new Element(),cell=new Element();
+  const root=new Element(),card=new Element(),header=new Element(),target=new Element(),cell=new Element(),filter=new Element();
+  filter.getBoundingClientRect=()=>({height:filterHeight});
   card.getBoundingClientRect=()=>({height:scrollHeight});header.getBoundingClientRect=()=>({bottom:80});
   target.getClientRects=()=>[{}];target.scrollIntoView=options=>scrolls.push(options);
   target.getBoundingClientRect=()=>({top:root.attrs.has('data-xet-analysis-scroll')?500:0,bottom:600});
   root.contains=el=>[cell,target].includes(el);
-  root.querySelector=sel=>sel==='.analysis-card'?card:sel==='.analysis-base-layout__header'?header:null;
+  root.querySelector=sel=>sel==='.analysis-card'?card:sel==='.analysis-base-layout__header'?header:sel==='.analysis-only-error'?filter:null;
   cell.querySelector=()=>({textContent:'20'});cell.closest=()=>cell;
   const list={scrollTop:innerOffset,children:[target],closest:()=>root,getBoundingClientRect:()=>({top:100})};
   const document={documentElement:{classList:{contains:()=>false}},fullscreenElement:null,
@@ -70,5 +71,13 @@ function setup({embedded=false, innerOffset=0, ready=true}={}) {
 }
 {
   const f=setup({embedded:true});f.controller.start();assert.equal(f.root.attrs.size,0);assert.equal(f.listeners.size,0);f.controller.stop();
+}
+{
+  const f=setup({filterHeight:56});f.setCardHeight(720);f.controller.start();
+  assert.equal(f.root.style.values.get('--xet-analysis-card-height'),'720px');
+  assert.ok(!f.card.attrs.has('data-xet-analysis-sticky-card'),'Fit calculation must include the filter panel and gap');
+  f.setCardHeight(700);f.resizes[0].callback();f.flush();
+  assert.ok(f.card.attrs.has('data-xet-analysis-sticky-card'));f.controller.stop();
+  assert.equal(f.root.style.values.size,0,'Restore both layout measurements on disable');
 }
 console.log('analysis single-scroll lifecycle, native jump alignment, viewport, route and cleanup passed');

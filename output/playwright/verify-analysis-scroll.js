@@ -35,6 +35,7 @@ async (page) => {
         .answer-card__content__info{position:absolute;bottom:16px;left:16px}
         .analysis-regional{position:relative;flex:1;height:100%;padding:16px;background:white;overflow:hidden;border-radius:12px}
         .analysis{height:100%;overflow:hidden}.analysis-only-error{display:flex;align-items:center;height:40px;background:#f5f5f5;position:relative;border-radius:8px}
+        .analysis-regional .analysis-only-error .error-item{position:absolute;right:16px;line-height:40px;font-size:14px}
         .analysis-only-content{position:relative;overflow-y:auto;height:calc(100% - 40px);padding-top:24px}
         .analysis-item{height:660px;padding:24px 0;border-bottom:1px solid #ebebeb}.analysis-item:first-child{padding-top:0}
         .analysis-base-layout__content ::-webkit-scrollbar{display:none}
@@ -48,7 +49,7 @@ async (page) => {
           <aside class=collapsible-card><div class=collapsible-card__header>答题卡</div><div class=answer-card__content>
             <div class=answer-card__content__card>${questions.map((q,i)=>`<div class="answer-card__content__card__item ${i===0?'current':''}"><span>${i+1}</span></div>`).join('')}</div>
             <div class=answer-card__content__info>正确 □　错误 □</div></div></aside></div></div>
-          <div class=analysis-regional><div class=analysis><div class=analysis-only-error>解析　<label><input id=only type=checkbox>仅看错题</label></div>
+          <div class=analysis-regional><div class=analysis><div class=analysis-only-error><span class=error-item-font>解析</span><label class=error-item><input id=only type=checkbox>仅看错题</label></div>
             <div class=analysis-only-content>${questions.map((q,i)=>`<section class=analysis-item id=analysis-${i+1}>
               <div class=question-header><div class=question-type>${i+1}. 单选题</div></div><p>第 ${i+1} 题：题干和解析</p>
               ${i===0?'<textarea aria-label=笔记>笔记</textarea><div id=player class=xgplayer><video></video><div class=xgplayer-controls><button class=xgplayer-play>播放</button><span>倍速</span><button class=xgplayer-fullscreen>全屏</button></div></div>':''}
@@ -56,6 +57,8 @@ async (page) => {
           const root=document.querySelector('.practice-analysis'),list=document.querySelector('.analysis-only-content');
           root.__vue__={resourceId:'wb_course_fixture',join_id:'join_fixture',practiceList:${JSON.stringify(questions)}};
           window.nativeClicks=0;
+          window.originalFilter=document.querySelector('#only');
+          window.originalFilterParent=originalFilter.parentElement.parentElement.parentElement;
           const applyFilter=()=>document.querySelectorAll('.analysis-item').forEach((q,i)=>q.style.display=only.checked&&i%2?'none':'');
           only.onchange=applyFilter;
           document.querySelectorAll('.answer-card__content__card__item').forEach((cell,i)=>cell.onclick=()=>{
@@ -78,6 +81,28 @@ async (page) => {
     ).map(el=>el.className));
     assert((await owners()).length===0,`Nested scroll owners: ${await owners()}`);
     checks.push('one document scroll owner');
+    async function verifyFilterPanel() {
+      const rects=await fixture.evaluate(()=>{
+        const card=document.querySelector('.analysis-card').getBoundingClientRect();
+        const panel=document.querySelector('.analysis-only-error').getBoundingClientRect();
+        return {card:{left:card.left,width:card.width,bottom:card.bottom},panel:{left:panel.left,width:panel.width,top:panel.top},
+          original:document.querySelector('#only')===originalFilter&&originalFilter.parentElement.parentElement.parentElement===originalFilterParent,
+          title:getComputedStyle(document.querySelector('.error-item-font')).display,
+          background:getComputedStyle(document.querySelector('.analysis-only-error')).backgroundColor};
+      });
+      assert(rects.original,'Native filter was cloned or reparented');
+      assert(rects.title==='none'&&rects.background==='rgb(255, 255, 255)','Old gray title bar remains');
+      assert(Math.abs(rects.card.left-rects.panel.left)<1&&Math.abs(rects.card.width-rects.panel.width)<1,'Filter panel is not aligned to answer card');
+      assert(Math.abs(rects.panel.top-rects.card.bottom-16)<1,`Filter panel is not just below card: ${JSON.stringify(rects)}`);
+    }
+    await verifyFilterPanel();
+    checks.push('equal-width filter panel, no gray bar, native node and parent preserved');
+    await fixture.evaluate(()=>{window.originalFilterLabel=originalFilter.parentElement;originalFilterLabel.remove();});
+    await fixture.waitForFunction(()=>getComputedStyle(document.querySelector('.analysis-only-error')).display==='none');
+    await fixture.evaluate(()=>document.querySelector('.analysis-only-error').append(originalFilterLabel));
+    await fixture.waitForFunction(()=>getComputedStyle(document.querySelector('.analysis-only-error')).display==='flex');
+    await wait();await verifyFilterPanel();
+    checks.push('no empty filter box when all answers are correct; native remount');
     await fixture.locator('.analysis-base-layout__header').click();
     await fixture.keyboard.press('PageDown');await wait();
     const down=await fixture.evaluate(()=>scrollY);
@@ -93,17 +118,21 @@ async (page) => {
     checks.push('PageDown/PageUp and wheel over either column');
     await fixture.locator('.answer-card__content__card__item').nth(19).click();await wait();
     const top=await fixture.locator('#analysis-20').evaluate(el=>el.getBoundingClientRect().top);
-    assert(Math.abs(top-152)<2,`Native jump was undone or obscured: ${top}`);
+    assert(Math.abs(top-96)<2,`Native jump was undone or obscured: ${top}`);
     assert(await fixture.evaluate(()=>nativeClicks)===1,'Native answer-card handler was suppressed or duplicated');
     assert(await fixture.locator('.current span').textContent()==='20','Native selected-cell state lost');
     const sticky=await fixture.locator('.analysis-card').evaluate(el=>el.getBoundingClientRect().top);
     assert(sticky===96,`Answer card is not sticky: ${sticky}`);
+    await verifyFilterPanel();
     checks.push('jump to question 20, original selection and sticky card');
     await fixture.locator('#only').check();await wait();
     assert(await fixture.locator('#analysis-20').isHidden(),'Only-errors filter no longer applies');
+    await fixture.locator('#only').focus();await fixture.keyboard.press('Space');await wait();
+    assert(!(await fixture.locator('#only').isChecked())&&await fixture.locator('#analysis-20').isVisible(),'Native Space toggle failed');
+    await fixture.locator('#only').check();await wait();
     await fixture.locator('.answer-card__content__card__item').nth(21).click();await wait();
     assert(!(await fixture.locator('#only').isChecked()),'Native correct-question click failed to clear filter');
-    assert(Math.abs(await fixture.locator('#analysis-22').evaluate(el=>el.getBoundingClientRect().top)-152)<2,'Post-filter jump failed');
+    assert(Math.abs(await fixture.locator('#analysis-22').evaluate(el=>el.getBoundingClientRect().top)-96)<2,'Post-filter jump failed');
     checks.push('only-errors filtering and jumping to a hidden correct question');
     await fixture.evaluate(()=>window.scrollTo(0,document.scrollingElement.scrollHeight));await wait();
     const lastBottom=await fixture.locator('#analysis-42').evaluate(el=>el.getBoundingClientRect().bottom);
@@ -130,12 +159,15 @@ async (page) => {
     await fixture.evaluate(()=>history.pushState({},'','/p/t_pc/pc_evaluation/practice_record'));
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-analysis-scroll]'));
     assert(await fixture.locator('.analysis-only-content').evaluate(el=>getComputedStyle(el).overflowY)==='auto','Layout leaked to other route');
+    assert(await fixture.locator('.error-item-font').isVisible(),'Original analysis title did not return on navigation');
+    assert(await fixture.evaluate(()=>document.querySelector('#only')===originalFilter),'Native filter identity changed on cleanup');
     await fixture.evaluate(path=>history.pushState({},'',path+'?join_id=join_fixture'),path);
     await fixture.waitForSelector('[data-xet-analysis-scroll]');
     await fixture.screenshot({path:'output/playwright/analysis-single-scroll.png'});
     await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-analysis-scroll]'));
     assert(await fixture.locator('.analysis-only-content').evaluate(el=>getComputedStyle(el).overflowY)==='auto','Disable did not restore native scrolling');
+    assert(await fixture.locator('.analysis-only-error').evaluate(el=>getComputedStyle(el).backgroundColor)==='rgb(245, 245, 245)','Original filter appearance was not restored');
     assert(!await fixture.locator('.analysis-card').getAttribute('data-xet-analysis-sticky-card'),'Sticky marker leaked');
     checks.push('SPA navigation, return and site-disable cleanup');
     assert(!errors.length,`Page errors: ${errors.join('; ')}`);

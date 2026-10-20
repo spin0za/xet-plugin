@@ -25,7 +25,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
-- 练习解析页使用一个页面滚动区域，右侧滚动条、滚轮和 Page Up / Page Down 直接滚动题目；答题卡跳题和“仅看错题”保留。答题卡能完整放入窗口时保持可见，放不下时随页面展开，不增加独立滚动条。
+- 练习解析页使用一个页面滚动区域，右侧滚动条、滚轮和 Page Up / Page Down 直接滚动题目；答题卡跳题保留。“仅看错题”置于答题卡下方的等宽独立方框内，不覆盖题目。左侧整体能放入窗口时保持可见，放不下时随页面展开，不增加独立滚动条。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 更新／重新加载扩展后，未刷新的旧解析页会停止失效脚本的监听与重试，保留上次确认的标记并停用不可用的按钮，只提示一次刷新页面；不将扩展通信异常误报成登录或网络问题。切回页面时后台核对失败会保留当前显示并静默重试，遵守失败后的重试间隔；主动保存失败仍明确提示，并在状态重新核实前阻止再次写入。
 - 练习记录页使用完整标题列表。“练习”分类仅显示已经取得有效结果入口的作答记录，隐藏原来导向新练习的旧条目，不删除网站后台数据；同一份练习的多次作答分别保留，按已记录的交卷时间从新到旧排列，不受网站原列表分页影响。交卷成功后、跳转前保存对应结果入口和本机收到成功响应的时间，显示为“交卷时间（插件记录）”；失败、结果不明确、恢复标记重试及刷新旧结果页不会新记或覆盖时间。可从已打开的结果／解析页补回旧入口，但不能补造旧交卷时间。不保存答案，也不新开标签或自动创建、提交练习。考试、作业、刷题本分类保留原有交互及分页。
@@ -152,7 +152,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
-- Practice analysis uses one document scroll area, so the page scrollbar, wheel and native Page Up / Page Down scroll the questions. Answer-card jumps and the only-errors filter are preserved. The answer card stays visible when it fits the viewport and flows with the page otherwise, without a second scrollbar.
+- Practice analysis uses one document scroll area, so the page scrollbar, wheel and native Page Up / Page Down scroll the questions. Answer-card jumps are preserved. The original only-errors filter appears in a separate, equal-width panel beneath the answer card, without covering questions. The sidebar stays visible when it fits the viewport and flows with the page otherwise, without a second scrollbar.
 - Adds mark and favorite buttons to each question on practice analysis pages using the site's existing save endpoints. Marks belong to the practice attempt; favorites share the site's question collection. Supports mouse, Space and Enter, and reloads saved flags when reopening the page.
 - Shows full-title history lists. Practice history contains only known submitted result links, with separate entries per attempt, newest client-recorded submissions first, independently of native resource pagination. New-practice entries are hidden, not deleted on the server. After confirmed submission, the result link and client-observed confirmation timestamp are saved before navigation. Failed or uncertain submissions, restoration retries and old result-page visits never invent or overwrite timestamps. Known old result links can be recovered without opening tabs or creating/submitting practices. No answers are stored; other history categories retain native interactions and pagination.
 - Practice result links and client-recorded timestamps use Chrome Sync with a local fallback, partitioned by merchant and website account. Devices need the same Google account, enabled extension synchronization and the same extension ID; separately loaded unpacked extensions with different IDs cannot share records. Existing local result links are merged into sync storage. Sync is subject to Chrome's approximately 100 KB quota; unavailable/full sync retains local history and shows a retry message, without automatic eviction. Historical attempts absent from server metadata and saved records cannot be reconstructed automatically.
@@ -422,7 +422,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.18.2**
+Current version: **1.18.3**
+
+1.18.3：将原有“仅看错题”控件布局到答题卡下方的等宽独立方框，移除题目区域的灰色标题横条。保留原控件、状态绑定与键盘交互；左侧吸顶同时考虑答题卡和筛选方框的总高度。
+
+1.18.3: Places the original only-errors control in an equal-width panel below the answer card and removes the gray question-area header. Preserves native state and keyboard interaction, and includes both panels when deciding whether the sidebar fits the viewport.
 
 1.18.2：练习解析页移除固定高度的题目内层滚动，统一为页面滚动；保留答题卡跳题、错题筛选和播放器全屏。适合窗口高度的答题卡保持可见，过长答题卡随页面展开。停用或离开解析页后恢复网站原布局。
 
