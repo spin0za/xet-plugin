@@ -8,6 +8,7 @@
     !siteAccess ||
     !modules?.playerDom ||
     !modules.analysisLayout ||
+    !modules.analysisScroll ||
     !modules.analysisActions ||
     !modules.practiceMarks ||
     !modules.practiceHistory ||
@@ -93,6 +94,7 @@
     fullscreen, isEnabled: isSiteEnabled,
   });
   const analysisLayout = modules.analysisLayout.createAnalysisLayoutController();
+  const analysisScroll = modules.analysisScroll.createAnalysisScrollController();
   const analysisActions = modules.analysisActions.createAnalysisActionsController();
   const practiceUndo = modules.practiceUndo.createPracticeUndoController();
   const practiceMarks = modules.practiceMarks.createPracticeMarksController();
@@ -101,7 +103,7 @@
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
-  const pageFeatures = [analysisLayout, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
+  const pageFeatures = [analysisLayout, analysisScroll, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
     textSelection, questionTypography, questionOrder];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,

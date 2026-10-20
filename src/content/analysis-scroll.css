@@ -1,0 +1,41 @@
+/* One document scrollbar for the complete analysis, rather than a fixed-height
+   question viewport inside an independently scrolling page/footer. Do not set
+   html/body overflow: the fullscreen controllers must retain their scroll lock. */
+.practice-analysis[data-xet-analysis-scroll] .analysis-base-layout__content {
+  height: auto !important;
+  align-items: flex-start !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll] :is(
+  .analysis-regional, .analysis, .analysis-only-content,
+  .analysis-card, .analysis-card__slot, .collapsible-card,
+  .answer-card__content, .answer-card__content__card
+) {
+  height: auto !important;
+  max-height: none !important;
+  overflow: visible !important;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-card {
+  flex-shrink: 0;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-card[data-xet-analysis-sticky-card] {
+  position: sticky;
+  top: var(--xet-analysis-scroll-offset, 96px);
+}
+
+.practice-analysis[data-xet-analysis-scroll] .answer-card__content__info {
+  position: static !important;
+  margin: 0 16px 16px;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-only-error {
+  position: sticky !important;
+  top: var(--xet-analysis-scroll-offset, 96px);
+  z-index: 2;
+}
+
+.practice-analysis[data-xet-analysis-scroll] .analysis-item {
+  scroll-margin-block-start: calc(var(--xet-analysis-scroll-offset, 96px) + 56px);
+}
