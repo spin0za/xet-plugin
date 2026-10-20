@@ -1,5 +1,23 @@
 /* V2: native cells and click handlers remain untouched. Symbols follow the
    site's result classes, including during rerenders, undo and mode changes. */
+html[data-xet-analysis-layout] .collapsible-card__header {
+  position: relative;
+  justify-content: center !important;
+  padding-inline: 32px !important;
+  text-align: center;
+}
+
+/* Keep the native toggle at the edge without shifting the title's center. */
+html[data-xet-analysis-layout] .collapsible-card__toggle {
+  position: absolute;
+  inset-inline-end: 8px;
+}
+
+html[data-xet-analysis-layout] .analysis-card__header {
+  padding-inline: 16px !important;
+  text-align: center !important;
+}
+
 html[data-xet-analysis-layout] .answer-card__content__card {
   box-sizing: border-box;
   display: grid !important;

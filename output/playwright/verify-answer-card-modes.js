@@ -13,14 +13,16 @@ async(page)=>{
       await route.fulfill({contentType:'text/html',body:`<!doctype html><style>
         *{box-sizing:border-box}body{font:14px/20px sans-serif;background:#f3f6fa}
         .card{width:240px;height:500px;background:white;padding-top:16px;border-radius:12px}
-        .heading{width:208px;height:40px;margin:0 auto 6px;border:1px solid blue}
+        .collapsible-card__header{width:208px;height:40px;margin:0 auto 6px;padding:0 8px 0 16px;display:flex;align-items:center;justify-content:space-between;border:1px solid blue}
+        .collapsible-card__toggle{width:24px;height:24px;border:0;background:transparent}
+        .analysis-card__header{width:208px;height:40px;line-height:40px;margin:0 auto;padding-left:16px;text-align:left}
         .answer-card__content{height:calc(100% - 62px);position:relative}
         .answer-card__content__card{height:90%;overflow:auto;padding:10px 16px 52px;display:flex;flex-wrap:wrap;align-content:flex-start}
         .answer-card__content__card__item{width:32px;height:32px;display:flex;align-items:center;justify-content:center;margin:0 12px 12px 0;border:1px solid #ccc;border-radius:4px}
         .answer-card__content__card__item:nth-child(5n){margin-right:0}.current{background:#1472ff;color:white}
         .answer-card__content__info{position:absolute;bottom:16px;left:16px;display:flex}
         .info-item{display:flex;align-items:center;margin-right:13px}.info-item__block{width:24px;height:16px;border:1px solid;margin-left:4px}
-      </style><div class=card><div class=heading>答题卡</div><div class=answer-card__content>
+      </style><div class=card><div class=collapsible-card__header><span>答题卡</span><button class=collapsible-card__toggle aria-label=收起>↤</button></div><div class=answer-card__content>
         <div class=answer-card__content__card>${Array.from({length:42},(_,i)=>`<div class="answer-card__content__card__item unanswered ${i===0?'current':''}"><span>${i+1}</span></div>`).join('')}</div>
         <div class=answer-card__content__info><div class=info-item><span class=item>已答</span><span class="info-item__block answered"></span></div><div class=info-item><span class=item>未答</span><span class="info-item__block default"></span></div></div>
         </div></div><script>window.nativeClicks=0;window.cells=[...document.querySelectorAll('.answer-card__content__card__item')];cells.forEach(cell=>cell.onclick=()=>nativeClicks++);</script>`});
@@ -28,6 +30,29 @@ async(page)=>{
     await fixture.goto(`${origin}/p/t_pc/pc_evaluation/practice_sheet/wb_course_fixture`);
     await fixture.bringToFront();
     await fixture.waitForFunction(()=>document.documentElement.hasAttribute('data-xet-analysis-layout'));
+    const heading=fixture.locator('.collapsible-card__header');
+    const toggle=heading.locator('button');
+    const headingGeometry=()=>heading.evaluate(el=>{
+      const box=el.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(el.querySelector('span'));
+      const text=range.getBoundingClientRect(),button=el.querySelector('button')?.getBoundingClientRect();
+      return {offset:(text.left+text.right-box.left-box.right)/2,width:box.width,height:box.height,
+        buttonRight:button&&box.right-button.right};
+    });
+    const withToggle=await headingGeometry();
+    assert(Math.abs(withToggle.offset)<0.1&&withToggle.width===208&&withToggle.height===40&&withToggle.buttonRight===9,`Heading or toggle moved: ${JSON.stringify(withToggle)}`);
+    await toggle.evaluate(el=>{window.originalToggle=el;window.collapseClicks=0;el.onclick=()=>{collapseClicks++;document.querySelector('.answer-card__content').hidden=!document.querySelector('.answer-card__content').hidden}});
+    await toggle.click();await toggle.click();
+    assert(await fixture.evaluate(()=>collapseClicks===2&&originalToggle===document.querySelector('.collapsible-card__toggle')&&!document.querySelector('.answer-card__content').hidden),'Native collapse toggle was replaced or intercepted');
+    await toggle.evaluate(el=>el.remove());
+    assert(Math.abs((await headingGeometry()).offset)<0.1,'Heading shifted without a toggle');
+    await heading.evaluate(el=>el.append(originalToggle));
+    const legacy=await fixture.evaluate(()=>{
+      const el=document.createElement('div');el.className='analysis-card__header';el.textContent='答题卡';document.body.append(el);
+      const box=el.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(el);const text=range.getBoundingClientRect();
+      const offset=(text.left+text.right-box.left-box.right)/2;el.remove();return offset;
+    });
+    assert(Math.abs(legacy)<0.1,'Legacy answer-card heading is not centered');
+    checks.push('heading text precisely centered with/without native toggle and in legacy card; native collapse clicks preserved');
     const read=()=>fixture.evaluate(()=>{
       const el=cells[0],style=getComputedStyle(el),icon=getComputedStyle(el,'::after');
       return {height:el.getBoundingClientRect().height,width:el.getBoundingClientRect().width,
@@ -67,6 +92,7 @@ async(page)=>{
     }
     await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!document.documentElement.hasAttribute('data-xet-analysis-layout'));
+    assert(Math.abs((await headingGeometry()).offset)>1,'Disable did not restore native heading alignment');
     assert((await read()).height===32,'Disable left V2 cells behind');
     assert(await fixture.locator('.answer-card__content__card__item').first().evaluate(el=>getComputedStyle(el,'::after').content)==='none','Disable left symbols behind');
     await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));

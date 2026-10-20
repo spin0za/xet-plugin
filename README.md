@@ -424,7 +424,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.19.0**
+Current version: **1.19.1**
+
+1.19.1：答题卡标题水平居中，保留原有收起按钮和 V2 格子布局。
+
+1.19.1: Centers the answer-card heading while preserving the native collapse toggle and V2 cell layout.
 
 1.19.0：按 V2 方案改善答题卡可读性：32×44px 格子、蓝／橙配色和勾叉符号、4px 当前题外框；保留未答、已答及未知状态的区别，不修改答案或保存行为。原有标记、跳题、筛选和停用恢复继续有效。
 
