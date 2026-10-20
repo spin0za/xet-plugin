@@ -26,6 +26,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
+- 更新／重新加载扩展后，未刷新的旧解析页会停止失效脚本的监听与重试，保留上次确认的标记并停用不可用的按钮，只提示一次刷新页面；不将扩展通信异常误报成登录或网络问题。切回页面时后台核对失败会保留当前显示并静默重试，遵守失败后的重试间隔；主动保存失败仍明确提示，并在状态重新核实前阻止再次写入。
 - 练习记录页使用完整标题列表。“练习”分类仅显示已经取得有效结果入口的作答记录，隐藏原来导向新练习的旧条目，不删除网站后台数据；同一份练习的多次作答分别保留，按已记录的交卷时间从新到旧排列，不受网站原列表分页影响。交卷成功后、跳转前保存对应结果入口和本机收到成功响应的时间，显示为“交卷时间（插件记录）”；失败、结果不明确、恢复标记重试及刷新旧结果页不会新记或覆盖时间。可从已打开的结果／解析页补回旧入口，但不能补造旧交卷时间。不保存答案，也不新开标签或自动创建、提交练习。考试、作业、刷题本分类保留原有交互及分页。
 - 结果入口与插件记录的交卷时间保存在本机，并通过 Chrome 的扩展同步服务同步；按网站及网站账号隔离。两台设备需登录同一 Google 账号、启用相应同步并安装相同扩展 ID；不同 ID 的未打包扩展不能共享数据，请勿为更换 ID 直接卸载原扩展。本机已有的有效结果入口会逐步合并到同步存储。同步关闭或离线时不保证跨设备可见；同步额度约 100 KB，失败或超额时保留本地记录并在练习记录页提示重试，不自动淘汰历史。
 - 在线练习背题模式在题型旁提供“撤销”：清空已保存的本次答案、恢复选项和答题卡，允许重新作答；只移除插件能确认由本次作答新增的错题，保留历史错题。页面重新加载或无法确认错题来源时保留错题，不猜测删除；移除失败可“重试撤销”。不撤回网站的历史统计。
@@ -154,6 +155,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - Shows full-title history lists. Practice history contains only known submitted result links, with separate entries per attempt, newest client-recorded submissions first, independently of native resource pagination. New-practice entries are hidden, not deleted on the server. After confirmed submission, the result link and client-observed confirmation timestamp are saved before navigation. Failed or uncertain submissions, restoration retries and old result-page visits never invent or overwrite timestamps. Known old result links can be recovered without opening tabs or creating/submitting practices. No answers are stored; other history categories retain native interactions and pagination.
 - Practice result links and client-recorded timestamps use Chrome Sync with a local fallback, partitioned by merchant and website account. Devices need the same Google account, enabled extension synchronization and the same extension ID; separately loaded unpacked extensions with different IDs cannot share records. Existing local result links are merged into sync storage. Sync is subject to Chrome's approximately 100 KB quota; unavailable/full sync retains local history and shows a retry message, without automatic eviction. Historical attempts absent from server metadata and saved records cannot be reconstructed automatically.
 - Adds an Undo button beside the question type in rote practice. It clears the saved answer, resets options and answer-card state, and allows re-answering. Only verified error-book entries newly added by this answer are removed; historical, unknown, or reload-preceding entries are preserved. Failed removal can be retried. Historical site statistics are not rolled back.
+- After extension reload/update, orphaned analysis controls stop listening and retrying, preserve last confirmed flags, disable unavailable buttons and show a single refresh notice instead of a login/network error. Failed background revalidation keeps the displayed state and retries quietly with backoff; explicit save failures still give feedback and block further writes until reconciliation.
 - Derives the error-book list's browser-tab title from its page heading without hardcoded labels. The practice-record overview uses “练习记录” as its tab title, independent of inner tabs and filters. Leaving either page or disabling the extension restores the site's title.
 - Restores native selection, Ctrl+C and the browser context menu for question and option text in practice, rote review, analyses and the error book. Drag-selecting option text does not submit an answer. Server-side settings are unchanged, and disabling the extension restores the original restrictions.
 - Makes imported rich-text font faces in questions and options inherit the page's default font across practice, rote review, analysis and error-book pages. Normalizes imported full-question bold while preserving partial emphasis, italics, underlines and sizes; formula and control fonts remain unchanged.
@@ -348,6 +350,8 @@ tests/
 
 `practice-history-smoke.js` 与真实 MV3 夹具 `verify-practice-history.js` 验证同步存储读写与迁移、清空本机缓存后恢复、账号隔离、有效结果列表、隐藏无效旧入口、超长标题、按交卷时间排序、旧记录不造时间、远端变更、同步失败保留及重试、其他分类分页和停用恢复。`practice-marks-smoke.js` 与 `verify-practice-marks.js` 还验证交卷成功后在跳转前写入本地及同步存储，失败与结果不明不记时间、重试不重记、记录存储失败不丢确认状态。隔离浏览器验证 Chrome 同步存储接口，不登录 Google、不声称验证了 Google 服务器间的实际传输；不操作真实个人答题记录。
 
+`analysis-runtime-smoke.js` 验证扩展失效、通信异常与请求异常的区分、重复提示抑制、失败重试间隔与监听清理。`verify-analysis-runtime.js` 在独立真实 MV3 配置中执行扩展重新加载，保留旧页面、不注入替代内容脚本，验证仅一次准确的刷新提示、无后续查询、旧标记保留和按钮停用；还验证后台 503 不弹窗、不清空已有状态。所有请求都是只读模拟接口，不操作个人记录。
+
 `verify-page-title.js` 验证错题本标签标题的 DOM 提取、延迟加载、动态改名，以及练习记录页标题、内部页签切换、网站清空标题、单页导航、后台更新与停用恢复；同样使用独立的真实 MV3 测试配置及模拟页面。
 
 `verify-page-title.js` checks DOM-derived error-book titles, delayed and changed headings, the practice-record title and inner-tab changes, site title resets, SPA navigation, background-safe updates and restoration on disable in an isolated MV3 profile with fixture pages.
@@ -416,7 +420,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.18.0**
+Current version: **1.18.1**
+
+1.18.1：修复更新扩展后旧解析页反复误报登录／网络错误：识别失效的扩展环境、停止监听和重试、保留已确认标记并只提示一次刷新。扩展通信错误与网站读取错误分别处理；后台核对失败不打扰，切回标签页不跳过重试间隔，主动保存失败仍提示并先核实状态。
+
+1.18.1: Detects invalidated extension contexts in old analysis pages, stops orphaned listeners/retries and shows one accurate refresh notice. Preserves confirmed flags, distinguishes bridge failures from site reads, quietly retries background revalidation with backoff, and reconciles failed saves before allowing another write.
 
 1.18.0：交卷成功后保存逐次结果入口与插件观察到的交卷时间，通过 Chrome 同步服务同步，并保留本地兜底；旧有效入口迁移合并，不补造历史时间。练习历史只显示有效结果记录，隐藏导向新练习的旧入口；同步失败或超额提供提示和重试，不自动删除历史。
 

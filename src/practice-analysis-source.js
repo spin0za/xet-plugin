@@ -32,7 +32,8 @@
       collect: ["success", "收藏成功"], uncollect: ["success", "取消收藏成功"],
       "mark-error": ["error", "标记操作失败，请稍后重试"],
       "collect-error": ["error", "收藏操作失败，请稍后重试"],
-      "load-error": ["error", "无法读取标记和收藏，请确认登录及网络状态"],
+      "load-error": ["error", "暂时无法读取标记和收藏，请稍后重试"],
+      "bridge-error": ["error", "扩展通信暂不可用，请稍后重试"],
     };
     if (!Object.hasOwn(messages, feedback)) return false;
     const url = new URL(location.href);
@@ -60,7 +61,7 @@
       ? { tabId: sender.tab.id, documentIds: [sender.documentId] }
       : { tabId: sender.tab.id, frameIds: [0] };
     const feedback = message.type === "xet:analysis-feedback";
-    if (feedback && !["mark", "unmark", "collect", "uncollect", "mark-error", "collect-error", "load-error"].includes(message.feedback)) {
+    if (feedback && !["mark", "unmark", "collect", "uncollect", "mark-error", "collect-error", "load-error", "bridge-error"].includes(message.feedback)) {
       return { ok: false, error: "未知题目提示" };
     }
     const [result] = await chrome.scripting.executeScript({

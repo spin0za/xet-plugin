@@ -31,14 +31,38 @@
     let retryAt = 0;
     let generation = 0;
     let refreshTimer = null;
+    let unavailable = false, needsReload = false, reconcile = false, revision = 0, lastLoadError = "";
     const questions = new Map();
     const mounts = new Map();
     const cardMarks = new Map();
     const feedback = modules.analysisFeedback.createFeedbackController({
-      request, getKey: () => key, isEnabled: () => started && routeKey() === key,
+      request, getKey: () => key, isEnabled: () => started && Boolean(key) && routeKey() === key,
+      onRuntimeLost: suspend,
     });
+    function runtimeLost(error) {
+      return !globalThis.chrome?.runtime?.id || /extension context invalidated/i.test(error?.message || "");
+    }
+    function detach() {
+      clearInterval(timer); timer = null; clearTimeout(refreshTimer); refreshTimer = null;
+      if (frame !== null) cancelAnimationFrame(frame); frame = null;
+      observer?.disconnect();
+      document.removeEventListener("click", toggle, true);
+      window.removeEventListener("popstate", schedule); window.removeEventListener("hashchange", schedule);
+      window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh);
+    }
+    function suspend() {
+      if (unavailable || !started) return;
+      unavailable = true; generation++; abort?.abort(); loading = false;
+      detach(); feedback.clear();
+      // Keep last confirmed flags visible, but never leave orphaned controls
+      // pretending that a write is still possible after extension reload.
+      for (const mount of mounts.values()) for (const button of mount.group.children) {
+        button.disabled = true; button.setAttribute("aria-disabled", "true"); button.setAttribute("aria-busy", "false");
+      }
+      feedback.showUnavailable();
+    }
 
-    async function post(path, payload, signal) {
+    async function post(path, payload, signal, priority = "auto") {
       // All endpoints and payload shapes are extension-owned, same-origin,
       // and limited to this practice. No background arbitrary-URL proxy.
       const timeout = AbortSignal.timeout(15_000);
@@ -51,7 +75,7 @@
         const response = await fetch(path, {
           method: "POST", credentials: "same-origin", redirect: "error",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload), signal: controller.signal,
+          body: JSON.stringify(payload), signal: controller.signal, priority,
         });
         if (!response.ok) throw new Error("请求失败，请确认网络和登录状态");
         const result = await response.json();
@@ -69,6 +93,7 @@
       abort = null;
       loading = false;
       context = null;
+      needsReload = false; reconcile = false; lastLoadError = ""; revision++;
       feedback.clear();
       questions.clear();
       for (const [item, mount] of mounts) {
@@ -87,7 +112,7 @@
     function renderButton(button, question, action) {
       const active = question[action];
       button.setAttribute("aria-pressed", String(active));
-      button.setAttribute("aria-disabled", String(question.pending));
+      button.setAttribute("aria-disabled", String(question.pending || reconcile));
       button.setAttribute("aria-busy", String(question.pending));
       const label = action === "mark" ? "标记" : "收藏";
       button.setAttribute("aria-label", `第 ${question.index + 1} 题${label}`);
@@ -138,7 +163,7 @@
     }
 
     async function render() {
-      if (!context || routeKey() !== key) return;
+      if (!context || unavailable || routeKey() !== key) return;
       const current = generation;
       renderCardMarks();
       for (const [item, mount] of mounts) {
@@ -151,7 +176,7 @@
       }
       let batchSize = 0;
       for (const item of document.querySelectorAll(".practice-analysis .analysis-item")) {
-        if (!started || current !== generation || routeKey() !== key) return;
+        if (!started || unavailable || current !== generation || routeKey() !== key) return;
         const index = Number(item.id.match(/^analysis-(\d+)$/)?.[1]) - 1;
         const question = questions.get(index);
         if (!question) continue;
@@ -175,7 +200,11 @@
     }
 
     async function load() {
-      if (loading || !key || Date.now() < retryAt || [...questions.values()].some(q => q.pending)) return;
+      if (unavailable || loading || !key || Date.now() < retryAt || [...questions.values()].some(q => q.pending)) return;
+      if (runtimeLost()) { suspend(); return; }
+      const background = Boolean(context), savedRevision = revision;
+      let phase = "bridge";
+      needsReload = false;
       loading = true;
       for (const mount of mounts.values()) {
         for (const button of mount.group.children) button.setAttribute("aria-disabled", "true");
@@ -186,16 +215,24 @@
       try {
         const result = await request({ type: "xet:analysis-context", key });
         if (!started || current !== generation || routeKey() !== key) return;
-        if (!result?.ok) { retryAt = Date.now() + 5000; return; }
+        if (!result?.ok) {
+          needsReload = true; retryAt = Date.now() + 5000;
+          if (result?.error && !background && lastLoadError !== "bridge-error") {
+            lastLoadError = "bridge-error"; void feedback.show("bridge-error");
+          }
+          return;
+        }
         const next = result.context;
         if (next.key !== key) return;
+        phase = "request";
         const payload = { practice_id: next.resourceId, join_id: next.joinId,
           task_id: next.taskId, filter_delete: true };
         const [records, paper] = await Promise.all([
-          post("/evaluation_wechat/practices/commit_record", payload, signal),
-          post("/evaluation_wechat/practices/get_paper_question", { ...payload, start: -1, end: -1 }, signal),
+          post("/evaluation_wechat/practices/commit_record", payload, signal, background ? "low" : "auto"),
+          post("/evaluation_wechat/practices/get_paper_question", { ...payload, start: -1, end: -1 }, signal, background ? "low" : "auto"),
         ]);
         if (!started || current !== generation || routeKey() !== key) return;
+        if (savedRevision !== revision || [...questions.values()].some(q => q.pending)) { needsReload = true; return; }
         if (!Array.isArray(records?.list) || !Array.isArray(paper?.practice_list)) {
           throw new Error("无法读取题目状态");
         }
@@ -209,18 +246,26 @@
           questions.set(q.index, { ...q, mark: flag(record.is_marked), collect: flag(question.is_collected), pending: false });
         }
         context = next;
+        reconcile = false;
+        lastLoadError = "";
         render();
       } catch (error) {
         if (current === generation && !signal.aborted) {
+          if (runtimeLost(error)) { suspend(); return; }
           retryAt = Date.now() + 10_000;
-          void feedback.show("load-error");
+          needsReload = true;
+          const reason = phase === "bridge" ? "bridge-error" : "load-error";
+          if (!background && lastLoadError !== reason) { lastLoadError = reason; void feedback.show(reason); }
         }
-      } finally { if (current === generation) loading = false; }
+      } finally {
+        if (current === generation) { loading = false; if (context) render(); }
+      }
     }
 
     async function toggle(event) {
       const button = event.target.closest?.(`.${BUTTON}`);
-      if (!button || !event.isTrusted || !started || !context || routeKey() !== key) return;
+      if (!button || !event.isTrusted || !started || unavailable || reconcile || !context || routeKey() !== key) return;
+      if (runtimeLost()) { suspend(); return; }
       const item = button.closest(".analysis-item");
       if (!item || mounts.get(item)?.group !== button.parentElement) return;
       const question = questions.get(Number(item.id.slice(9)) - 1);
@@ -232,6 +277,7 @@
       const value = !question[action];
       const signal = abort.signal;
       question.pending = true;
+      revision++;
       render();
       try {
         if (action === "mark") {
@@ -252,44 +298,48 @@
         void feedback.show(`${value ? "" : "un"}${action}`);
       } catch (error) {
         if (current === generation && !signal.aborted) {
+          if (runtimeLost(error)) { suspend(); return; }
           void feedback.show(`${action}-error`);
           // A lost response can follow a successful server write. Re-read
           // instead of guessing and sending an unintended inverse operation.
-          context = null;
+          needsReload = true;
+          reconcile = true;
           retryAt = 0;
         }
       } finally {
         if (current === generation) {
           question.pending = false;
           if (context) render();
-          else schedule();
+          if (!context || needsReload) schedule();
         }
       }
     }
 
     function update() {
       frame = null;
-      if (!started) return;
+      if (!started || unavailable) return;
       const nextKey = routeKey();
       if (key !== nextKey) { clear(); key = nextKey; retryAt = 0; }
       if (!key) return;
-      if (!context) void load();
+      if (runtimeLost()) { suspend(); return; }
+      if (!context || needsReload) void load();
       else render();
     }
 
     function schedule() {
-      if (started && frame === null) frame = requestAnimationFrame(update);
+      if (started && !unavailable && frame === null) frame = requestAnimationFrame(update);
     }
 
     function refresh() {
+      if (unavailable || !started) return;
+      if (runtimeLost()) { suspend(); return; }
       clearTimeout(refreshTimer);
       // Let the click that focused the window finish before refreshing flags.
       refreshTimer = setTimeout(() => {
         refreshTimer = null;
         if (document.visibilityState === "hidden" || !started) return;
         if (![...questions.values()].some(q => q.pending) && !loading) {
-          context = null;
-          retryAt = 0;
+          needsReload = true;
           schedule();
         }
       }, 200);
@@ -298,6 +348,7 @@
     function start() {
       if (started || window.top !== window) return;
       started = true;
+      unavailable = false;
       document.addEventListener("click", toggle, true);
       window.addEventListener("popstate", schedule);
       window.addEventListener("hashchange", schedule);
@@ -310,24 +361,14 @@
       });
       observer.observe(document.documentElement, { childList: true, subtree: true });
       // Poll route/readiness only. Saving requires an actual user click.
-      timer = setInterval(() => { if (routeKey() !== key || (key && !context)) schedule(); }, 1000);
+      timer = setInterval(() => { if (routeKey() !== key || (key && (!context || needsReload))) schedule(); }, 1000);
       schedule();
     }
 
     function stop() {
       if (!started) return;
       started = false;
-      clearInterval(timer);
-      clearTimeout(refreshTimer);
-      refreshTimer = null;
-      if (frame !== null) cancelAnimationFrame(frame);
-      frame = null;
-      observer.disconnect();
-      document.removeEventListener("click", toggle, true);
-      window.removeEventListener("popstate", schedule);
-      window.removeEventListener("hashchange", schedule);
-      window.removeEventListener("focus", refresh);
-      document.removeEventListener("visibilitychange", refresh);
+      detach();
       clear();
       key = "";
     }

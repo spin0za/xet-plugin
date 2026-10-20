@@ -42,6 +42,11 @@ async function main() {
   }
   assert.deepEqual(notices, [["success", "标记成功"], ["success", "取消标记成功"],
     ["success", "收藏成功"], ["success", "取消收藏成功"], ["error", "标记操作失败，请稍后重试"]]);
+  assert.equal(showAnalysisFeedback(key, "bridge-error"), true);
+  assert.deepEqual(notices.at(-1), ["error", "扩展通信暂不可用，请稍后重试"]);
+  assert.equal(showAnalysisFeedback(key, "load-error"), true);
+  assert.deepEqual(notices.at(-1), ["error", "暂时无法读取标记和收藏，请稍后重试"]);
+  assert.equal(showAnalysisFeedback(key, "extension-unavailable"), false, "Runtime-loss notice is local, not another bridge request");
   assert.equal(showAnalysisFeedback(key, "<script>arbitrary feedback</script>"), false);
   assert.equal(showAnalysisFeedback(key, "constructor"), false);
   assert.equal(showAnalysisFeedback(`${key}other`, "mark"), false);
