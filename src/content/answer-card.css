@@ -1,0 +1,132 @@
+/* V2: native cells and click handlers remain untouched. Symbols follow the
+   site's result classes, including during rerenders, undo and mode changes. */
+html[data-xet-analysis-layout] .answer-card__content__card {
+  box-sizing: border-box;
+  display: grid !important;
+  grid-template-columns: repeat(5, 32px);
+  grid-auto-rows: 44px;
+  align-content: start !important;
+  gap: 12px !important;
+  padding: 10px 16px 64px !important;
+}
+
+html[data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block) {
+  --xet-answer-background: #f1f3f5;
+  --xet-answer-border: #717b86;
+  --xet-answer-symbol: #4d5762;
+  /* Unknown / manually graded: never guess a check or cross. */
+  --xet-answer-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M5 5a3 3 0 0 1 6 0c0 2-3 2-3 4M8 12v.2' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+html[data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block).success {
+  --xet-answer-background: #edf5ff;
+  --xet-answer-border: #4878ad;
+  --xet-answer-symbol: #174f87;
+  --xet-answer-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8l3 3 7-7' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+}
+
+html[data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block).error {
+  --xet-answer-background: #fff1e6;
+  --xet-answer-border: #ad6328;
+  --xet-answer-symbol: #934500;
+  --xet-answer-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 4l8 8M12 4l-8 8' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+html[data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block):is(.default, .unanswered) {
+  --xet-answer-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3 8h10' stroke='black' stroke-width='2.5' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
+/* Before submission, "answered" is not evidence that the answer is correct. */
+html[data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block).answered {
+  --xet-answer-background: #edf5ff;
+  --xet-answer-border: #4878ad;
+  --xet-answer-symbol: #174f87;
+  --xet-answer-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='2.5'/%3E%3C/svg%3E");
+}
+
+html[data-xet-analysis-layout] .answer-card__content__card__item {
+  box-sizing: border-box !important;
+  position: relative;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  width: 32px !important;
+  height: 44px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 1px solid var(--xet-answer-border) !important;
+  border-radius: 4px;
+  background: var(--xet-answer-background) !important;
+  color: #242c36 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  line-height: 18px !important;
+}
+
+html[data-xet-analysis-layout] .answer-card__content__card__item.current {
+  outline: 4px solid #202833 !important;
+  outline-offset: 0;
+  z-index: 2;
+}
+
+html[data-xet-analysis-layout] .answer-card__content__card__item::after,
+html[data-xet-analysis-layout] .info-item__block::after {
+  content: "";
+  display: block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+  background-color: var(--xet-answer-symbol);
+  -webkit-mask: var(--xet-answer-icon) center / contain no-repeat;
+  mask: var(--xet-answer-icon) center / contain no-repeat;
+  pointer-events: none;
+}
+
+html[data-xet-analysis-layout] .answer-card__content__info {
+  gap: 12px;
+  font-size: 12px;
+  line-height: 20px;
+}
+
+html[data-xet-analysis-layout] .answer-card__content__info .info-item {
+  align-items: center;
+  gap: 4px;
+  margin: 0 !important;
+}
+
+html[data-xet-analysis-layout] .answer-card__content__info .info-item__block {
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  border: 0 !important;
+  background: none !important;
+}
+
+/* Submitted pages normally omit the unanswered legend. Keep the V2 key visible
+   without adding DOM children to the site's Vue-owned legend. */
+html[data-xet-analysis-layout] .answer-card__content__info:has(.success, .error):not(:has(.default, .unanswered, .essay))::after {
+  content: "— 未答";
+  color: #4d5762;
+  white-space: nowrap;
+}
+
+@media (forced-colors: active) {
+  html[data-xet-analysis-layout] .answer-card__content__card__item {
+    color: CanvasText !important;
+    background: Canvas !important;
+    border-color: ButtonText !important;
+  }
+  html[data-xet-analysis-layout] .answer-card__content__card__item.current {
+    outline-color: Highlight !important;
+  }
+  html[data-xet-analysis-layout] .answer-card__content__card__item::after,
+  html[data-xet-analysis-layout] .info-item__block::after {
+    background-color: CanvasText !important;
+  }
+}

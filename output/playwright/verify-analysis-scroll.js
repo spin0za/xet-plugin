@@ -27,12 +27,13 @@ async (page) => {
         .analysis-base-layout__content{width:100%;height:calc(100vh - 160px);display:flex;justify-content:space-between;margin-top:16px;padding-bottom:24px}
         .analysis-card{width:240px;height:100%;margin-right:16px;background:white;display:flex;flex-direction:column;border-radius:12px;overflow:hidden}
         .analysis-card__slot{height:100%}.collapsible-card{height:100%;display:flex;flex-direction:column}
-        .collapsible-card__header{margin:16px;padding:12px;border:1px solid #1472ff;border-radius:8px}
+        .collapsible-card__header{width:208px;height:40px;margin:16px auto 6px;padding-left:16px;display:flex;align-items:center;border:1px solid #1472ff;border-radius:8px}
         .answer-card__content{position:relative;height:100%;flex:1;min-height:0}
         .answer-card__content__card{padding:10px 16px 52px;display:flex;align-content:flex-start;flex-wrap:wrap;overflow-y:auto;height:90%}
         .answer-card__content__card__item{margin-right:12px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;width:32px;height:32px;border:1px solid #ccc;border-radius:4px;cursor:pointer}
         .answer-card__content__card__item:nth-child(5n){margin-right:0}.current{color:white;background:#1472ff}
-        .answer-card__content__info{position:absolute;bottom:16px;left:16px}
+        .answer-card__content__info{position:absolute;bottom:16px;left:16px;display:flex}
+        .info-item{display:flex;align-items:center;margin-right:13px}.info-item__block{display:inline-block;width:24px;height:16px;margin-left:4px;border:1px solid}
         .analysis-regional{position:relative;flex:1;height:100%;padding:16px;background:white;overflow:hidden;border-radius:12px}
         .analysis{height:100%;overflow:hidden}.analysis-only-error{display:flex;align-items:center;height:40px;background:#f5f5f5;position:relative;border-radius:8px}
         .analysis-regional .analysis-only-error .error-item{position:absolute;right:16px;line-height:40px;font-size:14px}
@@ -47,8 +48,8 @@ async (page) => {
         <section style="height:80px"></section><section class=analysis-base-layout__title>查看结果</section>
         <section class=analysis-base-layout__content><div class=analysis-card><div class=analysis-card__slot>
           <aside class=collapsible-card><div class=collapsible-card__header>答题卡</div><div class=answer-card__content>
-            <div class=answer-card__content__card>${questions.map((q,i)=>`<div class="answer-card__content__card__item ${i===0?'current':''}"><span>${i+1}</span></div>`).join('')}</div>
-            <div class=answer-card__content__info>正确 □　错误 □</div></div></aside></div></div>
+            <div class=answer-card__content__card>${questions.map((q,i)=>`<div class="answer-card__content__card__item ${i%2?'success':'error'} ${i===0?'current':''}"><span>${i+1}</span></div>`).join('')}</div>
+            <div class=answer-card__content__info><div class=info-item><span class=item>正确</span><span class="info-item__block success"></span></div><div class=info-item><span class=item>错误</span><span class="info-item__block error"></span></div></div></div></aside></div></div>
           <div class=analysis-regional><div class=analysis><div class=analysis-only-error><span class=error-item-font>解析</span><label class=error-item><input id=only type=checkbox>仅看错题</label></div>
             <div class=analysis-only-content>${questions.map((q,i)=>`<section class=analysis-item id=analysis-${i+1}>
               <div class=question-header><div class=question-type>${i+1}. 单选题</div></div><p>第 ${i+1} 题：题干和解析</p>
@@ -81,6 +82,39 @@ async (page) => {
     ).map(el=>el.className));
     assert((await owners()).length===0,`Nested scroll owners: ${await owners()}`);
     checks.push('one document scroll owner');
+    const answerCard = await fixture.evaluate(()=>{
+      const grid=document.querySelector('.answer-card__content__card'),cells=[...grid.children],card=document.querySelector('.analysis-card');
+      window.nativeCellReferences=cells;
+      const rects=cells.map(el=>el.getBoundingClientRect()),bounds=card.getBoundingClientRect();
+      return {width:rects[0].width,height:rects[0].height,cardWidth:bounds.width,cardHeight:bounds.height,
+        columnGap:rects[1].left-rects[0].right,rowGap:rects[5].top-rects[0].bottom,
+        left:rects[0].left-bounds.left,right:bounds.right-rects[4].right,
+        outline:getComputedStyle(cells[0]).outlineWidth,background:getComputedStyle(cells[0]).backgroundColor,
+        text:getComputedStyle(cells[0]).color,icon:decodeURIComponent(getComputedStyle(cells[0],'::after').maskImage),
+        legend:getComputedStyle(document.querySelector('.answer-card__content__info'),'::after').content};
+    });
+    assert(answerCard.width===32&&answerCard.height===44&&answerCard.cardWidth===240&&answerCard.cardHeight===664,`Not exact V2 geometry: ${JSON.stringify(answerCard)}`);
+    assert(answerCard.columnGap===12&&answerCard.rowGap===12&&answerCard.left===16&&answerCard.right===16&&answerCard.outline==='4px',`V2 spacing or current outline changed: ${JSON.stringify(answerCard)}`);
+    assert(answerCard.background==='rgb(255, 241, 230)'&&answerCard.text==='rgb(36, 44, 54)'&&answerCard.icon.includes('M4 4'),`Current cell lost its wrong state: ${JSON.stringify(answerCard)}`);
+    assert(answerCard.legend.includes('未答'),'Missing symbolic unanswered key');
+    for(const [state,expected] of [['success','M3 8l3'],['error','M4 4'],['default','M3 8h10'],['unanswered','M3 8h10'],['answered','circle'],['essay','M5 5'],['unrecognized','M5 5']]) {
+      const icon=await fixture.evaluate(state=>{
+        const cell=nativeCellReferences[2];cell.className='answer-card__content__card__item '+state;
+        return decodeURIComponent(getComputedStyle(cell,'::after').maskImage);
+      },state);
+      assert(icon.includes(expected),`${state} produced wrong or guessed result: ${icon}`);
+    }
+    await fixture.evaluate(()=>{nativeCellReferences[2].className='answer-card__content__card__item error';});
+    await fixture.emulateMedia({forcedColors:'active'});
+    const highContrast=await fixture.locator('.current').evaluate(el=>({
+      mask:decodeURIComponent(getComputedStyle(el,'::after').maskImage),background:getComputedStyle(el,'::after').backgroundColor,
+      outline:getComputedStyle(el).outlineWidth,
+    }));
+    assert(highContrast.mask.includes('M4 4')&&highContrast.background!=='rgba(0, 0, 0, 0)'&&highContrast.outline==='4px',`High contrast lost non-color cues: ${JSON.stringify(highContrast)}`);
+    await fixture.emulateMedia({forcedColors:'none'});
+    await fixture.locator('.analysis-card').screenshot({path:'output/playwright/answer-card-v2-implemented.png'});
+    checks.push('V2 32x44 cells, 12px gaps, 16px insets, 4px outline and symbolic legend');
+    checks.push('reactive correct/wrong/unanswered/answered/ungraded/unknown states and forced colors');
     async function verifyFilterPanel() {
       const rects=await fixture.evaluate(()=>{
         const card=document.querySelector('.analysis-card').getBoundingClientRect();
@@ -120,6 +154,7 @@ async (page) => {
     const top=await fixture.locator('#analysis-20').evaluate(el=>el.getBoundingClientRect().top);
     assert(Math.abs(top-96)<2,`Native jump was undone or obscured: ${top}`);
     assert(await fixture.evaluate(()=>nativeClicks)===1,'Native answer-card handler was suppressed or duplicated');
+    assert(await fixture.evaluate(()=>nativeCellReferences.every((cell,i)=>document.querySelectorAll('.answer-card__content__card__item')[i]===cell)),'Native cells were replaced');
     assert(await fixture.locator('.current span').textContent()==='20','Native selected-cell state lost');
     const sticky=await fixture.locator('.analysis-card').evaluate(el=>el.getBoundingClientRect().top);
     assert(sticky===96,`Answer card is not sticky: ${sticky}`);
@@ -158,7 +193,9 @@ async (page) => {
     checks.push('short viewport, web fullscreen lock and original native controls');
     await fixture.evaluate(()=>history.pushState({},'','/p/t_pc/pc_evaluation/practice_record'));
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-analysis-scroll]'));
+    await fixture.waitForFunction(()=>!document.documentElement.hasAttribute('data-xet-analysis-layout'));
     assert(await fixture.locator('.analysis-only-content').evaluate(el=>getComputedStyle(el).overflowY)==='auto','Layout leaked to other route');
+    assert(await fixture.locator('.answer-card__content__card__item').first().evaluate(el=>el.getBoundingClientRect().height)===32,'V2 sizing leaked to another route');
     assert(await fixture.locator('.error-item-font').isVisible(),'Original analysis title did not return on navigation');
     assert(await fixture.evaluate(()=>document.querySelector('#only')===originalFilter),'Native filter identity changed on cleanup');
     await fixture.evaluate(path=>history.pushState({},'',path+'?join_id=join_fixture'),path);
@@ -167,6 +204,7 @@ async (page) => {
     await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-analysis-scroll]'));
     assert(await fixture.locator('.analysis-only-content').evaluate(el=>getComputedStyle(el).overflowY)==='auto','Disable did not restore native scrolling');
+    assert(await fixture.locator('.answer-card__content__card__item').first().evaluate(el=>getComputedStyle(el,'::after').content)==='none','Disable did not remove answer symbols');
     assert(await fixture.locator('.analysis-only-error').evaluate(el=>getComputedStyle(el).backgroundColor)==='rgb(245, 245, 245)','Original filter appearance was not restored');
     assert(!await fixture.locator('.analysis-card').getAttribute('data-xet-analysis-sticky-card'),'Sticky marker leaked');
     checks.push('SPA navigation, return and site-disable cleanup');
