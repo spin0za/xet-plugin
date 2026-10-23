@@ -424,7 +424,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.19.1**
+Current version: **1.20.0**
+
+1.20.0：课程目录切回标签页时静默更新学习进度、已加载条目的完成／解锁状态及上次学习信息，保留目录展开状态和滚动位置；查询失败保留已有显示。新增课程及目录结构变化仍通过重新进入页面或手动刷新获取。
+
+1.20.0: Silently refreshes course progress, completion/unlock states for loaded entries, and last-study information when returning to a course catalog tab. Preserves expanded chapters and scroll positions; failed reads keep existing content. Reopen or manually refresh to load structural catalog changes.
 
 1.19.1：答题卡标题水平居中，保留原有收起按钮和 V2 格子布局。
 
