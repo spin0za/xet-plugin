@@ -44,6 +44,18 @@ async(page)=>{
   });
   assert(geometry.inToolbar&&geometry.nextToVolume&&geometry.width===geometry.font&&geometry.height===geometry.font&&geometry.gap===geometry.expectedGap&&Math.abs(geometry.centerOffset)<1&&geometry.buttonCount===1,JSON.stringify(geometry));
   await button.hover();assert(await button.evaluate(b=>getComputedStyle(b).backgroundColor)==='rgba(0, 0, 0, 0)','Unwanted gray hover');
+  const assertTooltipCentered=async()=>{
+   const box=await fixture.evaluate(()=>{const b=document.querySelector('.xet-download-button').getBoundingClientRect(),t=document.querySelector('.xet-download-tooltip').getBoundingClientRect();
+    return {offset:t.x+t.width/2-b.x-b.width/2,above:t.bottom<b.top,width:t.width}});
+   assert(box.width>0&&box.above&&Math.abs(box.offset)<0.5,'Tooltip is not centered above the button: '+JSON.stringify(box));
+  };
+  for(const text of ['下载音频','取消下载']){
+   await fixture.locator('.xet-download-tooltip').evaluate((t,text)=>{t.textContent=text},text);
+   await button.hover();await assertTooltipCentered();await fixture.mouse.move(0,0);
+   await button.focus();await assertTooltipCentered();await button.blur();
+  }
+  await fixture.locator('.xet-download-tooltip').evaluate(t=>{t.textContent='下载音频'});
+  checks.push('audio tooltip stays centered above the button on hover and keyboard focus for both idle/cancel labels');
   assert(await fixture.locator('.xet-download-tooltip').evaluate(t=>getComputedStyle(t).position)==='absolute','Tooltip leaked into the native toolbar layout');
   checks.push('native audio toolbar: volume-matched icon dimensions, vertical center and spacing, positioned tooltip, transparent hover');
   assert(geometry.expectedGap<geometry.wrapperMargin,'Fixture must reproduce the overflowing native mode label');

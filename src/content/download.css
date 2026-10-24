@@ -84,3 +84,8 @@
   align-self: flex-start;
   margin-top: var(--xet-download-offset-y, calc((65px - var(--xet-download-height, 20px)) / 2)) !important;
 }
+.xet-download-audio > .xet-download-tooltip {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
