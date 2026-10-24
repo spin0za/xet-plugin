@@ -201,7 +201,12 @@
         record.container.style.setProperty("--xet-download-width", `${size}px`);
         record.container.style.setProperty("--xet-download-height", `${size}px`);
         if (iconBox.height > 0) record.container.style.setProperty("--xet-download-offset-y", `${Math.max(0, iconBox.top - parentBox.top + (iconBox.height - size) / 2)}px`);
-        record.container.style.setProperty("--xet-download-margin", getComputedStyle(volume).margin);
+        // The mode label overflows its narrower wrapper. Match the visible
+        // label-to-volume gap, not the wrapper's much larger CSS margin.
+        const previous = volume.previousElementSibling;
+        const modeBox = (previous?.querySelector(".mode, .rate") || previous)?.getBoundingClientRect();
+        const gap = modeBox?.width > 0 && iconBox.width > 0 ? Math.max(0, iconBox.left - modeBox.right) : parseFloat(getComputedStyle(volume).marginLeft) || 0;
+        record.container.style.setProperty("--xet-download-margin", `0px 0px 0px ${gap}px`);
         record.container.style.color = style.color;
         if (record.container.parentElement !== parent || record.container.previousElementSibling !== volume) volume.after(record.container);
         return;

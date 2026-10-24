@@ -39,12 +39,22 @@ async(page)=>{
    return {inToolbar:c.parentElement.classList.contains('study-header-control'),nextToVolume:v.classList.contains('volume'),width:b.getBoundingClientRect().width,
     height:b.getBoundingClientRect().height,font:parseFloat(getComputedStyle(icon).fontSize),gap:c.getBoundingClientRect().left-v.getBoundingClientRect().right,
     centerOffset:b.getBoundingClientRect().y+b.getBoundingClientRect().height/2-icon.getBoundingClientRect().y-icon.getBoundingClientRect().height/2,
-    expectedGap:parseFloat(getComputedStyle(v).marginLeft),buttonCount:document.querySelectorAll('.xet-download-button').length};
+    expectedGap:icon.getBoundingClientRect().left-document.querySelector('.audioPlaySetting .mode').getBoundingClientRect().right,
+    wrapperMargin:parseFloat(getComputedStyle(v).marginLeft),buttonCount:document.querySelectorAll('.xet-download-button').length};
   });
   assert(geometry.inToolbar&&geometry.nextToVolume&&geometry.width===geometry.font&&geometry.height===geometry.font&&geometry.gap===geometry.expectedGap&&Math.abs(geometry.centerOffset)<1&&geometry.buttonCount===1,JSON.stringify(geometry));
   await button.hover();assert(await button.evaluate(b=>getComputedStyle(b).backgroundColor)==='rgba(0, 0, 0, 0)','Unwanted gray hover');
   assert(await fixture.locator('.xet-download-tooltip').evaluate(t=>getComputedStyle(t).position)==='absolute','Tooltip leaked into the native toolbar layout');
   checks.push('native audio toolbar: volume-matched icon dimensions, vertical center and spacing, positioned tooltip, transparent hover');
+  assert(geometry.expectedGap<geometry.wrapperMargin,'Fixture must reproduce the overflowing native mode label');
+  for(const shape of [{width:60,sizing:'content-box'},{width:76,sizing:'content-box'},{width:70,sizing:'border-box'}]){
+   await fixture.evaluate(({width,sizing})=>{const bar=document.querySelector('.study-header-control'),copy=bar.cloneNode(true);
+    copy.querySelector('.mode').style.width=width+'px';copy.querySelector('.mode').style.boxSizing=sizing;
+    copy.querySelector('.xet-download-control').remove();bar.replaceWith(copy)},shape);
+   await fixture.waitForFunction(()=>{const b=document.querySelector('.xet-download-button'),v=document.querySelector('.volume .iconfont'),m=document.querySelector('.audioPlaySetting .mode');
+    return b&&Math.abs((b.getBoundingClientRect().left-v.getBoundingClientRect().right)-(v.getBoundingClientRect().left-m.getBoundingClientRect().right))<1});
+  }
+  checks.push('download-to-volume gap matches the visible mode-to-volume gap, including different native mode label widths');
   const [tabId]=await worker.evaluate(async origin=>(await chrome.tabs.query({})).filter(t=>t.url?.startsWith(origin)).map(t=>t.id),origin);
   const sink=async cancel=>worker.evaluate(async({tabId,cancel})=>{await chrome.scripting.executeScript({target:{tabId},world:'ISOLATED',func:cancel=>{
    window.__audioSink={chunks:[],closed:false,aborted:false};window.showSaveFilePicker=async options=>{
