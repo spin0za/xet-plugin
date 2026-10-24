@@ -52,10 +52,10 @@
       return { x: scrollX, y: scrollY, elements: [...base.$el.querySelectorAll("*")]
         .filter(el => el.scrollTop || el.scrollLeft).map(el => ({ el, x: el.scrollLeft, y: el.scrollTop })) };
     }
-    function restoreScroll(saved) {
+    function restoreScroll(saved, returnToPlayer = false) {
       if (!saved) return;
       for (const { el, x, y } of saved.elements) if (el.isConnected) { el.scrollLeft = x; el.scrollTop = y; }
-      window.scrollTo(saved.x, saved.y);
+      window.scrollTo({ left: saved.x, top: returnToPlayer ? 0 : saved.y, behavior: "instant" });
     }
     function cleanPlayer(vm) {
       if (disposed.has(vm)) return;
@@ -184,6 +184,7 @@
     }
     async function load(to) {
       const url = routeUrl(to), id = url.pathname.match(VIDEO)[1];
+      const returnToPlayer = state.catalogNavigation === to.fullPath;
       let timeout;
       try {
         invalidate();
@@ -206,8 +207,11 @@
         document.title = base.videoInfo.video_info.title || document.title;
         for (const vm of tree(base)) if (nameOf(vm) === "CampProCatalog") vm.lastStudyResourceId = id;
         for (const vm of players()) preparePlayer(vm);
-        restoreScroll(state.scroll);
-        requestAnimationFrame(() => { if (live()) restoreScroll(state.scroll); });
+        const savedScroll = state.scroll;
+        const settleScroll = () => {
+          if (live() && state.id === id && !state.hidden) restoreScroll(savedScroll, returnToPlayer);
+        };
+        settleScroll(); requestAnimationFrame(settleScroll);
         state.lastResult = { ok: true, id };
       } catch { if (live()) fallback(state.pending || url); }
       finally { clearTimeout(timeout); }
@@ -246,13 +250,16 @@
       try {
         while (state.pending && live()) {
           const target = state.pending; state.pending = null;
-          if (target.pathname === location.pathname && target.search === location.search) continue;
+          if (target.pathname === location.pathname && target.search === location.search) {
+            restoreScroll({ x: scrollX, elements: [] }, true); continue;
+          }
+          state.catalogNavigation = target.pathname + target.search + target.hash;
           await router.push(target.pathname + target.search + target.hash);
           if (state.loading) await state.loading;
         }
       } catch (error) {
         if (live() && !error?._isRouter) fallback(url);
-      } finally { state.draining = false; }
+      } finally { state.draining = false; state.catalogNavigation = null; }
     }
     function patchRows() {
       if (!live()) return;

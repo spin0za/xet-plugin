@@ -69,21 +69,29 @@ async(page)=>{
     });
     await fixture.goto(origin+prefix+'v_a'+query);await fixture.bringToFront();
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation?.active);stage='first switch';
-    await fixture.evaluate(()=>{window.initialCatalog=document.querySelector('.catalog');initialCatalog.scrollTop=40;window.scrollTo(0,200)});
+    await fixture.evaluate(()=>{window.initialCatalog=document.querySelector('.catalog');initialCatalog.scrollTop=40;window.scrollTo({top:200,behavior:'instant'});document.documentElement.style.scrollBehavior='smooth'});
     await fixture.locator('[data-id=v_b]').click();
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation?.lastResult?.id==='v_b');
     let result=await fixture.evaluate(()=>({id:location.pathname.split('/').pop(),player:document.querySelector('.native-player').innerText,
-      same:initialCatalog===document.querySelector('.catalog'),scroll:initialCatalog.scrollTop,detail:document.querySelector('.detail').textContent,
+      same:initialCatalog===document.querySelector('.catalog'),scroll:initialCatalog.scrollTop,pageScroll:scrollY,detail:document.querySelector('.detail').textContent,
       comments:document.querySelector('.comments').textContent,wares:document.querySelector('.wares').textContent,audit}));
     assert(documents===1&&result.same&&result.scroll===40,`Document or catalog was replaced / scrolled: ${JSON.stringify(result)}`);
+    assert(result.pageScroll===0,'Catalog navigation did not jump to the player at the top');
     assert(result.player.includes('v_b')&&result.player.includes('Native speed/fullscreen')&&[result.detail,result.comments,result.wares].every(x=>x==='v_b'),`Player or metadata kept old resource: ${JSON.stringify(result)}`);
     assert(result.audit.destroyed.includes('v_a')&&result.audit.reports.every(r=>r.id===r.data),'Old player not disposed or progress crossed resource IDs');
     checks.push('real Vue 2 + MV3: document/catalog identity, native controls, metadata, old-player disposal and progress IDs');
-    stage='back/forward';await fixture.goBack();
+    checks.push('catalog click jumps instantly to the player, preserving inner catalog scroll even with smooth-scroll CSS');
+    stage='back/forward';await fixture.evaluate(()=>window.scrollTo({top:350,behavior:'instant'}));await fixture.goBack();
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation.lastResult.id==='v_a');
     await fixture.goForward();await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation.lastResult.id==='v_b');
     assert(documents===1,'Back/forward reloaded the document');
-    checks.push('browser back/forward switch player without reloading');
+    assert(await fixture.evaluate(()=>scrollY>0),'Browser history incorrectly forced the page back to the player');
+    checks.push('browser back/forward switch player without reloading or forcing a jump to the top');
+    stage='current video click';const readsBefore=calls.filter(c=>c.path==='/read-video').length;
+    await fixture.locator('[data-id=v_b]').click();
+    await fixture.waitForFunction(()=>scrollY===0&&!globalThis.__xetVideoNavigation.draining);
+    assert(calls.filter(c=>c.path==='/read-video').length===readsBefore,'Clicking the current video unnecessarily reloaded it');
+    checks.push('clicking the current catalog video also returns to the player without reloading');
     stage='rapid clicks';await fixture.goBack();await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation.lastResult.id==='v_a');
     hold=true;await fixture.locator('[data-id=v_b]').click();
     await fixture.waitForFunction(()=>location.pathname.endsWith('/v_b'));
@@ -91,6 +99,7 @@ async(page)=>{
     hold=false;releases.splice(0).forEach(r=>r());
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation.lastResult.id==='v_c');
     assert(await fixture.evaluate(()=>audit.created.at(-1).id==='v_c'&&audit.created.at(-2).id==='v_a'),'An intermediate skipped video was started');
+    assert(await fixture.evaluate(()=>scrollY===0),'Latest queued catalog click did not return to the player');
     checks.push('rapid clicks serialize native reads and start only the latest queued video');
     stage='guards';const nativeBefore=await fixture.evaluate(()=>audit.native.length);
     await fixture.locator('[data-id=v_locked]').click();

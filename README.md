@@ -429,7 +429,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.21.0**
+Current version: **1.21.1**
+
+1.21.1：从目录点击视频后回到顶部播放器，保留目录内部位置；点击当前视频也回顶而不重复加载。浏览器前进／后退保持原滚动恢复行为。
+
+1.21.1: Catalog clicks return to the player at the top while preserving inner catalog position. Clicking the current video does not reload it; browser history keeps its existing scroll behavior.
 
 1.21.0：同课程视频目录支持局部切换，保留原播放器控件、目录状态和滚动位置；同步更新标题、详情、评论与课件，处理播放器清理、连续点选及前进后退。读取异常时退回网站原有整页打开。实现范围与验证见 [视频局部切换说明](docs/video-navigation.md)。
 
