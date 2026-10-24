@@ -32,19 +32,24 @@
     } catch { return null; }
   }
 
-  async function resolve(message, sender, { siteAccess, readSettings }) {
-    if (!Number.isInteger(sender.tab?.id) || !Number.isInteger(sender.frameId) || sender.frameId < 0 ||
-        typeof message.token !== "string" || !/^[a-f0-9-]{36}$/.test(message.token)) {
-      return { ok: false, error: "无法确认当前播放器" };
-    }
+  async function authorized(sender, { siteAccess, readSettings }) {
+    if (!Number.isInteger(sender.tab?.id) || !Number.isInteger(sender.frameId) || sender.frameId < 0) return false;
     const top = siteAccess.siteInfo(sender.tab.url);
     const own = siteAccess.siteInfo(sender.url) || siteAccess.siteInfo(sender.origin);
     const settings = await readSettings();
-    if (!top || !own || settings.disabledSites.includes(top.origin) ||
+    return !(!top || !own || settings.disabledSites.includes(top.origin) ||
         settings.disabledSites.includes(own.origin) ||
-        !(await siteAccess.isAuthorized(top.origin)) || !(await siteAccess.isAuthorized(own.origin))) {
-      return { ok: false, error: "当前网站未启用插件" };
-    }
+        !(await siteAccess.isAuthorized(top.origin)) || !(await siteAccess.isAuthorized(own.origin)));
+  }
+  async function ensureStyles(message, sender, dependencies) {
+    if (!(await authorized(sender, dependencies))) return { ok: false };
+    const target = sender.documentId ? { tabId: sender.tab.id, documentIds: [sender.documentId] } : { tabId: sender.tab.id, frameIds: [sender.frameId] };
+    await chrome.scripting.insertCSS({ target, files: ["src/content/download.css"] });
+    return { ok: true };
+  }
+  async function resolve(message, sender, dependencies) {
+    if (typeof message.token !== "string" || !/^[a-f0-9-]{36}$/.test(message.token)) return { ok: false, error: "无法确认当前播放器" };
+    if (!(await authorized(sender, dependencies))) return { ok: false, error: "当前网站未启用插件" };
     const target = { tabId: sender.tab.id, frameIds: [sender.frameId] };
     const [result] = await chrome.scripting.executeScript({
       target, world: "MAIN", func: readPlayerSource, args: [message.token],
@@ -61,5 +66,5 @@
     return { ok: true, ...result.result };
   }
 
-  globalThis.XetDownloadSource = Object.freeze({ readPlayerSource, resolve });
+  globalThis.XetDownloadSource = Object.freeze({ readPlayerSource, resolve, ensureStyles });
 })();

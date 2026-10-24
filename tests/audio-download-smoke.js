@@ -47,6 +47,18 @@ async function main() {
     tab: { id: 1, url: "https://merchant.test/audio" }, frameId: 0, url: "https://merchant.test/audio", documentId: "doc",
   }, { siteAccess: { siteInfo: value => ({ origin: new URL(value).origin }), isAuthorized: async () => true }, readSettings: async () => ({ disabledSites: [] }) })).ok, true);
   assert.equal(calls.length, 1, "Direct audio does not load the video transmuxer");
+  const css = [];
+  source.chrome.scripting.insertCSS = async value => css.push(value);
+  const sender = { tab: { id: 1, url: "https://merchant.test/audio" }, frameId: 0, url: "https://merchant.test/audio", documentId: "doc" };
+  let enabled = true;
+  const deps = { siteAccess: { siteInfo: value => { try { return { origin: new URL(value).origin }; } catch { return null; } },
+    isAuthorized: async () => enabled }, readSettings: async () => ({ disabledSites: enabled ? [] : ["https://merchant.test"] }) };
+  assert.equal((await source.XetDownloadSource.ensureStyles({}, sender, deps)).ok, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(css[0])), { target: { tabId: 1, documentIds: ["doc"] }, files: ["src/content/download.css"] });
+  enabled = false;
+  assert.equal((await source.XetDownloadSource.ensureStyles({}, sender, deps)).ok, false);
+  assert.equal((await source.XetDownloadSource.ensureStyles({}, { ...sender, frameId: -1 }, deps)).ok, false);
+  assert.equal(css.length, 1, "Do not restore CSS on disabled/unauthorized frames");
   console.log("audio download: original formats, chunked signatures, invalid/truncated content, cancellation and source bridge passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

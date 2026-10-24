@@ -4,11 +4,30 @@
 
   function createDownloadController({ playerDom }) {
     const records = new Map(), shadows = new Map();
-    let observer = null, scheduled = null, job = null;
+    let observer = null, scheduled = null, job = null, stylesRequest = null;
     const pending = new Set();
     const mediaFor = root => playerDom.findPlayerVideo(root) || (root.tagName === "AUDIO" ? root : root.querySelector("audio"));
     const audioUrl = media => media?.src || media?.currentSrc;
     const idleLabel = record => record.audio ? "下载音频" : "下载当前画质的视频";
+    function ensureStyles(record) {
+      if (getComputedStyle(record.container).getPropertyValue("--xet-download-style-ready").trim() === "1") return;
+      if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
+      // Extension reload can leave live scripts without manifest-injected CSS.
+      // Do not expose an unstyled browser button while restoring this sheet.
+      record.container.style.visibility = "hidden";
+      if (stylesRequest) return;
+      stylesRequest = (async () => {
+        try {
+          const result = await chrome.runtime.sendMessage({ type: "xet:download-styles" });
+          if (!result?.ok || !observer) return;
+          for (const item of records.values()) if (item.root.isConnected &&
+              getComputedStyle(item.container).getPropertyValue("--xet-download-style-ready").trim() === "1") {
+            item.container.style.removeProperty("visibility"); attach(item);
+          }
+        } catch { /* Invalid extension contexts require a normal page refresh. */ }
+        finally { stylesRequest = null; }
+      })();
+    }
     async function prepareAudio(record) {
       const media = mediaFor(record.root), src = audioUrl(media);
       if (!record.audio || !media || record.audioSrc === src) return;
@@ -74,6 +93,7 @@
       record.button.dataset.active = "true";
       record.label.textContent = "准备中";
       record.button.setAttribute("aria-label", `取消${label}下载`);
+      if (record.audio) record.tooltip.textContent = "取消下载";
       const token = crypto.randomUUID();
       video.dataset.xetDownloadToken = token;
       const name = modules.downloadStream.filename(document.title || `课程${label}`, format.extension);
@@ -121,6 +141,7 @@
         delete record.button.dataset.active;
         record.label.textContent = "";
         record.button.setAttribute("aria-label", idleLabel(record));
+        if (record.audio) record.tooltip.textContent = "下载音频";
         if (record.status.textContent) record.timer = setTimeout(() => { record.status.hidden = true; }, 7000);
       }
     }
@@ -131,6 +152,7 @@
         // SDK toolbars can mount after <video>, or be rebuilt during a
         // course/line change. Recheck placement without replacing the button.
         attach(record);
+        ensureStyles(record);
         void prepareAudio(record);
         return;
       }
@@ -158,12 +180,13 @@
       status.hidden = true;
       const tooltip = document.createElement("span");
       tooltip.className = "xet-download-tooltip";
-      tooltip.textContent = `下载${audio ? "音频" : "视频"} / 再次点击取消`;
+      tooltip.textContent = audio ? "下载音频" : "下载视频 / 再次点击取消";
       container.append(button, tooltip, status);
-      const record = { root, container, button, label, status, audio, timer: null };
+      const record = { root, container, button, label, status, tooltip, audio, timer: null };
       button.addEventListener("click", event => { void activate(record, event); });
       records.set(root, record);
       attach(record);
+      ensureStyles(record);
       void prepareAudio(record);
     }
 
@@ -173,9 +196,11 @@
         if (!volume) return;
         const icon = volume.querySelector(".iconfont") || volume, style = getComputedStyle(icon);
         const size = parseFloat(style.fontSize) || 20;
+        const iconBox = icon.getBoundingClientRect(), parentBox = parent.getBoundingClientRect();
         record.container.classList.add("xet-download-audio");
         record.container.style.setProperty("--xet-download-width", `${size}px`);
         record.container.style.setProperty("--xet-download-height", `${size}px`);
+        if (iconBox.height > 0) record.container.style.setProperty("--xet-download-offset-y", `${Math.max(0, iconBox.top - parentBox.top + (iconBox.height - size) / 2)}px`);
         record.container.style.setProperty("--xet-download-margin", getComputedStyle(volume).margin);
         record.container.style.color = style.color;
         if (record.container.parentElement !== parent || record.container.previousElementSibling !== volume) volume.after(record.container);

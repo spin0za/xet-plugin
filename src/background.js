@@ -449,6 +449,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return respond(sendResponse, "read-analysis-context", () =>
       globalThis.XetPracticeAnalysisSource.resolve(message, sender, { siteAccess, readSettings }));
   }
+  if (message?.type === "xet:download-styles") {
+    return respond(sendResponse, "restore-download-styles", () =>
+      globalThis.XetDownloadSource.ensureStyles(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:download-source") {
     return respond(sendResponse, "read-download-source", () =>
       globalThis.XetDownloadSource.resolve(message, sender, { siteAccess, readSettings }));

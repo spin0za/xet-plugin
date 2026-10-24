@@ -429,7 +429,7 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.22.0**
+Current version: **1.22.1**
 
 1.21.1：从目录点击视频后回到顶部播放器，保留目录内部位置；点击当前视频也回顶而不重复加载。浏览器前进／后退保持原滚动恢复行为。
 

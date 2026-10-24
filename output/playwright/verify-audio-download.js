@@ -1,8 +1,13 @@
 async(page)=>{
+ // For the missing-CSS regression, use an otherwise identical fresh MV3
+ // fixture package that omits download.css only from manifest.content_scripts;
+ // keep the file packaged so the real background can restore it. Do not inject
+ // duplicate content scripts into an already-loaded extension profile.
  const context=page.context(),worker=context.serviceWorkers().find(w=>w.url().endsWith('/src/background.js'));
  if(!worker)throw Error('Real MV3 extension required');
  const fixture=await context.newPage(),origin='https://audio-download.pc.xiaoe-tech.com',checks=[],errors=[];
  const assert=(ok,msg)=>{if(!ok)throw Error(msg)};
+ const faultProfile=await worker.evaluate(()=>!chrome.runtime.getManifest().content_scripts[0].css.includes('src/content/download.css'));
  let slow=false,stage='setup';const releases=[];
  fixture.on('pageerror',e=>errors.push(e.message));fixture.setDefaultTimeout(10000);
  try{
@@ -33,11 +38,13 @@ async(page)=>{
    const b=document.querySelector('.xet-download-button'),c=b.parentElement,v=c.previousElementSibling,icon=v.querySelector('.iconfont');
    return {inToolbar:c.parentElement.classList.contains('study-header-control'),nextToVolume:v.classList.contains('volume'),width:b.getBoundingClientRect().width,
     height:b.getBoundingClientRect().height,font:parseFloat(getComputedStyle(icon).fontSize),gap:c.getBoundingClientRect().left-v.getBoundingClientRect().right,
+    centerOffset:b.getBoundingClientRect().y+b.getBoundingClientRect().height/2-icon.getBoundingClientRect().y-icon.getBoundingClientRect().height/2,
     expectedGap:parseFloat(getComputedStyle(v).marginLeft),buttonCount:document.querySelectorAll('.xet-download-button').length};
   });
-  assert(geometry.inToolbar&&geometry.nextToVolume&&geometry.width===geometry.font&&geometry.height===geometry.font&&geometry.gap===geometry.expectedGap&&geometry.buttonCount===1,JSON.stringify(geometry));
+  assert(geometry.inToolbar&&geometry.nextToVolume&&geometry.width===geometry.font&&geometry.height===geometry.font&&geometry.gap===geometry.expectedGap&&Math.abs(geometry.centerOffset)<1&&geometry.buttonCount===1,JSON.stringify(geometry));
   await button.hover();assert(await button.evaluate(b=>getComputedStyle(b).backgroundColor)==='rgba(0, 0, 0, 0)','Unwanted gray hover');
-  checks.push('native audio toolbar: volume-matched icon dimensions and spacing, shared icon/tooltip, transparent hover');
+  assert(await fixture.locator('.xet-download-tooltip').evaluate(t=>getComputedStyle(t).position)==='absolute','Tooltip leaked into the native toolbar layout');
+  checks.push('native audio toolbar: volume-matched icon dimensions, vertical center and spacing, positioned tooltip, transparent hover');
   const [tabId]=await worker.evaluate(async origin=>(await chrome.tabs.query({})).filter(t=>t.url?.startsWith(origin)).map(t=>t.id),origin);
   const sink=async cancel=>worker.evaluate(async({tabId,cancel})=>{await chrome.scripting.executeScript({target:{tabId},world:'ISOLATED',func:cancel=>{
    window.__audioSink={chunks:[],closed:false,aborted:false};window.showSaveFilePicker=async options=>{
@@ -75,12 +82,21 @@ async(page)=>{
   const event=fixture.waitForEvent('download');await button.click();const download=await event;
   assert(download.suggestedFilename().endsWith('.mp3')&&!(await download.failure()),'Fallback did not save MP3');
   checks.push('invalid content rejected; native browser small-file fallback keeps MP3 extension');
+  if(faultProfile){stage='missing injected CSS';
+  await worker.evaluate(async tabId=>chrome.scripting.removeCSS({target:{tabId},files:['src/content/download.css']}),tabId);
+  assert(await button.evaluate(b=>getComputedStyle(b).backgroundColor)!=='rgba(0, 0, 0, 0)','Fixture did not reproduce the unstyled browser button');
   stage='toolbar replacement';await fixture.evaluate(()=>{const bar=document.querySelector('.study-header-control');bar.replaceWith(bar.cloneNode(true));document.querySelector('.xet-download-control').remove()});
   await button.waitFor();assert(await button.count()===1,'Toolbar rebuild duplicated/lost button');
+  await fixture.waitForFunction(()=>getComputedStyle(document.querySelector('.xet-download-control')).getPropertyValue('--xet-download-style-ready').trim()==='1');
+  assert(await button.evaluate(b=>getComputedStyle(b).backgroundColor)==='rgba(0, 0, 0, 0)','Missing CSS was not automatically restored');
+  checks.push('lost injected CSS is restored without a page refresh, duplicate content scripts or default-button/inline-tooltip fallback');
+  }else{
+   stage='toolbar replacement';await fixture.evaluate(()=>{const bar=document.querySelector('.study-header-control');bar.replaceWith(bar.cloneNode(true));document.querySelector('.xet-download-control').remove()});await button.waitFor();
+  }
   await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);await button.waitFor({state:'detached'});
   await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));await button.waitFor();
   assert(!errors.length,errors.join('; '));checks.push('native toolbar rebuild and site disable/re-enable');
   await button.blur();await fixture.mouse.move(0,0);await fixture.screenshot({path:'output/playwright/audio-download-controls.png'});
-  return {checks,geometry,errors};
- }catch(e){throw Error(stage+': '+e.message)}finally{slow=false;releases.splice(0).forEach(r=>r());await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));await fixture.close();}
+  return {checks,geometry,faultProfile,errors};
+ }catch(e){const debug=await fixture.evaluate(()=>{const c=document.querySelector('.xet-download-control');return {control:!!c,inline:c?.getAttribute('style'),marker:c&&getComputedStyle(c).getPropertyValue('--xet-download-style-ready'),visibility:c&&getComputedStyle(c).visibility}});throw Error(stage+': '+e.message+' '+JSON.stringify(debug))}finally{slow=false;releases.splice(0).forEach(r=>r());await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));await fixture.close();}
 }
