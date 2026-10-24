@@ -23,6 +23,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 手动点击或用键盘选择画质后，当前视频不再被强制改回；切画质、暂停/继续、设置刷新不会清除该选择，打开下一段视频时重新默认最高画质。同页多个播放器分别处理。
 - “默认最大音量”开启时，所有受支持页面的视频默认音量为 100%，直播与直播回放的音量滑块也同步到最大；加载后仍可手动调小或静音，不会被持续改回。新视频与页面内切换课程会重新初始化，切换画质不会重置手动音量；不调整系统音量或强制解除静音。可单独关闭该开关，不影响画质、快捷键和全屏功能。
 - 支持小鹅通 xgplayer 课程播放器和打卡页面的原生 HTML5 视频。
+- 普通视频页在目录中切换同一课程的视频时局部更新原生播放器、详情、评论与课件，保留目录展开和滚动位置；地址、标题与前进／后退同步。仍使用原播放控件和学习记录机制；跨课程、直播等其他资源保持原导航，读取异常时退回正常整页打开。
 - 跨域嵌入播放器遵循外层网站的启停设置；网页全屏会同时铺满外层页面，并支持在外层页面按 `T` 或 `Esc` 退出。
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 练习解析页使用一个页面滚动区域，右侧滚动条、滚轮和 Page Up / Page Down 直接滚动题目；答题卡跳题保留。“仅看错题”置于答题卡下方的等宽独立方框内，不覆盖题目。左侧整体能放入窗口时保持可见，放不下时随页面展开，不增加独立滚动条。
@@ -111,6 +112,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 ```bash
 node tests/background-smoke.js
 node tests/content-structure-smoke.js
+node tests/video-navigation-smoke.js
 node tests/analysis-icons-smoke.js
 node tests/practice-analysis-source-smoke.js
 node tests/practice-undo-smoke.js
@@ -151,6 +153,7 @@ playwright-cli run-code "$(<output/playwright/verify-extension-ui.js)"
 - After you select a quality option with the mouse or keyboard, the current video is no longer forced back. Quality reloads, pause/resume, and settings refreshes preserve your choice; the next video defaults to its highest available quality again. Players on the same page are handled independently.
 - The **Default maximum volume** switch initializes supported videos to 100% volume and synchronizes the volume slider for live streams and replays. You can still lower the volume or mute afterward without it being continuously reset. New videos and in-page course changes initialize again; quality switches preserve manual volume. It does not change system volume or force unmuting. Turning this switch off leaves quality, shortcuts, and fullscreen features active.
 - Supports both Xiaoe Tech's xgplayer course player and native HTML5 videos on clock-in pages.
+- Switching catalog videos within the same course updates the original player and lesson-specific details, comments and attachments without reloading the document. Preserves catalog state and scroll positions, with matching URLs, titles and back/forward behavior. Other resource types and courses retain native navigation; failed reads fall back to a normal page load.
 - Cross-origin players follow the outer site's enable/disable policy. Page fullscreen also expands the hosting frames, and `T` or `Esc` can exit it from the outer page.
 - Normalizes practice previews (including rote-review mode), error-book practice and readonly explanations, and exam analysis previews to responsive 16:9, up to 960 × 540, with a slight edge crop limited to previews to remove thin black borders. Darker gradients along the preview's top and bottom edges improve white title and control readability.
 - Practice analysis uses one document scroll area, so the page scrollbar, wheel and native Page Up / Page Down scroll the questions. Answer-card jumps are preserved. The original only-errors filter appears in a separate, equal-width panel beneath the answer card, without covering questions. The sidebar stays visible when it fits the viewport and flows with the page otherwise, without a second scrollbar.
@@ -348,6 +351,8 @@ tests/
 
 ## 真实扩展集成测试 / Real extension integration test
 
+`verify-video-navigation.js` 使用真实 Vue 2／Vue Router 3 与隔离接口，验证两种原生播放器的同课程切换、目录保留、关联内容更新、旧播放器清理、学习上报 ID、浏览历史、连续点选与异常回退；需使用全新 MV3 扩展配置。具体范围及真实页面核实见 [视频局部切换说明](docs/video-navigation.md)。
+
 `practice-marks-smoke.js` 和真实 MV3 夹具 `verify-practice-marks.js` 复现网站交卷后清空 `is_marked`，验证做题/背题模式、保存中的标记、取消标记、交卷去重、恢复后再跳转、解析按钮及答题卡角标、刷新保留、不同答题记录隔离、恢复失败重试、响应不明确时不重交，以及停用后的原生方法恢复。答题接口使用模拟数据，不操作个人答案。
 
 `practice-marks-smoke.js` and the real MV3 fixture `verify-practice-marks.js` reproduce submission clearing `is_marked` and verify both practice modes, pending/canceled marks, duplicate-submit protection, restoration before navigation, analysis buttons/badges, reload persistence, attempt isolation, restore retries, uncertain-write safety, and cleanup on disable using synthetic APIs.
@@ -424,7 +429,11 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.20.0**
+Current version: **1.21.0**
+
+1.21.0：同课程视频目录支持局部切换，保留原播放器控件、目录状态和滚动位置；同步更新标题、详情、评论与课件，处理播放器清理、连续点选及前进后退。读取异常时退回网站原有整页打开。实现范围与验证见 [视频局部切换说明](docs/video-navigation.md)。
+
+1.21.0: Adds same-course video navigation without document reload, retaining native controls and catalog state, updating lesson metadata, and handling player disposal, rapid clicks and browser history. Failed reads fall back to normal navigation.
 
 1.20.0：课程目录切回标签页时静默更新学习进度、已加载条目的完成／解锁状态及上次学习信息，保留目录展开状态和滚动位置；查询失败保留已有显示。新增课程及目录结构变化仍通过重新进入页面或手动刷新获取。
 

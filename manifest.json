@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "119",
   "name": "小鹅通播放助手",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "description": "默认选择小鹅通视频可用的最高画质，可设默认最大音量，提供播放快捷键，并可无界面保持登录。",
   "icons": {
     "16": "icons/icon-16.png",
@@ -69,6 +69,7 @@
         "src/content/practice-history.js",
         "src/content/practice-undo.js",
         "src/content/course-progress.js",
+        "src/content/video-navigation.js",
         "src/content/page-title.js",
         "src/content/text-selection.js",
         "src/content/question-typography.js",

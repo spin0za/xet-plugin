@@ -20,6 +20,7 @@ const expectedScripts = [
   "src/content/practice-history.js",
   "src/content/practice-undo.js",
   "src/content/course-progress.js",
+  "src/content/video-navigation.js",
   "src/content/page-title.js",
   "src/content/text-selection.js",
   "src/content/question-typography.js",

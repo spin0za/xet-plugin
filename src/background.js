@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js");
+importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -410,6 +410,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:video-navigation") {
+    return respond(sendResponse, "install-video-navigation", () =>
+      globalThis.XetVideoNavigationSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:course-progress") {
     return respond(sendResponse, "install-course-progress", () =>
       globalThis.XetCourseProgressSource.resolve(message, sender, { siteAccess, readSettings }));

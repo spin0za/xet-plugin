@@ -12,7 +12,7 @@
     !modules.analysisActions ||
     !modules.practiceMarks ||
     !modules.practiceHistory ||
-    !modules.practiceUndo || !modules.courseProgress ||
+    !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation ||
     !modules.pageTitle ||
     !modules.textSelection ||
     !modules.questionTypography ||
@@ -104,7 +104,7 @@
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const pageFeatures = [analysisLayout, analysisScroll, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
-    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController()];
+    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController()];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
