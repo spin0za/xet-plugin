@@ -76,3 +76,10 @@
 .xet-download-status[hidden] { display: none; }
 .xet-download-native { height: 36px; float: none; color: #333; }
 .xet-download-native .xet-download-status { position: fixed; bottom: 20px; right: 20px; }
+/* Native audio toolbar: match its 20px volume icon, 40px gap and baseline. */
+.audio-content-header .study-header-control > .xet-download-audio {
+  float: none;
+  flex: 0 0 auto;
+  align-self: flex-start;
+  margin-top: calc((65px - var(--xet-download-height, 20px)) / 2) !important;
+}

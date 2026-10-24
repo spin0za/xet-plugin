@@ -79,8 +79,17 @@ async function main() {
       signal: new AbortController().signal, sink: { async write(bytes) { direct.push(Buffer.from(bytes)); } },
     });
     assert.deepEqual(Buffer.concat(direct), fs.readFileSync(mp4));
+    for (const extension of ["mp3", "m4a"]) {
+      const file = path.join(folder, `sound.${extension}`);
+      run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "1", file]);
+      const chunks = [];
+      await api.downloadAudio(`https://fixture.test/sound.${extension}`, {
+        signal: new AbortController().signal, sink: { async write(bytes) { chunks.push(Buffer.from(bytes)); } },
+      });
+      assert.deepEqual(Buffer.concat(chunks), fs.readFileSync(file), "Audio must retain its original container and bytes");
+    }
     console.log(JSON.stringify({ encryptedHls: true, masterPlaylist: true, retry: true, cancellation: true,
-      standardKeyOnly: true, directMp4: true, segments: result.segments, duration: probe.format.duration, codecs: probe.streams }));
+      standardKeyOnly: true, directMp4: true, directMp3AndM4a: true, segments: result.segments, duration: probe.format.duration, codecs: probe.streams }));
   } finally { fs.rmSync(folder, { recursive: true, force: true }); }
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

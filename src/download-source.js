@@ -5,17 +5,18 @@
     let video;
     for (let index = 0; index < scopes.length && !video; index++) {
       const scope = scopes[index];
-      video = scope.querySelector(`video[data-xet-download-token="${token}"]`);
+      video = scope.querySelector(`video[data-xet-download-token="${token}"], audio[data-xet-download-token="${token}"]`);
       for (const element of scope.querySelectorAll("*")) {
         if (element.shadowRoot) scopes.push(element.shadowRoot);
       }
     }
     if (!video?.isConnected || video.mediaKeys) return null;
-    let source = video.currentSrc || video.src;
+    let source = video.tagName === "AUDIO" ? video.src || video.currentSrc : video.currentSrc || video.src;
     if (!source || source.startsWith("blob:")) {
       let element = video;
       while (element) {
-        const player = element.__vue__?.player;
+        const vm = element.__vue__, player = vm?.player;
+        if (video.tagName === "AUDIO" && typeof vm?.audio_url === "string") { source = vm.audio_url; break; }
         if (player) {
           source = player.curDefinition?.url || player.config?.url;
           if (typeof source === "string") break;
@@ -27,7 +28,7 @@
     try {
       const url = new URL(source, location.href);
       if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return null;
-      return { url: url.href };
+      return { url: url.href, kind: video.tagName === "AUDIO" ? "audio" : "video" };
     } catch { return null; }
   }
 
@@ -51,10 +52,12 @@
     if (sender.documentId && result?.documentId !== sender.documentId) {
       return { ok: false, error: "页面已切换，请重新下载" };
     }
-    if (!result?.result?.url) return { ok: false, error: "没有找到可下载的视频源，或该视频受 DRM 保护" };
+    if (!result?.result?.url) return { ok: false, error: "没有找到可下载的媒体源，或该内容受 DRM 保护" };
     // Package the dependency locally and load it only when requested. The page
     // cannot access this isolated-world library or extension messaging APIs.
-    await chrome.scripting.executeScript({ target, world: "ISOLATED", files: ["src/vendor/mux-mp4.min.js"] });
+    if (result.result.kind !== "audio" || /\.m3u8$/i.test(new URL(result.result.url).pathname)) {
+      await chrome.scripting.executeScript({ target, world: "ISOLATED", files: ["src/vendor/mux-mp4.min.js"] });
+    }
     return { ok: true, ...result.result };
   }
 

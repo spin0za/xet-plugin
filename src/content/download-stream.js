@@ -299,11 +299,62 @@
     } finally { keys.clear(); transmuxer?.dispose?.(); }
   }
 
-  function filename(title) {
-    const name = String(title || "课程视频").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
-      .replace(/[.\s]+$/g, "").slice(0, 120) || "课程视频";
-    return `${/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? "_" : ""}${name}.mp4`;
+  function audioFormat(value) {
+    let extension;
+    try { extension = new URL(value).pathname.match(/\.(mp3|m4a|aac|wav|ogg|opus|flac|m3u8)$/i)?.[1].toLowerCase(); } catch { return null; }
+    const mime = { mp3: "audio/mpeg", m4a: "audio/mp4", aac: "audio/aac", wav: "audio/wav", ogg: "audio/ogg", opus: "audio/ogg", flac: "audio/flac", m3u8: "audio/mp4" }[extension];
+    return mime ? { extension: extension === "m3u8" ? "m4a" : extension, mime, hls: extension === "m3u8" } : null;
   }
 
-  modules.downloadStream = Object.freeze({ parsePlaylist, sequenceIv, mediaUrl, readBytes, download, filename });
+  async function downloadAudio(url, options) {
+    const format = audioFormat(url);
+    if (!format) throw new Error("暂不支持该音频格式，未保存文件");
+    if (format.hls) return download(url, options);
+    const { sink, signal, onProgress = () => {} } = options;
+    const response = await fetch(mediaUrl(url), { signal });
+    if (!response.ok) throw new Error(`音频请求失败（${response.status}）`);
+    if (/text\/|json|mpegurl/i.test(response.headers.get("content-type") || "")) {
+      await response.body?.cancel(); throw new Error("服务器返回的不是音频文件，请刷新后重试");
+    }
+    const total = Number(response.headers.get("content-length")) || 0;
+    const reader = response.body?.getReader();
+    if (!reader) throw new Error("音频文件为空");
+    const prefix = []; let prefixLength = 0, verified = false, writtenBytes = 0;
+    const write = async bytes => { signal.throwIfAborted(); await sink.write(bytes); writtenBytes += bytes.length; };
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        signal.throwIfAborted();
+        if (!verified) {
+          prefix.push(value); prefixLength += value.length;
+          if (prefixLength < 12) continue;
+          const header = new Uint8Array(12); let at = 0;
+          for (const chunk of prefix) { const n = Math.min(chunk.length, 12 - at); header.set(chunk.subarray(0, n), at); at += n; if (at === 12) break; }
+          const tag = (start, end) => String.fromCharCode(...header.subarray(start, end));
+          const valid = format.extension === "mp3" ? tag(0, 3) === "ID3" || (header[0] === 255 && (header[1] & 224) === 224 && (header[1] & 6) !== 0) :
+            format.extension === "m4a" ? tag(4, 8) === "ftyp" :
+            format.extension === "aac" ? header[0] === 255 && (header[1] & 246) === 240 :
+            format.extension === "wav" ? tag(0, 4) === "RIFF" && tag(8, 12) === "WAVE" :
+            ["ogg", "opus"].includes(format.extension) ? tag(0, 4) === "OggS" : tag(0, 4) === "fLaC";
+          if (!valid) throw new Error("音频内容与文件格式不符，未保存文件");
+          for (const chunk of prefix) await write(chunk);
+          prefix.length = 0; verified = true;
+        } else await write(value);
+        onProgress({ percent: total ? Math.min(99, writtenBytes / total * 100) : null, writtenBytes });
+      }
+    } finally { await reader.cancel(); reader.releaseLock(); }
+    signal.throwIfAborted();
+    if (!verified || !writtenBytes || (total && writtenBytes !== total)) throw new Error("音频文件为空或不完整");
+    return { writtenBytes };
+  }
+
+  function filename(title, extension = "mp4") {
+    const name = String(title || "课程视频").replace(/[<>:"/\\|?*\x00-\x1f]/g, "_")
+      .replace(/[.\s]+$/g, "").slice(0, 120) || "课程视频";
+    if (!/^(mp4|mp3|m4a|aac|wav|ogg|opus|flac)$/.test(extension)) throw new Error("文件格式不受支持");
+    return `${/^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name) ? "_" : ""}${name}.${extension}`;
+  }
+
+  modules.downloadStream = Object.freeze({ parsePlaylist, sequenceIv, mediaUrl, readBytes, download, downloadAudio, audioFormat, filename });
 })();

@@ -6,6 +6,23 @@
     const records = new Map(), shadows = new Map();
     let observer = null, scheduled = null, job = null;
     const pending = new Set();
+    const mediaFor = root => playerDom.findPlayerVideo(root) || (root.tagName === "AUDIO" ? root : root.querySelector("audio"));
+    const audioUrl = media => media?.src || media?.currentSrc;
+    const idleLabel = record => record.audio ? "下载音频" : "下载当前画质的视频";
+    async function prepareAudio(record) {
+      const media = mediaFor(record.root), src = audioUrl(media);
+      if (!record.audio || !media || record.audioSrc === src) return;
+      record.audioSrc = src; record.audioFormat = modules.downloadStream.audioFormat(src);
+      if (record.audioFormat || !src) return;
+      const token = crypto.randomUUID(); media.dataset.xetDownloadToken = token;
+      try {
+        const source = await chrome.runtime.sendMessage({ type: "xet:download-source", token });
+        if (media.isConnected && record.audioSrc === src && source?.ok && source.kind === "audio") {
+          record.audioFormat = modules.downloadStream.audioFormat(source.url);
+        }
+      } catch { record.audioSrc = null; /* A later interaction may retry. */ }
+      finally { if (media.dataset.xetDownloadToken === token) delete media.dataset.xetDownloadToken; }
+    }
 
     function report(record, text) {
       clearTimeout(record.timer);
@@ -14,18 +31,18 @@
       if (!job && text) record.timer = setTimeout(() => { record.status.hidden = true; }, 7000);
     }
 
-    async function memorySink(record, filename) {
+    async function memorySink(record, filename, mime) {
       const chunks = [];
       let length = 0;
       report(record, "当前页面无法直接写入文件，使用小文件下载模式（上限 256 MB）");
       return {
         async write(bytes) {
           length += bytes.length;
-          if (length > 256 * 1024 * 1024) throw new Error("视频超过 256 MB，请在顶层课程页面使用流式下载");
+          if (length > 256 * 1024 * 1024) throw new Error("文件超过 256 MB，请在顶层课程页面使用流式下载");
           chunks.push(bytes.slice());
         },
         async close() {
-          const url = URL.createObjectURL(new Blob(chunks, { type: "video/mp4" }));
+          const url = URL.createObjectURL(new Blob(chunks, { type: mime }));
           chunks.length = 0;
           const link = document.createElement("a");
           link.href = url; link.download = filename; link.hidden = true;
@@ -43,40 +60,46 @@
       event.stopImmediatePropagation();
       if (job) {
         if (job.record === record && !job.closing) job.controller.abort();
-        else if (job.record !== record) report(record, "已有视频正在下载，请先完成或取消");
+        else if (job.record !== record) report(record, "已有文件正在下载，请先完成或取消");
         return;
       }
-      const video = playerDom.findPlayerVideo(record.root);
-      if (!video || video.mediaKeys) { report(record, "没有可下载的视频，或该视频受 DRM 保护"); return; }
-      const task = { record, controller: new AbortController(), closing: false };
+      const video = mediaFor(record.root), label = record.audio ? "音频" : "视频";
+      if (!video || video.mediaKeys) { report(record, "没有可下载的媒体，或该内容受 DRM 保护"); return; }
+      const format = record.audio ? modules.downloadStream.audioFormat(audioUrl(video)) ||
+        (record.audioSrc === audioUrl(video) ? record.audioFormat : null) : { extension: "mp4", mime: "video/mp4" };
+      if (!format) { void prepareAudio(record); report(record, "尚未识别到支持的音频格式，请稍后重试"); return; }
+      const task = { record, media: video, src: audioUrl(video), controller: new AbortController(), closing: false };
       job = task;
       window.addEventListener("beforeunload", warnBeforeLeave);
       record.button.dataset.active = "true";
       record.label.textContent = "准备中";
-      record.button.setAttribute("aria-label", "取消视频下载");
+      record.button.setAttribute("aria-label", `取消${label}下载`);
       const token = crypto.randomUUID();
       video.dataset.xetDownloadToken = token;
-      const name = modules.downloadStream.filename(document.title);
+      const name = modules.downloadStream.filename(document.title || `课程${label}`, format.extension);
       let sink;
       try {
         // This must happen before any await: Chrome requires the original
         // trusted click for the save picker. No blanket downloads permission.
         const picker = typeof window.showSaveFilePicker === "function" && window.top === window
-          ? window.showSaveFilePicker({ suggestedName: name, types: [{ description: "MP4 视频", accept: { "video/mp4": [".mp4"] } }] })
+          ? window.showSaveFilePicker({ suggestedName: name, types: [{ description: `${format.extension.toUpperCase()} ${label}`, accept: { [format.mime]: [`.${format.extension}`] } }] })
           : null;
         const sourceRequest = chrome.runtime.sendMessage({ type: "xet:download-source", token })
-          .catch(() => ({ ok: false, error: "无法获取视频源，请刷新课程后重试" }));
+          .catch(() => ({ ok: false, error: "无法获取媒体源，请刷新课程后重试" }));
         const handle = picker ? await picker : null;
         const source = await sourceRequest;
         task.controller.signal.throwIfAborted();
-        if (!source?.ok) throw new Error(source?.error || "无法获取当前视频源，请刷新后重试");
-        sink = handle ? await handle.createWritable() : await memorySink(record, name);
+        if (!source?.ok) throw new Error(source?.error || "无法获取当前媒体源，请刷新后重试");
+        if (record.audio && (source.kind !== "audio" || modules.downloadStream.audioFormat(source.url)?.extension !== format.extension)) {
+          throw new Error("音频或格式已切换，请重新下载");
+        }
+        sink = handle ? await handle.createWritable() : await memorySink(record, name, format.mime);
         report(record, "开始下载；再次点击下载按钮可取消。下载完成前请勿刷新或关闭页面");
-        const result = await modules.downloadStream.download(source.url, {
+        const result = await (record.audio ? modules.downloadStream.downloadAudio : modules.downloadStream.download)(source.url, {
           sink, signal: task.controller.signal,
           onProgress({ percent, writtenBytes }) {
             record.label.textContent = percent === null ? `${Math.round(writtenBytes / 1024 / 1024)} MB` : `${Math.floor(percent)}%`;
-            record.button.setAttribute("aria-label", `取消视频下载，已下载 ${record.label.textContent}`);
+            record.button.setAttribute("aria-label", `取消${label}下载，已下载 ${record.label.textContent}`);
           },
         });
         task.controller.signal.throwIfAborted();
@@ -85,11 +108,11 @@
         record.label.textContent = "保存中";
         await sink.close();
         sink = null;
-        report(record, `视频已保存（${(result.writtenBytes / 1024 / 1024).toFixed(1)} MB）`);
+        report(record, `${label}已保存（${(result.writtenBytes / 1024 / 1024).toFixed(1)} MB）`);
       } catch (error) {
         try { await sink?.abort(); } catch { /* Already closed or detached. */ }
         report(record, task.controller.signal.aborted || error.name === "AbortError" ? "已取消下载" :
-          String(error.message || "下载失败，请刷新后重试").replace(/https?:\/\/\S+/g, "[视频地址]"));
+          String(error.message || "下载失败，请刷新后重试").replace(/https?:\/\/\S+/g, "[媒体地址]"));
       } finally {
         if (video.dataset.xetDownloadToken === token) delete video.dataset.xetDownloadToken;
         job = null;
@@ -97,7 +120,7 @@
         record.button.disabled = false;
         delete record.button.dataset.active;
         record.label.textContent = "";
-        record.button.setAttribute("aria-label", "下载当前画质的视频");
+        record.button.setAttribute("aria-label", idleLabel(record));
         if (record.status.textContent) record.timer = setTimeout(() => { record.status.hidden = true; }, 7000);
       }
     }
@@ -108,6 +131,7 @@
         // SDK toolbars can mount after <video>, or be rebuilt during a
         // course/line change. Recheck placement without replacing the button.
         attach(record);
+        void prepareAudio(record);
         return;
       }
       const container = document.createElement("span");
@@ -115,7 +139,8 @@
       const button = document.createElement("button");
       button.type = "button";
       button.className = "xet-download-button";
-      button.setAttribute("aria-label", "下载当前画质的视频");
+      const audio = mediaFor(root)?.tagName === "AUDIO";
+      button.setAttribute("aria-label", audio ? "下载音频" : "下载当前画质的视频");
       const icon = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       // A square viewBox also fits merchant skins with square icon frames;
       // a tall viewBox would shrink the artwork's width in those players.
@@ -133,15 +158,29 @@
       status.hidden = true;
       const tooltip = document.createElement("span");
       tooltip.className = "xet-download-tooltip";
-      tooltip.textContent = "下载视频 / 再次点击取消";
+      tooltip.textContent = `下载${audio ? "音频" : "视频"} / 再次点击取消`;
       container.append(button, tooltip, status);
-      const record = { root, container, button, label, status, timer: null };
+      const record = { root, container, button, label, status, audio, timer: null };
       button.addEventListener("click", event => { void activate(record, event); });
       records.set(root, record);
       attach(record);
+      void prepareAudio(record);
     }
 
     function attach(record) {
+      if (record.audio && record.root.matches(".audio-content-header")) {
+        const parent = record.root.querySelector(".study-header-control"), volume = parent?.querySelector(":scope > .volume");
+        if (!volume) return;
+        const icon = volume.querySelector(".iconfont") || volume, style = getComputedStyle(icon);
+        const size = parseFloat(style.fontSize) || 20;
+        record.container.classList.add("xet-download-audio");
+        record.container.style.setProperty("--xet-download-width", `${size}px`);
+        record.container.style.setProperty("--xet-download-height", `${size}px`);
+        record.container.style.setProperty("--xet-download-margin", getComputedStyle(volume).margin);
+        record.container.style.color = style.color;
+        if (record.container.parentElement !== parent || record.container.previousElementSibling !== volume) volume.after(record.container);
+        return;
+      }
       const controls = record.root.querySelector(".xgplayer-controls, xg-controls");
       if (controls) {
         const grid = controls.querySelector(".xg-right-grid");
@@ -163,7 +202,7 @@
         if (record.container.parentElement !== parent || record.container.nextElementSibling !== (volume || null)) {
           parent.insertBefore(record.container, volume || null);
         }
-      } else if (record.root.tagName === "VIDEO") {
+      } else if (["VIDEO", "AUDIO"].includes(record.root.tagName)) {
         record.container.classList.add("xet-download-native");
         record.root.after(record.container);
       } else if (record.root.matches(".pc-live-player")) {
@@ -190,11 +229,14 @@
       for (const node of nodes) {
         if (node.shadowRoot && !shadows.has(node.shadowRoot)) {
           const watcher = new MutationObserver(changed);
-          watcher.observe(node.shadowRoot, { subtree: true, childList: true });
+          watcher.observe(node.shadowRoot, { subtree: true, childList: true, attributes: true, attributeFilter: ["src"] });
           shadows.set(node.shadowRoot, watcher);
         }
-        if (node.tagName === "VIDEO") add(playerDom.findPlayerRoot(node) || node);
-        else if (node.matches(".xgplayer-controls, xg-controls, .myControls, .button-area-wrapper, .right-area, .fullscreen-btn")) {
+        if (node.tagName === "AUDIO") add(node.closest(".audio-content-header") || playerDom.findPlayerRoot(node) || node);
+        else if (node.tagName === "VIDEO") add(playerDom.findPlayerRoot(node) || node);
+        else if (node.matches(".study-header-control, .volume")) {
+          const root = node.closest(".audio-content-header"); if (root?.querySelector("audio")) add(root);
+        } else if (node.matches(".xgplayer-controls, xg-controls, .myControls, .button-area-wrapper, .right-area, .fullscreen-btn")) {
           const root = playerDom.findPlayerRoot(node);
           if (root && playerDom.findPlayerVideo(root)) add(root);
         }
@@ -202,6 +244,7 @@
     }
 
     function changed(changes) {
+      if (job?.record.audio && (!job.media.isConnected || audioUrl(job.media) !== job.src)) job.controller.abort();
       for (const [root, record] of records) {
         if (root.isConnected) continue;
         if (job?.record === record) job.controller.abort();
@@ -212,7 +255,7 @@
       for (const [root, watcher] of shadows) {
         if (!root.host.isConnected) { watcher.disconnect(); shadows.delete(root); }
       }
-      for (const change of changes) for (const node of change.addedNodes) {
+      for (const change of changes) for (const node of change.type === "attributes" ? [change.target] : change.addedNodes) {
         if (node instanceof Element && !node.closest(".xet-download-control")) pending.add(node);
       }
       if (scheduled !== null || !pending.size) return;
@@ -232,7 +275,7 @@
     function start() {
       if (observer) return;
       observer = new MutationObserver(changed);
-      observer.observe(document.documentElement, { subtree: true, childList: true });
+      observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true, attributeFilter: ["src"] });
       window.addEventListener("pagehide", cancelOnLeave);
       discover();
     }

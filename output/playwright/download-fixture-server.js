@@ -31,7 +31,7 @@ const server = http.createServer(async (request, response) => {
       run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", path.join(folder, "output.mp4"), "-f", "null", "-"]);
       response.setHeader("Content-Type", "application/json"); response.end(probe); return;
     }
-    if (!/^\/(?:list\.m3u8|key\.bin|part\d\.ts|output\.mp4)$/.test(request.url) || request.method !== "GET") {
+    if (!/^\/(?:list\.m3u8|key\.bin|part\d\.ts|output\.mp4|sound\.(?:mp3|m4a))$/.test(request.url) || request.method !== "GET") {
       response.writeHead(404); response.end(); return;
     }
     const file = path.join(folder, request.url.slice(1));
@@ -40,6 +40,7 @@ const server = http.createServer(async (request, response) => {
     response.end(fs.readFileSync(file));
   } catch (error) { response.writeHead(500); response.end(error.message); }
 });
+for (const ext of ["mp3", "m4a"]) run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "1", path.join(folder, `sound.${ext}`)]);
 server.listen(4181, "127.0.0.1", () => console.log(`Synthetic media fixture ready; PID ${process.pid}`));
 function shutdown() { server.close(); fs.rmSync(folder, { recursive: true, force: true }); process.exit(0); }
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
