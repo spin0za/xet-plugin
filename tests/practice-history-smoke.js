@@ -7,6 +7,13 @@ vm.runInNewContext(fs.readFileSync('src/content/practice-history-data.js', 'utf8
 const data = env.__xetPlayerHelperModules.practiceHistoryData;
 const plain = v => JSON.parse(JSON.stringify(v));
 async function main() {
+  assert.equal(data.answerPresence([{is_answer:0,answer_state:false},{is_answer:'0'}]),false,'All unattempted, not all wrong');
+  assert.equal(data.answerPresence([{is_answer:1,answer_state:false},{is_answer:0}]),true,'All-wrong or partial work is not blank');
+  assert.equal(data.answerPresence([{is_answer:0,child:[{is_answer:'1'}]}]),true,'Material child answers count');
+  assert.equal(data.answerPresence([{is_answer:0,child:[{is_answer:0}]}]),false);
+  for (const list of [null,[],[{}],[{answer_state:false}],[{is_answer:0},{}],[{is_answer:0,child:[{}]}]]) {
+    assert.equal(data.answerPresence(list),null,'Unknown flags cannot delete records');
+  }
   const entries = {}, storage = { async get(key) { return key === null ? { ...entries } : { [key]: entries[key] }; },
     async set(values) { Object.assign(entries, plain(values)); } };
   const record = { resourceId:'wb_course_fixture', joinId:'join_fixture', taskId:'task_fixture', productId:'course_fixture',
@@ -86,6 +93,15 @@ async function main() {
   assert.equal((await data.load(storage,origin,'user_one')).length,2,'Quota errors cannot evict local history');
   assert.equal(data.normalize({...record,submittedAt:'2026-10-19'}).submittedAt,0);
   assert.equal(data.normalize({...record,commit_time:submittedAt,updated_at:submittedAt}).submittedAt,0,'Do not infer dates');
+  assert.equal(data.normalize(record).hasAnswers,null,'Legacy records are unverified, not blank');
+  assert.equal(data.normalize({...record,hasAnswers:0}).hasAnswers,null,'Only explicit booleans classify a record');
+  await data.save(storage,origin,'user_one',{...record,hasAnswers:false});
+  await data.save(storage,origin,'user_one',record);
+  assert.equal((await data.load(storage,origin,'user_one'))[0].hasAnswers,false,'Reopening cannot resurrect a blank');
+  await data.synchronize(storage,cloud,origin,'user_one');
+  assert.equal((await data.loadBoth(emptyLocal,cloud,origin,'user_one'))[0].hasAnswers,false,'Empty marker syncs to another device');
+  await cloud.set({[data.prefix(origin,'user_one')+record.joinId]:{...record,hasAnswers:null}});
+  assert.equal((await data.loadBoth(storage,cloud,origin,'user_one'))[0].hasAnswers,false,'Stale cloud data cannot overwrite verified metadata');
   sourceEnv.location.href=origin+'/p/t_pc/pc_evaluation/practice_sheet/wb_course_fixture?task_id=task_fixture';
   const sheet={resourceId:'wb_course_fixture',join_id:'join_submission',taskId:'task_fixture',course_id:'course_fixture',practiceTitle:'题目'};
   sourceEnv.document.querySelector=()=>({__vue__:sheet});
@@ -95,6 +111,13 @@ async function main() {
   assert.equal(api.readContext(sheetKey,'capture'),null);
   sourceEnv.window.__xetPracticeMarks.recovery.reported=true;
   assert.equal(api.readContext(sheetKey,'capture').submittedAt,submittedAt);
+  assert.equal(api.readContext(sheetKey,'capture').hasAnswers,null,'Do not guess from a partial/lazy DOM');
+  sheet.totalPracticeNum=2;sheet.answerSheetArray=[{hasAnswer:false},{hasAnswer:false}];
+  assert.equal(api.readContext(sheetKey,'capture').hasAnswers,false,'Capture new white papers immediately');
+  sheet.answerSheetArray[1].hasAnswer=true;
+  assert.equal(api.readContext(sheetKey,'capture').hasAnswers,true);
+  sheet.answerSheetArray.pop();
+  assert.equal(api.readContext(sheetKey,'capture').hasAnswers,null,'An incomplete native list is unknown');
   assert.equal(api.readContext(sheetKey,'read'),null,'Do not capture merely opening a sheet');
   console.log('practice history scope, safe result links, dates, multi-attempt storage and read-only source smoke test passed');
 }

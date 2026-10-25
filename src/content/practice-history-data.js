@@ -2,6 +2,21 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.practiceHistoryData) return;
   const ID = /^[\w-]{1,160}$/;
+  // Use explicit answer flags, never correctness (a blank submission can also
+  // have every answer_state set to false). Do not retain any answer contents.
+  function answerPresence(rows) {
+    if (!Array.isArray(rows) || !rows.length || rows.length > 2000) return null;
+    let budget = 4000;
+    function inspect(row, depth = 0) {
+      if (!row || --budget < 0 || depth > 5) return null;
+      if ([1, "1", true].includes(row.is_answer)) return true;
+      const children = Array.isArray(row.child) ? row.child.map(q => inspect(q, depth + 1)) : [];
+      if (children.includes(true)) return true;
+      return [0, "0", false].includes(row.is_answer) && !children.includes(null) ? false : null;
+    }
+    const values = rows.map(q => inspect(q));
+    return values.includes(true) ? true : values.includes(null) ? null : false;
+  }
   function startTime(value) {
     if (typeof value === "string" && /^\d{4}-\d\d-\d\d[ T]\d\d:\d\d(?::\d\d)?(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)?$/.test(value)) {
       const time = Date.parse(value);
@@ -21,6 +36,7 @@
     return { version: 1, resourceId: value.resourceId, joinId: value.joinId,
       taskId: value.taskId || "", productId: value.productId || "",
       title: typeof value.title === "string" ? value.title.slice(0, 1000) : "",
+      hasAnswers: typeof value.hasAnswers === "boolean" ? value.hasAnswers : null,
       startedAt: startTime(value.startedAt),
       submittedAt: typeof value.submittedAt === "number" && value.submittedAt > 946684800000 &&
         value.submittedAt < 4102444800000 ? value.submittedAt : 0 };
@@ -49,6 +65,7 @@
     const old = normalize((await storage.get(key))[key]);
     if (old && (old.resourceId !== record.resourceId || old.taskId && record.taskId && old.taskId !== record.taskId)) return false;
     const merged = { ...record, title: record.title || old?.title || "",
+      hasAnswers: old?.hasAnswers ?? record.hasAnswers,
       productId: record.productId || old?.productId || "", taskId: record.taskId || old?.taskId || "",
       startedAt: old?.startedAt || record.startedAt,
       submittedAt: old?.submittedAt && record.submittedAt ? Math.min(old.submittedAt, record.submittedAt)
@@ -72,6 +89,7 @@
           const old = records[index];
           if (old.resourceId !== remote.resourceId || old.taskId && remote.taskId && old.taskId !== remote.taskId) continue;
           records[index] = { ...remote, title: old.title || remote.title, taskId: old.taskId || remote.taskId,
+            hasAnswers: old.hasAnswers ?? remote.hasAnswers,
             productId: old.productId || remote.productId, startedAt: old.startedAt || remote.startedAt,
             submittedAt: old.submittedAt && remote.submittedAt ? Math.min(old.submittedAt, remote.submittedAt)
               : old.submittedAt || remote.submittedAt };
@@ -96,5 +114,5 @@
       return { synced: true };
     } catch { return { synced: false }; }
   }
-  modules.practiceHistoryData = Object.freeze({ startTime, normalize, prefix, resultUrl, save, load, loadBoth, synchronize });
+  modules.practiceHistoryData = Object.freeze({ answerPresence, startTime, normalize, prefix, resultUrl, save, load, loadBoth, synchronize });
 })();

@@ -14,7 +14,13 @@
       const saved = state?.recovery;
       if (!account || !v || !state?.active || state.owner !== v || state.joinId !== v.join_id ||
           v.resourceId !== sheet[1] || !clean(v.join_id) || !saved?.reported || !saved.submittedAt) return null;
+      // The native answer card is populated from the complete commit_record
+      // list, independently of lazy-rendered questions. Missing flags are unknown.
+      const cards = v.answerSheetArray;
+      const complete = Array.isArray(cards) && cards.length > 0 && cards.length === v.totalPracticeNum &&
+        cards.every(q => typeof q?.hasAnswer === "boolean");
       return { kind: "attempt", key: expectedKey, account, resourceId: sheet[1], joinId: v.join_id,
+        hasAnswers: complete ? cards.some(q => q.hasAnswer) : null,
         taskId: clean(v.taskId), productId: clean(v.course_id || url.searchParams.get("product_id")),
         title: text(v.practiceTitle || v.practice_title || document.title), submittedAt: saved.submittedAt };
     }

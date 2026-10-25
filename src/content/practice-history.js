@@ -47,7 +47,8 @@
       else {
         // Attempts are independent of the site's publication-sorted, paginated
         // resources. Every visible row links to one existing submitted result.
-        const sorted = [...all].sort((a, b) => b.submittedAt - a.submittedAt || a.joinId.localeCompare(b.joinId));
+        const sorted = all.filter(r => r.hasAnswers !== false)
+          .sort((a, b) => b.submittedAt - a.submittedAt || a.joinId.localeCompare(b.joinId));
         const signature = JSON.stringify([context.account, sorted]);
         if (!list?.isConnected) { list = document.createElement("ul"); list.className = "xet-history-records"; root.append(list); }
         if (list.dataset.records !== signature) {
@@ -72,7 +73,7 @@
         if (!status?.isConnected) { status = document.createElement("div"); status.className = "xet-history-status";
           status.setAttribute("role", "status"); root.append(status); }
         const message = syncProblem ? "Chrome 同步暂未完成或额度已满，记录仍保存在本机。"
-          : all.length ? "" : "暂无可查看结果的练习记录；以后交卷成功后会自动保存。";
+          : sorted.length ? "" : "暂无可查看结果的练习记录；以后交卷成功后会自动保存（不含白卷）。";
         if (status.dataset.message !== message) {
           status.dataset.message = message; status.replaceChildren(document.createTextNode(message));
           if (syncProblem) {
@@ -98,12 +99,47 @@
         more.disabled = context.loading; more.textContent = context.loading ? "加载中…" : "加载更多";
       } else { more?.remove(); more = null; }
     }
+    async function inspectRecord(record, current, expected, account, requireResult = false) {
+      const scope = data.prefix(location.origin, account), token = scope + record.joinId;
+      if (verified.has(token) || record.hasAnswers !== null && !requireResult) return;
+      // One bounded check per route visit, including failed/unknown
+      // results. Reopening the page retries; the 1s UI poll must not flood APIs.
+      verified.add(token);
+      const live = () => started && current === generation && routeKey() === expected && context?.account === account;
+      async function read(endpoint) {
+        const response = await fetch(`/evaluation_wechat/practices/${endpoint}`, {
+          method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ practice_id: record.resourceId, join_id: record.joinId, task_id: record.taskId }),
+          signal: AbortSignal.timeout(15_000),
+        });
+        return response.ok ? await response.json() : null;
+      }
+      try {
+        let validResult = false;
+        if (requireResult) {
+          const result = await read("commit_result");
+          if (!live() || result?.code !== 0 || !(result.data?.total_qs > 0)) return;
+          validResult = true;
+        }
+        let result;
+        try { result = await read("commit_record"); } catch { /* A verified result link remains usable. */ }
+        if (!live()) return;
+        const hasAnswers = result?.code === 0 ? data.answerPresence(result.data?.list) : null;
+        // Unknown metadata must never hide a potentially real attempt.
+        if (hasAnswers === null && !validResult) return;
+        const checked = await request({ type: "xet:practice-history", key: expected, action: "read" });
+        if (!live() || !checked?.ok || checked.context?.key !== expected || checked.context?.account !== account) return;
+        await data.save(storage, location.origin, account, { ...record, hasAnswers });
+        cacheDirty = true; synchronized = "";
+        await render(await records(account), current);
+      } catch { /* Keep existing records on network/auth failure; no false empty classification. */ }
+    }
     async function sync() {
       frame = null;
       if (!started) return;
       if (pending) { dirty = true; return; }
       const next = routeKey();
-      if (key !== next) { generation++; clean(); key = next; synchronized = ""; }
+      if (key !== next) { generation++; clean(); key = next; synchronized = ""; verified.clear(); }
       if (!key) return;
       layout();
       const current = generation, expected = key;
@@ -129,19 +165,14 @@
             if (!started || current !== generation || routeKey() !== expected) return;
             await render(await records(context.account), current);
           }
+          const existing = new Map((await records(context.account)).map(r => [r.joinId, r]));
           for (const row of context.rows) {
             if (!row.joinId || verified.has(scope + row.joinId)) continue;
             const r = data.normalize(row); if (!r) continue;
-            const response = await fetch("/evaluation_wechat/practices/commit_result", {
-              method: "POST", credentials: "same-origin", redirect: "error", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ practice_id: r.resourceId, join_id: r.joinId, task_id: r.taskId }), signal: AbortSignal.timeout(15_000),
-            });
-            const result = response.ok ? await response.json() : null;
+            const saved = existing.get(r.joinId);
+            if (saved && saved.hasAnswers !== null) continue;
+            await inspectRecord(saved || r, current, expected, context.account, !saved);
             if (!started || current !== generation || routeKey() !== expected) return;
-            if (result?.code === 0 && result.data?.total_qs > 0) {
-              await data.save(storage, location.origin, context.account, r); cacheDirty = true; synchronized = "";
-            }
-            verified.add(scope + r.joinId);
           }
           if (discovered !== scope) {
             discovered = scope;
@@ -150,6 +181,15 @@
             if (!found.ok) { discovered = ""; return; }
             for (const record of found.attempts || []) await data.save(storage, location.origin, context.account, record);
             cacheDirty = true; synchronized = "";
+          }
+          // Upgrade legacy local/cloud records once. Keep the small verified
+          // empty marker so revisiting a result or syncing a stale device cannot
+          // resurrect the white-paper entry. No website record is deleted.
+          const legacy = (await records(context.account)).filter(r => r.hasAnswers === null);
+          const account = context.account;
+          for (let i = 0; i < legacy.length; i += 4) {
+            await Promise.all(legacy.slice(i, i + 4).map(r => inspectRecord(r, current, expected, account)));
+            if (!started || current !== generation || routeKey() !== expected || context.account !== account) return;
           }
           await render(await records(context.account), current);
         }

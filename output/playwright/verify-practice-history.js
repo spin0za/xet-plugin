@@ -4,6 +4,7 @@ async (page) => {
   const origin='https://merchant.pc.xiaoe-tech.com',path='/p/t_pc/pc_evaluation/practice_record';
   const fixture=await page.context().newPage(),observed=await page.context().newPage();
   const errors=[],requests=[],title='第十讲：'+ '完整课程标题应该换行而不是截断。'.repeat(40);
+  const answerFlags={join_one:1,join_two:1,join_blank:0,join_observed:1,join_unknown:null,join_failed:'fail'};
   const assert=(v,m)=>{if(!v)throw Error(m)};
   fixture.on('pageerror',e=>errors.push(e.message));
   const prefix=`xetPracticeHistory:${origin}|user_fixture|`;
@@ -46,8 +47,14 @@ async (page) => {
         catch{await route.fulfill({status:404,body:''});}return;
       }
       if(route.request().method()==='POST'){
-        requests.push(u.pathname);assert(u.pathname==='/evaluation_wechat/practices/commit_result','Unexpected/mutating API');
-        await route.fulfill({json:{code:0,data:{total_qs:42}}});return;
+        const body=route.request().postDataJSON();requests.push({path:u.pathname,joinId:body.join_id});
+        assert(['/evaluation_wechat/practices/commit_result','/evaluation_wechat/practices/commit_record'].includes(u.pathname),'Unexpected/mutating API');
+        if(u.pathname.endsWith('/commit_result'))await route.fulfill({json:{code:0,data:{total_qs:42,correct_qs:0}}});
+        else {
+          const flag=answerFlags[body.join_id] ?? (body.join_id==='join_unknown'?null:1);
+          if(flag==='fail')await route.fulfill({status:503,body:'temporarily unavailable'});
+          else await route.fulfill({json:{code:0,data:{list:[{id:'qs_one',is_answer:flag,answer_state:false},{id:'qs_two',is_answer:0,answer_state:false}]}}});
+        }return;
       }
       await route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><style>@font-face{font-family:Fixture;src:url(/fixture-font)}body{font-family:Fixture,sans-serif}</style>'+
         (u.pathname===path?listHtml(Number(u.searchParams.get('subTab')||0)):resultHtml(u))});
@@ -76,6 +83,30 @@ async (page) => {
     stage='live cross-device update';
     await worker.evaluate(({prefix,r})=>chrome.storage.sync.set({[prefix+r.joinId]:r}),{prefix,r:record('join_remote',Date.now()+1000)});
     await fixture.waitForSelector('a[href*="join_remote"]');
+    stage='legacy white paper, unknown flags and network failures';
+    await worker.evaluate(({prefix,blank,unknown,failed})=>chrome.storage.sync.set({
+      [prefix+blank.joinId]:blank,[prefix+unknown.joinId]:unknown,[prefix+failed.joinId]:failed,
+    }),{prefix,blank:record('join_blank'),unknown:record('join_unknown'),failed:record('join_failed')});
+    await fixture.waitForFunction(()=>document.querySelector('.xet-history-records')?.dataset.records?.includes('join_unknown'));
+    await fixture.waitForFunction(()=>!document.querySelector('a[href*="join_blank"]'));
+    await fixture.waitForFunction(()=>document.querySelectorAll('.xet-history-result-link').length===6);
+    assert(await fixture.locator('a[href*="join_one"]').count()===1,'All-wrong record was hidden');
+    const blank=await worker.evaluate(async k=>(await chrome.storage.local.get(k))[k],prefix+'join_blank');
+    assert(blank?.hasAnswers===false,'Legacy white paper was not cached');
+    await fixture.reload();await fixture.waitForSelector('a[href*="join_unknown"]');
+    assert(await fixture.locator('a[href*="join_blank"]').count()===0,'Reload resurrected a white paper');
+    const blankChecks=requests.filter(r=>r.joinId==='join_blank').length;
+    assert(blankChecks===1,'Verified white paper was fetched repeatedly');
+    await worker.evaluate(k=>chrome.storage.local.remove(k),prefix+'join_blank');
+    await fixture.reload();await fixture.waitForSelector('a[href*="join_unknown"]');
+    assert(await fixture.locator('a[href*="join_blank"]').count()===0,'Cloud-only white-paper marker was ignored');
+    assert(requests.filter(r=>r.joinId==='join_blank').length===1,'Cloud-only white paper was fetched again');
+    await observed.goto(`${origin}/p/t_pc/pc_evaluation/practice_result/wb_course_fixture?join_id=join_blank`);
+    await fixture.reload();await fixture.bringToFront();
+    await fixture.waitForSelector('a[href*="join_unknown"]');
+    assert(await fixture.locator('a[href*="join_blank"]').count()===0,'Revisiting result resurrected blank history');
+    const remoteBlank=await worker.evaluate(async k=>(await chrome.storage.sync.get(k))[k],prefix+'join_blank');
+    assert(remoteBlank?.hasAnswers===false,'Blank classification did not sync');
     await fixture.screenshot({path:'output/playwright/practice-history-list.png',fullPage:true});
     stage='result navigation';
     await fixture.locator('a[href*="join_one"]').click();await fixture.waitForURL('**/practice_result/wb_course_fixture?**');
@@ -109,7 +140,8 @@ async (page) => {
     assert(errors.length===0,errors.join('\n'));
     return{ok:true,requests:requests.length,metrics,checked:['real MV3','sync-only records','migration','local cache reset','account isolation',
       'hide useless entries','independent of native pagination','full titles','latest first','result links','no invented old dates',
-      'live sync updates','quota fallback and retry','other categories unchanged','disable cleanup']};
+      'live sync updates','legacy white papers hidden','all-wrong and partial work retained','unknown and failed reads retained',
+      'cached/cloud-only empty markers','no resurrection on result revisit','quota fallback and retry','other categories unchanged','disable cleanup']};
   }catch(e){throw Error(`${stage}: ${e.message}`)}
   finally{await fixture.close();await observed.close()}
 }
