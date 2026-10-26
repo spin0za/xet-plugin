@@ -9,9 +9,12 @@ async (page) => {
       body {margin:0} header {height:60px} #mount {width:960px;height:540px}
       #mount:fullscreen {width:100vw;height:100dvh;background:black}
       .pc-live-player {position:relative;width:100%;height:100%;background:black}
-      .normal_video_wrap_1001 {position:relative;width:960px;height:540px}
-      #mount:fullscreen .normal_video_wrap_1001 {width:100%;height:100%}
+      .normal_video_wrap_1001 {position:static;width:960px;height:0}
+      #mount:fullscreen .normal_video_wrap_1001 {width:100%;height:0}
       video {position:absolute;width:100%;height:100%}
+      /* Real SDK: auto-positioned mask follows a zero-height media wrapper.
+         Giving that wrapper a fullscreen height must not push this below it. */
+      .mask {position:absolute;z-index:1;width:100%;height:100%}
       .myControls {position:absolute;bottom:0;width:100%;z-index:2;color:white}
       .controler-container.hide .myControls {visibility:hidden}
       .button-area-wrapper {display:flex;justify-content:space-between}
@@ -22,6 +25,7 @@ async (page) => {
     </style><header id=nav>网站导航</header><div id=mount>
       <div class="pc-live-player custom_video_player_10001" id=liveRoot><div class=normal_video_wrap_1001>
         <div class=caption_size_1 style="width:100%;height:100%"><video id=live></video></div>
+        <div class=mask></div>
         <div class="controler-container show"><div class=myControls>
           <input class=slider-wrapper type=range min=0 max=120 value=30>
           <div class=button-area-wrapper><div class=left-area><button id=play>播放</button>
@@ -64,6 +68,10 @@ async (page) => {
         if(!paused) idle=setTimeout(()=>controls.className="controler-container hide",350);
       });
       play.addEventListener("click", () => paused?live.play():live.pause());
+      window.sdkPictureClicks=0;
+      document.querySelector('.mask').addEventListener('click',()=>{
+        sdkPictureClicks++; paused?live.play():live.pause();
+      });
       speedLabel.addEventListener("click",()=>document.querySelector(".speed-control").style.display="block");
       for(const item of document.querySelectorAll(".selector_item")) item.addEventListener("click",()=>{
         live.playbackRate=Number(item.dataset.rate); speedLabel.textContent=item.textContent;
@@ -91,7 +99,21 @@ async (page) => {
     };
     const nativeOn = () => fixture.waitForFunction(()=>document.fullscreenElement===mount&&sdkFull);
     const nativeOff = () => fixture.waitForFunction(()=>!document.fullscreenElement&&!sdkFull);
-    await fixture.keyboard.press("f"); await nativeOn(); await assertOriginal();
+    async function assertPictureClicks() {
+      const box=await fixture.locator('#liveRoot').boundingBox();
+      const before=await fixture.evaluate(()=>sdkPictureClicks);
+      for(const [index,x] of [0.2,0.8].entries()) {
+        const point={x:box.x+box.width*x,y:box.y+box.height*0.35};
+        const hit=await fixture.evaluate(p=>document.elementFromPoint(p.x,p.y)?.classList.contains('mask'),point);
+        if(!hit)throw Error('Live SDK picture mask is outside the fullscreen picture');
+        await fixture.mouse.click(point.x,point.y);
+        const result=await fixture.evaluate(()=>({paused:live.paused,clicks:sdkPictureClicks}));
+        if(result.paused!==(index===1)||result.clicks!==before+index+1)
+          throw Error(`SDK picture click did not toggle exactly once: ${JSON.stringify(result)}`);
+      }
+    }
+    await assertPictureClicks();
+    await fixture.keyboard.press("f"); await nativeOn(); await assertOriginal(); await assertPictureClicks();
     await fixture.keyboard.press("f"); await nativeOff();
     await fixture.locator("#enter").click(); await nativeOn(); await assertOriginal();
     await fixture.locator("#exit").click(); await nativeOff();
@@ -110,12 +132,16 @@ async (page) => {
           bottom:controls.bottom===innerHeight,nav:getComputedStyle(nav).visibility};
       });
       if(!layout.fits||!layout.bottom||layout.nav!=="hidden") throw new Error(`Live page fullscreen layout: ${JSON.stringify(layout)}`);
+      await assertPictureClicks();
     }
+    const pictureClicksBeforeControls=await fixture.evaluate(()=>sdkPictureClicks);
     await fixture.locator("#play").click();
     if(await fixture.evaluate(()=>live.paused)) throw new Error("Original play button was intercepted");
     await fixture.locator("#speedLabel").click();
     await fixture.locator('.selector_item[data-rate="1.5"]').click();
     if(await fixture.evaluate(()=>live.playbackRate)!==1.5) throw new Error("Original speed menu was intercepted");
+    if(await fixture.evaluate(()=>sdkPictureClicks)!==pictureClicksBeforeControls)
+      throw Error('Control interaction leaked into a picture toggle');
     // The SDK remains the sole owner of control auto-hide.
     await fixture.mouse.move(300,200);
     await fixture.waitForFunction(()=>getComputedStyle(originalToolbar).visibility==="hidden");
@@ -136,6 +162,9 @@ async (page) => {
     await fixture.keyboard.press("t"); await fixture.keyboard.press("Escape");
     await fixture.waitForFunction(()=>!liveRoot.dataset.xetWebFullscreen);
     await assertOriginal();
+    await assertPictureClicks();
+    if(await fixture.locator('.mask').evaluate(e=>e.style.top||e.style.inset))
+      throw Error('Fullscreen repair left inline mask positioning after exit');
     await fixture.evaluate(()=>{mount.style.display="none";native.style.display="block";});
     // Native players retain their existing UI setting, including no-controls.
     for(const controls of [true,false]) {
@@ -151,6 +180,6 @@ async (page) => {
     await fixture.locator("#enter").click(); await nativeOn();
     await fixture.locator("#exit").click(); await nativeOff();
     return { originalControls:true, sdkFullscreenState:true, sameButtonAndKeyboardPath:true,
-      nativeWebTransitions:true, responsive:true, sdkMenusAndAutoHide:true, nativeAttributePreserved:true, cleanup:true };
+      nativeWebTransitions:true, responsive:true, nativePictureClicks:true, sdkMenusAndAutoHide:true, nativeAttributePreserved:true, cleanup:true };
   } finally { await fixture.close(); }
 }

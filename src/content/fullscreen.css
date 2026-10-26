@@ -83,6 +83,14 @@ html.xet-web-fullscreen-active video[data-xet-web-fullscreen="true"] {
   min-block-size: 0 !important;
 }
 
+/* The SDK's picture-click mask relies on the original zero-height media
+   wrapper. Once that wrapper fills the viewport, auto top places the mask
+   below the picture. Anchor the existing mask; its native click handler and
+   the higher toolbar/center-play layers remain untouched. */
+.pc-live-player[data-xet-web-fullscreen="true"] .normal_video_wrap_1001 > .mask {
+  inset: 0 !important;
+}
+
 html.xet-web-fullscreen-active
   [data-xet-web-fullscreen="true"]
   video,

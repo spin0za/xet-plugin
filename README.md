@@ -429,7 +429,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.22.4**
+Current version: **1.22.5**
+
+1.22.5：修复直播／回放在网页全屏下点击画面无法播放或暂停的问题，保留网站原有点击事件和播放控件。
 
 1.22.4：练习历史过滤未作答的白卷；旧记录自动核实并缓存，同步后也保持隐藏。有实际作答、答错或作答状态未知的记录不受影响，不删除网站数据。
 

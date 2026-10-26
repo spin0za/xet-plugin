@@ -73,5 +73,7 @@ assert.doesNotMatch(fullscreenStyle, /::before|::after/);
 assert.match(fullscreenStyle, /\.xg-top-bar \{[^}]*display: flex !important;[^}]*background-image: linear-gradient\(0deg, transparent, rgba\(0, 0, 0, \.48\)\) !important;\s*\}/);
 assert.match(fullscreenStyle, /\[data-xet-controls-hidden="true"\][^{]*\.xg-top-bar \{\s*opacity: 0 !important;\s*visibility: hidden !important;\s*pointer-events: none !important;/);
 assert.match(fullscreenStyle, /\.xgplayer-controls \{\s*background: linear-gradient\(transparent, rgba\(0, 0, 0, \.9\)\) !important;\s*\}/);
+assert.match(fullscreenStyle, /\.pc-live-player\[data-xet-web-fullscreen="true"\] \.normal_video_wrap_1001 > \.mask \{\s*inset: 0 !important;\s*\}/,
+  'Keep the live SDK picture-click layer inside the resized web-fullscreen wrapper');
 
 console.log("content module structure smoke test passed");
