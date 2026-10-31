@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js");
+importScripts("site-access.js", "download-source.js", "screenshot-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -456,6 +456,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:download-source") {
     return respond(sendResponse, "read-download-source", () =>
       globalThis.XetDownloadSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
+  if (message?.type === "xet:screenshot-copy") {
+    return respond(sendResponse, "copy-video-frame", () =>
+      globalThis.XetScreenshotSource.resolve(message, sender, { siteAccess, readSettings }));
   }
   if (message?.type === "xet:get-settings") {
     return respond(sendResponse, "read-frame-settings", () => frameSettings(sender));

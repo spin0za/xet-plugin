@@ -29,7 +29,7 @@
   height: var(--xet-download-height, 20px);
   color: inherit;
 }
-.xet-download-button {
+.xet-download-button, .xet-screenshot-button {
   display: block;
   position: relative;
   box-sizing: border-box;
@@ -47,15 +47,16 @@
   font: inherit;
   cursor: pointer;
 }
-.xet-download-button svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.xet-download-button:hover, .xet-download-button:active { background: transparent; box-shadow: none; }
-.xet-download-button:focus-visible { outline: 2px solid #79caff; outline-offset: 2px; }
+.xet-download-button svg, .xet-screenshot-button svg { display: block; width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.xet-download-button:hover, .xet-download-button:active, .xet-screenshot-button:hover, .xet-screenshot-button:active { background: transparent; box-shadow: none; }
+.xet-download-button:focus-visible, .xet-screenshot-button:focus-visible { outline: 2px solid #79caff; outline-offset: 2px; }
 .xet-download-button[data-active] { color: #79caff; }
 .xet-download-button[data-active] svg { visibility: hidden; }
 .xet-download-label { position: absolute; inset: 0; display: grid; place-items: center; font-size: 10px; white-space: nowrap; }
 .xet-download-label:empty { display: none; }
-.xet-download-button:disabled { cursor: wait; opacity: 0.7; }
-.xet-download-tooltip, .xet-download-status {
+.xet-download-button:disabled, .xet-screenshot-button:disabled { cursor: wait; opacity: 0.7; }
+.xet-screenshot-button[aria-busy="true"] { cursor: wait; opacity: 0.7; }
+.xet-download-tooltip, .xet-download-status, .xet-screenshot-tooltip, .xet-screenshot-status {
   position: absolute;
   bottom: calc(100% + 12px);
   right: 0;
@@ -89,3 +90,37 @@
   right: auto;
   transform: translateX(-50%);
 }
+/* Keep the two actions in visual left-to-right order even inside SDK
+   row-reverse/floating toolbars. Native dimensions, color and gaps are reused. */
+.xet-download-control[data-xet-screenshot] {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  inline-size: auto !important;
+  gap: var(--xet-screenshot-gap, 16px);
+}
+.xet-download-control[data-xet-screenshot] > .xet-download-button { flex: 0 0 var(--xet-download-width, 28px); }
+.xet-download-control[data-xet-screenshot] > .xet-download-tooltip {
+  left: calc(var(--xet-download-width, 28px) / 2);
+  right: auto;
+  transform: translateX(-50%);
+}
+.xet-screenshot-control {
+  position: relative;
+  display: block;
+  flex: 0 0 var(--xet-download-width, 28px);
+  height: 100%;
+}
+.xet-screenshot-tooltip {
+  display: none;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.xet-screenshot-button:hover + .xet-screenshot-tooltip,
+.xet-screenshot-button:focus-visible + .xet-screenshot-tooltip { display: block; }
+.xet-screenshot-control[data-feedback] .xet-screenshot-tooltip { display: none; }
+.xet-screenshot-status { bottom: 72px; right: 16px; z-index: 2147483647; font: 13px/1.4 system-ui, sans-serif; }
+.xet-screenshot-status[hidden] { display: none; }
+.xet-download-native > .xet-screenshot-status { position: fixed; bottom: 20px; }

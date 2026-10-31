@@ -17,6 +17,7 @@ async (page) => {
     "src/content/volume.js",
     "src/content/download-stream.js",
     "src/content/download.js",
+    "src/content/screenshot.js",
     "src/content/analysis-layout.js",
     "src/content/analysis-icons.js",
     "src/content/analysis-feedback.js",

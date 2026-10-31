@@ -10,6 +10,7 @@ const expectedScripts = [
   "src/content/volume.js",
   "src/content/download-stream.js",
   "src/content/download.js",
+  "src/content/screenshot.js",
   "src/content/analysis-layout.js",
   "src/content/analysis-scroll.js",
   "src/content/analysis-icons.js",
@@ -49,6 +50,7 @@ assert.match(entry, /createShortcutController/);
 assert.match(entry, /createQualityController/);
 assert.match(entry, /createVolumeController/);
 assert.match(entry, /createDownloadController/);
+assert.match(entry, /createScreenshotController/);
 assert.match(entry, /createTextSelectionController/);
 assert.match(entry, /createQuestionTypographyController/);
 assert.match(entry, /createQuestionOrderController/);

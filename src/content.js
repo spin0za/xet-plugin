@@ -24,7 +24,7 @@
     !modules.qualityPreference ||
     !modules.quality ||
     !modules.volume ||
-    !modules.downloadStream || !modules.download ||
+    !modules.downloadStream || !modules.download || !modules.screenshot ||
     !modules.toast
   ) {
     window[INSTANCE_KEY]?.wake?.();
@@ -48,10 +48,7 @@
     return settingsLoaded && !settings.disabledSites.includes(location.origin) &&
       !settings.disabledSites.includes(settings.topOrigin);
   }
-
-  function isQualityEnabled() {
-    return settings.enabled && isSiteEnabled();
-  }
+  function isQualityEnabled() { return settings.enabled && isSiteEnabled(); }
   async function loadSettings() {
     try {
       const stored = await chrome.runtime.sendMessage({
@@ -116,6 +113,7 @@
   });
   const volume = modules.volume.createVolumeController({ playerDom: modules.playerDom });
   const download = modules.download.createDownloadController({ playerDom: modules.playerDom });
+  const screenshot = modules.screenshot.createScreenshotController({ playerDom: modules.playerDom });
   function startFeatures() {
     if (featuresStarted) {
       if (settings.enabled) { quality.start(); quality.wake(); }
@@ -130,6 +128,7 @@
     fullscreen.start();
     shortcuts.start();
     download.start();
+    screenshot.start();
     if (settings.volumeEnabled) volume.start();
     if (settings.enabled) quality.start();
 
@@ -156,6 +155,7 @@
     for (const feature of pageFeatures) feature.stop();
     quality.stop();
     volume.stop();
+    screenshot.stop();
     download.stop();
     modules.toast.hide?.();
   }

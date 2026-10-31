@@ -10,7 +10,11 @@
     const audioUrl = media => media?.src || media?.currentSrc;
     const idleLabel = record => record.audio ? "下载音频" : "下载当前画质的视频";
     function ensureStyles(record) {
-      if (getComputedStyle(record.container).getPropertyValue("--xet-download-style-ready").trim() === "1") return;
+      // A late SDK toolbar leaves the control detached; that is not missing CSS.
+      if (!record.container.isConnected) return;
+      if (getComputedStyle(record.container).getPropertyValue("--xet-download-style-ready").trim() === "1") {
+        record.container.style.removeProperty("visibility"); return;
+      }
       if (typeof chrome === "undefined" || !chrome.runtime?.sendMessage) return;
       // Extension reload can leave live scripts without manifest-injected CSS.
       // Do not expose an unstyled browser button while restoring this sheet.

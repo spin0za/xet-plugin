@@ -126,7 +126,7 @@
       // Space on a focused quality option activates that option, not playback.
       if (event.code === "Space" || event.key === " ") {
         if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
-        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button, .xet-analysis-action"))) {
+        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button, .xet-screenshot-button, .xet-analysis-action"))) {
           event.stopImmediatePropagation(); // Preserve native button activation, suppress SDK hotkeys.
           return;
         }
@@ -198,7 +198,7 @@
     function handleKeyup(event) {
       if (event.code === "Space" || event.key === " ") {
         if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
-        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button, .xet-analysis-action"))) {
+        if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button, .xet-screenshot-button, .xet-analysis-action"))) {
           event.stopImmediatePropagation();
           return;
         }

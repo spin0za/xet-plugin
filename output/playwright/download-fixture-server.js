@@ -31,7 +31,7 @@ const server = http.createServer(async (request, response) => {
       run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-i", path.join(folder, "output.mp4"), "-f", "null", "-"]);
       response.setHeader("Content-Type", "application/json"); response.end(probe); return;
     }
-    if (!/^\/(?:list\.m3u8|key\.bin|part\d\.ts|output\.mp4|sound\.(?:mp3|m4a))$/.test(request.url) || request.method !== "GET") {
+    if (!/^\/(?:list\.m3u8|key\.bin|part\d\.ts|output\.mp4|frame\.mp4|portrait\.mp4|sound\.(?:mp3|m4a))$/.test(request.url) || request.method !== "GET") {
       response.writeHead(404); response.end(); return;
     }
     const file = path.join(folder, request.url.slice(1));
@@ -41,6 +41,10 @@ const server = http.createServer(async (request, response) => {
   } catch (error) { response.writeHead(500); response.end(error.message); }
 });
 for (const ext of ["mp3", "m4a"]) run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "1", path.join(folder, `sound.${ext}`)]);
+for (const [name, size, filter] of [["frame", "1280x720", "drawbox=x=640:y=0:w=640:h=720:color=blue:t=fill"], ["portrait", "720x1280", "null"]]) {
+  run("ffmpeg", ["-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", `color=c=red:s=${size}:r=1`,
+    "-t", "2", "-vf", filter, "-c:v", "libx264", "-pix_fmt", "yuv420p", "-movflags", "+faststart", path.join(folder, `${name}.mp4`)]);
+}
 server.listen(4181, "127.0.0.1", () => console.log(`Synthetic media fixture ready; PID ${process.pid}`));
 function shutdown() { server.close(); fs.rmSync(folder, { recursive: true, force: true }); process.exit(0); }
 process.on("SIGINT", shutdown); process.on("SIGTERM", shutdown);
