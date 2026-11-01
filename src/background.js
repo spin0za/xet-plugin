@@ -1,4 +1,4 @@
-importScripts("site-access.js", "download-source.js", "screenshot-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js");
+importScripts("site-access.js", "download-source.js", "screenshot-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js", "live-countdown-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -410,6 +410,10 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "xet:live-countdown") {
+    return respond(sendResponse, "install-live-countdown", () =>
+      globalThis.XetLiveCountdownSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
   if (message?.type === "xet:video-navigation") {
     return respond(sendResponse, "install-video-navigation", () =>
       globalThis.XetVideoNavigationSource.resolve(message, sender, { siteAccess, readSettings }));
