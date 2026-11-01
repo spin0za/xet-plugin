@@ -1,0 +1,19 @@
+.xet-chat-pending { margin: 20px 0; padding: 0; font: inherit; color: rgba(255,255,255,.9); }
+.xet-chat-author { margin-bottom: 8px; color: rgba(255,255,255,.6); font-size: 13px; }
+.xet-chat-bubble { display: inline-block; max-width: 100%; box-sizing: border-box; padding: 9px 10px; border-radius: 4px; background: #2b2e36; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; line-height: 1.6; user-select: text; }
+.xet-chat-footer { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 6px; font-size: 12px; line-height: 1.5; }
+.xet-chat-status { color: #b9c4d5; }
+.xet-chat-status::before { content: "◷"; margin-right: 4px; }
+.xet-chat-pending[data-state="unconfirmed"] .xet-chat-status { color: #f1cc8c; }
+.xet-chat-pending[data-state="unconfirmed"] .xet-chat-status::before { content: "⚠"; }
+.xet-chat-footer button { padding: 1px 0; border: 0; background: transparent; color: #a9c9ff; font: inherit; cursor: pointer; }
+.xet-chat-footer button:hover { text-decoration: underline; }
+.xet-chat-footer button:focus-visible { outline: 2px solid #a9c9ff; outline-offset: 3px; }
+.xet-chat-footer [hidden] { display: none !important; }
+textarea[data-xet-chat-original="true"], [data-xet-chat-unconfirmed="true"] { display: none !important; }
+.input-container button.send[data-xet-chat-busy="true"] { font-size: 0 !important; cursor: wait; opacity: .75; }
+.input-container button.send[data-xet-chat-busy="true"]::after { content: "发送中…"; font-size: 14px; }
+@media (forced-colors: active) {
+  .xet-chat-bubble { border: 1px solid CanvasText; }
+  .xet-chat-status, .xet-chat-pending[data-state="unconfirmed"] .xet-chat-status { color: CanvasText; }
+}
