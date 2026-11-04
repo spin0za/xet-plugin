@@ -12,6 +12,53 @@
   gap: 12px;
 }
 
+/* The site's draft trigger is a Vue-owned sibling of the QuestionOption
+   header. Keep it there (including its listeners/canvas state), and give it
+   the first slot of the native practice toolbar: draft, mark, collect. */
+.practice-analysis .analysis-item:has(> .draft-btn) [data-xet-analysis-action-header] {
+  padding-inline-end: 136px;
+}
+.practice-analysis .analysis-item:has(> .draft-btn):has([data-xet-analysis-action-header]) > .draft-btn {
+  box-sizing: border-box;
+  inline-size: 32px !important;
+  block-size: 32px !important;
+  inset-inline-end: 88px !important;
+  border: 1px solid #ebebeb;
+  border-radius: 8px;
+  background: #fff;
+}
+.practice-analysis .analysis-item:has([data-xet-analysis-action-header]) > .draft-btn .draft-pen-icon {
+  inline-size: 18px;
+  block-size: 18px;
+}
+
+/* New QuestionOption headers already use a two-row grid. Put the owned
+   actions in its first row instead of reserving space across the whole stem.
+   The empty leading slot aligns the native sibling draft trigger above. */
+.practice-analysis .analysis-item [data-xet-analysis-action-header]:has(> .question-tag) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: minmax(32px, auto) auto;
+  padding-inline-end: 0;
+}
+.practice-analysis [data-xet-analysis-action-header]:has(> .question-tag) > .question-tag,
+.practice-analysis [data-xet-analysis-action-header]:has(> .question-tag) .question-index {
+  align-self: center;
+  min-inline-size: 0;
+}
+.practice-analysis [data-xet-analysis-action-header]:has(> .question-tag) > .xet-analysis-actions {
+  position: static;
+  grid-column: 3;
+  grid-row: 1;
+  align-self: start;
+}
+.practice-analysis .analysis-item:has(> .draft-btn) [data-xet-analysis-action-header]:has(> .question-tag) > .xet-analysis-actions {
+  padding-inline-start: 44px;
+}
+.practice-analysis .analysis-item.is-draft-active .xet-analysis-actions {
+  visibility: hidden;
+  pointer-events: none;
+}
+
 .practice-analysis .xet-analysis-action {
   box-sizing: border-box;
   display: inline-flex;

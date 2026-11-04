@@ -60,8 +60,23 @@ async (page) => {
       await route.fulfill({ contentType: "text/html; charset=utf-8", body: `<!doctype html><html lang=zh-CN><style>
         body{font:16px system-ui;background:#f4f6fa;margin:0;padding:24px}
         .practice-analysis{max-width:1000px;margin:auto;background:white;padding:20px;border-radius:12px}
-        .analysis-item{padding:20px 0;border-bottom:1px solid #eee}
+        .analysis-item{position:relative;padding:24px 0;border-bottom:1px solid #eee}
         .question-header{font-size:16px}.question-type{color:#1677ff;font-size:14px;margin-bottom:16px}
+        /* Deployed 1.17.10 header grid and Vue-owned sibling draft trigger. */
+        .question-header:has(>.question-tag){display:grid;grid-template-columns:auto 1fr;align-items:baseline;column-gap:8px;margin-bottom:24px}
+        .question-header:has(>.question-tag)>.question-tag{grid-column:2;grid-row:1;margin-bottom:0;align-self:baseline}
+        .question-header:has(>.question-tag)>.question-header{display:contents}
+        .question-header:has(>.question-tag) .question-index{grid-column:1;grid-row:1;align-self:baseline;min-width:10px;line-height:20px;white-space:nowrap}
+        .question-header:has(>.question-tag) .question-content{grid-column:1/-1;grid-row:2;margin-top:16px;min-width:0;line-height:32px}
+        .question-header:has(>.question-tag) .question-type{display:inline-flex;margin:0;font-size:12px;line-height:18px;background:#eaf3ff;padding:1px 4px}
+        .practice-analysis .analysis-regional .analysis-item .draft-btn[data-native]{position:absolute;top:24px;right:0;z-index:10;width:20px;height:20px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+        .practice-analysis .analysis-regional .analysis-item:first-child{padding-top:0}
+        .practice-analysis .analysis-regional .analysis-item:first-child .draft-btn[data-native]{top:0}
+        .practice-analysis .analysis-regional .analysis-item.is-draft-active .draft-btn[data-native]{display:none}
+        .practice-material-question-item{position:relative}.practice-analysis .analysis-regional .analysis-item .practice-material-question-item .draft-btn[data-native]{top:0;right:0}
+        .draft-pen-icon[data-native]{display:block;width:16px;height:16px;background:#333;mask: url(https://commonresource-1252524126.cdn.xiaoeknow.com/image/mp54pse10zu4.svg) center/contain no-repeat}
+        .question-draft{position:absolute;inset:0;z-index:15;background:#ffffffdd;border:1px dashed #aaa}
+        .question-draft button{position:absolute;right:10px;top:10px}
         video{width:160px;height:90px;background:#ddd}p{line-height:1.5}
         /* Sense UI message geometry copied from the deployed site's component. */
         .ss-message__wrapper{position:fixed;left:0;width:100%;text-align:center;pointer-events:none;z-index:4003}
@@ -72,12 +87,20 @@ async (page) => {
         <aside class=answer-card__content__card style="display:flex;gap:8px;margin-bottom:16px">
           ${state.slice(0,3).map((q,i)=>`<div class=answer-card__content__card__item style="width:32px;height:32px;border:1px solid #1677ff"><span>${i+1}</span></div>`).join('')}
         </aside>
-        ${state.map((q,i)=>`<section class=analysis-item id=analysis-${i+1}>
-          <div class=question-header><div class=question-type>${i+1}. 单选题</div><p>第 ${i+1} 题：解析页面示例</p></div>
+        <div class=analysis-regional>${state.map((q,i)=>`<section class=analysis-item id=analysis-${i+1}>
+          ${i!==2?'<div class=draft-btn data-native title="涂画草稿"><i class=draft-pen-icon data-native></i></div>':''}
+          ${i===4?'<div class=question-header><div class=question-type>5. 单选题</div><p>旧版题干</p></div>':`<div class=question-header><div class=question-tag><div class=question-type>单选题</div></div><div class=question-header><div class=question-index>${i+1}.</div><div class=question-content><p>第 ${i+1} 题：解析页面示例</p></div></div></div>`}
           <p>A. 选项一　B. 选项二　C. 选项三</p><p>解析：示例内容，不涉及真实答题数据。</p>
-          ${i === 2 ? '<div class=question-header><div class=question-type>材料子题</div></div>' : ''}
-        </section>`).join("")}<video id=test-video></video></main><script>
+          ${i === 2 ? '<div class=practice-material-question-item><div class=draft-btn data-native title="子题涂画草稿"></div><div class=question-header><div class=question-type>材料子题</div></div></div>' : ''}
+        </section>`).join("")}</div><video id=test-video></video></main><script>
           window.mediaActions=0;
+          window.draftClicks=0;window.nativeDraft=document.querySelector('#analysis-1 > .draft-btn');
+          window.attachDraft=button=>button.addEventListener('click',()=>{
+            window.draftClicks++;const item=button.closest('.analysis-item');item.classList.add('is-draft-active');
+            const layer=document.createElement('div');layer.className='question-draft';
+            const canvas=document.createElement('canvas');const close=document.createElement('button');close.textContent='退出涂画';
+            close.onclick=()=>{item.classList.remove('is-draft-active');layer.remove()};layer.append(canvas,close);item.append(layer);
+          });document.querySelectorAll('.analysis-item > .draft-btn').forEach(attachDraft);
           document.querySelector('video').play=async()=>{ window.mediaActions++; };
           document.querySelector('video').pause=()=>{ window.mediaActions++; };
           const main=document.querySelector('.practice-analysis');
@@ -116,6 +139,30 @@ async (page) => {
     assert(styles.width===32 && styles.height===32 && styles.border==='rgb(235, 235, 235)' && styles.radius==='8px' &&
       styles.padding==='0px' && styles.gap==='12px' && styles.iconWidth===20 && styles.iconHeight===20 && styles.loaded,
       `Original button geometry diverged: ${JSON.stringify(styles)}`);
+    async function checkToolbar(selector) {
+      const result=await fixture.locator(selector).evaluate(item=>{
+        const draft=item.querySelector(':scope > .draft-btn'),buttons=[draft,...item.querySelectorAll(':scope > .question-header .xet-analysis-action')];
+        const rects=buttons.map(b=>{const r=b.getBoundingClientRect(),s=getComputedStyle(b);return{x:r.x,y:r.y,w:r.width,h:r.height,r:r.right,border:s.borderTopColor,radius:s.borderRadius}});
+        const header=item.querySelector('[data-xet-analysis-action-header]'),stem=header.querySelector('.question-content');
+        return{rects,icon:draft.querySelector('.draft-pen-icon').getBoundingClientRect().width,
+          stemWidth:stem?.getBoundingClientRect().width,headerWidth:header.getBoundingClientRect().width};
+      });
+      assert(result.rects.length===3&&result.rects.every(r=>r.w===32&&r.h===32&&r.border==='rgb(235, 235, 235)'&&r.radius==='8px'),`Draft/mark/collect appearance differs: ${JSON.stringify(result)}`);
+      assert(result.rects.every(r=>Math.abs(r.y-result.rects[0].y)<.1)&&result.rects.slice(1).every((r,i)=>Math.abs(r.x-result.rects[i].r-12)<.1),`Buttons overlap or spacing/order differs: ${JSON.stringify(result)}`);
+      assert(result.icon===18,'Draft icon differs from native practice geometry');
+      if(result.stemWidth!==undefined)assert(Math.abs(result.stemWidth-result.headerWidth)<.1,'Toolbar unnecessarily narrows the full-width question stem');
+    }
+    await checkToolbar('#analysis-1');await checkToolbar('#analysis-5');
+    await fixture.locator('#analysis-1 > .draft-btn').click();
+    assert(await mark.isHidden()&&await collect.isHidden(),'Mark/favorite should be hidden during draft mode, like the practice toolbar');
+    await fixture.getByRole('button',{name:'退出涂画',exact:true}).click();
+    assert(await fixture.evaluate(()=>window.draftClicks===1&&document.querySelector('#analysis-1 > .draft-btn')===window.nativeDraft),'Native draft node or event binding replaced');
+    await checkToolbar('#analysis-1');
+    assert(await fixture.locator('#analysis-3 .practice-material-question-item .draft-btn').evaluate(e=>e.getBoundingClientRect().width)===20,'Material-child draft control was changed');
+    await fixture.evaluate(()=>document.querySelector('#analysis-2 > .draft-btn').remove());
+    assert(await fixture.locator('#analysis-2 .xet-analysis-actions').evaluate(e=>e.getBoundingClientRect().width)===76,'Legacy two-button geometry not restored');
+    await fixture.evaluate(()=>{const b=window.nativeDraft.cloneNode(true);attachDraft(b);document.querySelector('#analysis-2').prepend(b)});
+    await checkToolbar('#analysis-2');
     await mark.hover();
     assert(await mark.evaluate(button => getComputedStyle(button).backgroundColor)==='rgb(255, 255, 255)', 'Hover added a non-native gray background');
     const badge = await fixture.locator('.xet-analysis-card-mark').evaluate(image => {
@@ -210,8 +257,9 @@ async (page) => {
     });
     await fixture.waitForFunction(() => document.querySelectorAll(".xet-analysis-actions").length === 41);
     assert(await fixture.locator("#analysis-1 .xet-analysis-actions").count() === 1, "Remount duplicated buttons");
-    for (const width of [720, 380]) {
+    for (const width of [1280, 720, 380]) {
       await fixture.setViewportSize({ width, height: 900 });
+      await checkToolbar('#analysis-1');await checkToolbar('#analysis-5');
       const overlap = await fixture.locator("#analysis-1").evaluate(item => {
         const group=item.querySelector('.xet-analysis-actions').getBoundingClientRect();
         const text=item.querySelector('.question-type').getBoundingClientRect();
@@ -228,6 +276,7 @@ async (page) => {
     await worker.evaluate(origin => chrome.storage.local.set({ disabledSites: [origin] }), origin);
     await fixture.waitForFunction(() => !document.querySelector(".xet-analysis-actions"));
     assert(await fixture.locator("[data-xet-analysis-action-header]").count() === 0, "Disable left layout changes behind");
+    assert(await fixture.locator('#analysis-1 > .draft-btn').evaluate(e=>e.getBoundingClientRect().width)===20,'Disable did not restore native draft geometry');
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
     await fixture.waitForFunction(() => document.querySelectorAll(".xet-analysis-actions").length === 41);
 
@@ -252,7 +301,7 @@ async (page) => {
     await fixture.waitForFunction(()=>!document.querySelector('.xet-analysis-feedback'));
     assert(errors.length === 0, `Browser errors: ${errors.join('; ')}`);
     return { passed: true, questions: 41, savedActions: writes.length,
-      checked: ["real MV3 bridge", "original artwork", "original geometry and hover", "four native messages", "post-submission persistence", "answer card marks", "Space/Enter", "trusted clicks", "double clicks", "errors", "network reconciliation", "concurrent saves", "focus refresh", "remount", "responsive layout", "SPA", "disable", "unknown flags", "accessible fallback cleanup"] };
+      checked: ["real MV3 bridge", "original artwork", "original geometry and hover", "draft/mark/collect 32px toolbar with 12px gaps", "full-width stem", "unchanged native draft node/events", "draft mode", "late native draft", "legacy/material headers", "four native messages", "post-submission persistence", "answer card marks", "Space/Enter", "trusted clicks", "double clicks", "errors", "network reconciliation", "concurrent saves", "focus refresh", "remount", "responsive layout", "SPA", "disable", "unknown flags", "accessible fallback cleanup"] };
   } catch (error) {
     const diagnostic = await fixture.evaluate(() => ({notices:window.nativeNotices,
       fallback:document.querySelector('.xet-analysis-feedback')?.textContent,
