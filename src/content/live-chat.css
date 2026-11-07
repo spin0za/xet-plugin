@@ -6,6 +6,7 @@
 .xet-chat-status::before { content: "◷"; margin-right: 4px; }
 .xet-chat-pending[data-state="unconfirmed"] .xet-chat-status { color: #f1cc8c; }
 .xet-chat-pending[data-state="unconfirmed"] .xet-chat-status::before { content: "⚠"; }
+.xet-chat-pending[data-state="saved"] .xet-chat-status::before { content: "✓"; }
 .xet-chat-footer button { padding: 1px 0; border: 0; background: transparent; color: #a9c9ff; font: inherit; cursor: pointer; }
 .xet-chat-footer button:hover { text-decoration: underline; }
 .xet-chat-footer button:focus-visible { outline: 2px solid #a9c9ff; outline-offset: 3px; }

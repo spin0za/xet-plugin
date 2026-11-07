@@ -21,10 +21,15 @@ async function main() {
   await resolve({ ...sender, documentId: undefined }); assert.equal(calls.at(-1).target.frameIds[0], 0);
   const source = fs.readFileSync("src/live-chat-source.js", "utf8");
   assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|localStorage|sessionStorage|storage\.(sync|local)\.(get|set)/,
-    "UI must not create/reorder requests or persist message content");
+    "No raw network interception, direct uploads or persisted message content");
+  assert.match(source, /const HISTORY = "\/_alive\/api\/alive\/xe\.alive\.get\.history\.msg\/1\.0\.0"/);
+  assert.equal((source.match(/v\.\$axios\.post\(/g) || []).length, 1, "Only the fixed read-only history endpoint may be called");
+  assert.match(source, /m\?\.comment_id === r.commentId && m.user_id === r.userId && m.alive_id === match\[1\]/);
+  assert.match(source, /r.attempts >= 3/);
+  assert.match(source, /Number\(v.roomInfo.alive_state\) === 3 && Number\(v.roomInfo.is_lookback\) === 1/);
   assert.match(source, /typeof m.msg_tag === "string"/);
   assert.match(source, /return original.call\(this, payload, ...args\)/);
   assert.doesNotMatch(source, /\.innerHTML\s*=/, "Message text must never be inserted as HTML");
-  console.log("live-chat-smoke: authorization, route/frame/document scope, no new network/storage and safe text passed");
+  console.log("live-chat-smoke: authorization, route/frame/document scope, bounded read-only history, replay flags and safe text passed");
 }
 main().catch(e => { console.error(e); process.exitCode = 1; });
