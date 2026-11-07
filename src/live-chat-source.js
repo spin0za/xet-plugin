@@ -2,7 +2,7 @@
   // All message text stays in this page's memory/DOM. Nothing is returned to
   // the extension worker, persisted, or sent outside the original site flow.
   function installLiveChat(expectedPath) {
-    const KEY = "__xetLiveChat", STOP = "xet:live-chat-stop", VERSION = 2;
+    const KEY = "__xetLiveChat", STOP = "xet:live-chat-stop", VERSION = 3;
     const HISTORY = "/_alive/api/alive/xe.alive.get.history.msg/1.0.0";
     const match = location.pathname.match(/^\/p\/t_pc\/live_pc\/pc\/(l_[\w-]+)\/?$/);
     if (!match || location.pathname !== expectedPath) return { ok: false };
@@ -23,15 +23,29 @@
     const areas = () => (v.$parent?.$children || []).filter(c => ["teacherArea", "discussArea"].includes(c.$options?.name));
     const isReplay = () => Number(v.roomInfo.alive_state) === 3 && Number(v.roomInfo.is_lookback) === 1;
     const afterRender = task => v.$nextTick(task);
+    const messageHost = area => area?.$el?.dataset?.xetReplayMode && area.$el.dataset.xetReplayMode !== "native" ?
+      area.$el.querySelector(".xet-replay-outbox") : area?.$refs?.messageWrapper?.$el;
     function nativeMessage(r) {
       return r.commentId && areas().flatMap(a => a.msgArr || []).find(m => m?.comment_id === r.commentId &&
         m.user_id === r.userId && (r.saved || typeof m.msg_tag === "string" && m.msg_tag.length > 0));
     }
     function text(r, message) { r.status.textContent = message; }
     function remove(r, confirmed = true) {
-      clearTimeout(r.timer); clearTimeout(r.verifyTimer); r.verifyAbort?.abort();
+      clearTimeout(r.timer); clearTimeout(r.verifyTimer); clearTimeout(r.savedTimer); r.verifyAbort?.abort();
       r.node.remove(); state.records.delete(r);
       if (confirmed) for (const el of r.hidden) { el.removeAttribute("data-xet-chat-unconfirmed"); state.hidden.delete(el); }
+    }
+    function confirmed(r) {
+      r.saved = true; r.edit.hidden = true;
+      const area = areas().find(a => a.$options.name === (v.currentTab === "teacherMsg" ? "teacherArea" : "discussArea"));
+      const host = messageHost(area), outbox = host?.classList.contains("xet-replay-outbox");
+      const inReplayList = outbox && r.commentId && area.$el.querySelector(`.xet-replay-viewport #${CSS.escape(`m-${r.commentId}`)}`);
+      if (inReplayList) { remove(r); return; }
+      if (nativeMessage(r) && !outbox) { remove(r); return; }
+      if (outbox && r.node.parentNode !== host) host.append(r.node);
+      r.node.dataset.state = "saved";
+      text(r, r.replay ? "已保存到课后留言" : "已保存到消息记录"); r.dismiss.hidden = false;
+      if (outbox && !r.savedTimer) r.savedTimer = setTimeout(() => { if (state.records.has(r)) remove(r); }, 6000);
     }
     const canVerify = r => live() && state.records.has(r) && !r.saved && r.commentId &&
       v.roomInfo.user_id === r.userId && v.roomInfo.room_id === r.roomId;
@@ -52,13 +66,9 @@
         const saved = response?.code === 0 && Array.isArray(response.data?.msgs) && response.data.msgs.some(m =>
           m?.comment_id === r.commentId && m.user_id === r.userId && m.alive_id === match[1] && m.content_type === 0);
         if (saved) {
-          r.saved = true; r.edit.hidden = true;
           // A native fake/local echo is safe to reveal only after the server
           // independently confirms the same user's same message in this room.
-          if (nativeMessage(r)) { remove(r); return; }
-          r.node.dataset.state = "saved";
-          text(r, r.replay ? "已保存到回放讨论" : "已保存到消息记录");
-          r.dismiss.hidden = false;
+          confirmed(r);
           return;
         }
       } catch { /* Failure to read history is not evidence that sending failed. */ }
@@ -73,9 +83,9 @@
     function reconcile() {
       if (!live()) return;
       for (const r of state.records) {
-        if (r.finished && nativeMessage(r)) { remove(r); continue; }
+        if (r.finished && nativeMessage(r)) { confirmed(r); continue; }
         const active = areas().find(a => a.$options.name === (v.currentTab === "teacherMsg" ? "teacherArea" : "discussArea"));
-        const host = active?.$refs?.messageWrapper?.$el;
+        const host = messageHost(active);
         if (["teacherMsg", "discuss"].includes(v.currentTab) && host?.isConnected && r.node.parentNode !== host) host.append(r.node);
         // The native save-error fallback inserts a fake message with no
         // msg_tag. Keep our explicit unconfirmed state instead of duplicating
@@ -127,7 +137,7 @@
       if (!live() || r.finished || state.current !== r) return;
       r.finished = true; clearTimeout(r.timer); state.current = null;
       restoreEditor(r);
-      if (nativeMessage(r)) { remove(r); return; }
+      if (nativeMessage(r)) { confirmed(r); return; }
       r.node.dataset.state = r.commentId ? "checking" : "unconfirmed";
       text(r, r.commentId ? "正在核对是否已保存，请勿重复发送…" : "未发送，请查看网站提示");
       r.edit.hidden = Boolean(r.commentId);
@@ -162,7 +172,7 @@
       footer.append(status, edit, dismiss); node.append(author, bubble, footer);
       Object.assign(r, { node, status, edit, dismiss });
       const a = areas().find(c => c.$options.name === (v.currentTab === "teacherMsg" ? "teacherArea" : "discussArea"));
-      const host = a?.$refs?.messageWrapper?.$el;
+      const host = messageHost(a);
       if (!host?.isConnected) return; // Keep unsupported layouts completely native.
       host.append(node); state.records.add(r); state.current = r; text(r, "发送中…");
       // A separate, native-styled draft editor avoids modifying content while
@@ -213,13 +223,14 @@
       state.active = false; offPhase(); offMessages(); offMode(); offTab();
       if (v.sendMsg === sendMsg) v.sendMsg = original;
       if (state.current) restoreEditor(state.current, true);
-      for (const r of state.records) { clearTimeout(r.timer); clearTimeout(r.verifyTimer); r.verifyAbort?.abort(); r.node.remove(); }
+      for (const r of state.records) { clearTimeout(r.timer); clearTimeout(r.verifyTimer); clearTimeout(r.savedTimer); r.verifyAbort?.abort(); r.node.remove(); }
       state.records.clear(); state.current = null;
       for (const el of state.hidden) el.removeAttribute("data-xet-chat-unconfirmed");
-      state.hidden.clear(); window.removeEventListener(STOP, stop);
+      state.hidden.clear(); window.removeEventListener(STOP, stop); window.removeEventListener("xet:live-chat-reflow", reconcile);
     }
     state.sendMsg = sendMsg; state.stop = stop; window[KEY] = state; v.sendMsg = sendMsg;
     window.addEventListener(STOP, stop);
+    window.addEventListener("xet:live-chat-reflow", reconcile);
     return { ok: true };
   }
   async function resolve(message, sender, { siteAccess, readSettings }) {

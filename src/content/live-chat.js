@@ -3,7 +3,10 @@
   if (modules.liveChat) return;
   function createLiveChatController({ request = m => chrome.runtime.sendMessage(m) } = {}) {
     let started = false, timer = null, pending = false, installed = null;
-    function stopMain() { installed = null; window.dispatchEvent(new Event("xet:live-chat-stop")); }
+    function stopMain() {
+      installed = null; window.dispatchEvent(new Event("xet:live-chat-stop"));
+      window.dispatchEvent(new Event("xet:live-chat-replay-stop"));
+    }
     async function sync() {
       if (!started || pending) return;
       const path = location.pathname;
@@ -15,6 +18,7 @@
       try {
         const result = await request({ type: "xet:live-chat", path });
         if (result?.ok) installed = { root, path, checkedAt: Date.now() };
+        if (started && path === location.pathname && result?.ok) await request({ type: "xet:live-chat-replay", path });
       } catch { /* Native chat remains usable while the extension wakes. */ }
       finally { pending = false; if (!started || path !== location.pathname) stopMain(); }
     }

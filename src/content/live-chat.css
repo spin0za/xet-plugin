@@ -14,6 +14,23 @@
 textarea[data-xet-chat-original="true"], [data-xet-chat-unconfirmed="true"] { display: none !important; }
 .input-container button.send[data-xet-chat-busy="true"] { font-size: 0 !important; cursor: wait; opacity: .75; }
 .input-container button.send[data-xet-chat-busy="true"]::after { content: "发送中…"; font-size: 14px; }
+[data-xet-replay-area="true"] .xet-replay-pane { position: absolute; inset: 0; display: flex; flex-direction: column; background: #181b20; z-index: 2; }
+[data-xet-replay-area="true"]:not([data-xet-replay-mode="native"]) > [data-xet-replay-original="true"] { visibility: hidden !important; pointer-events: none !important; }
+.xet-replay-toolbar { display: flex; flex: none; gap: 6px; padding: 7px 12px; border-bottom: 1px solid #34373e; background: #24272f; }
+.xet-replay-toolbar button, .xet-replay-footer button { border: 1px solid transparent; border-radius: 4px; padding: 4px 7px; background: transparent; color: #b9c4d5; font: inherit; font-size: 12px; cursor: pointer; }
+.xet-replay-toolbar button[aria-pressed="true"] { color: white; background: #3d465a; border-color: #7c9bc9; }
+.xet-replay-toolbar button:focus-visible, .xet-replay-footer button:focus-visible, .xet-replay-viewport:focus-visible { outline: 2px solid #a9c9ff; outline-offset: -2px; }
+.xet-replay-viewport { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; overflow-anchor: none; padding: 0 18px; }
+.xet-replay-pane [hidden] { display: none !important; }
+.xet-replay-footer { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 4px; padding: 5px 12px; color: #adb8c9; font-size: 12px; background: #24272f; }
+.xet-replay-status { flex: 1; min-width: 100px; }
+.xet-replay-outbox { flex: none; max-height: 160px; overflow: auto; padding: 0 18px; }
+.xet-replay-outbox:empty { display: none; }
+.xet-replay-outbox .xet-chat-pending { margin: 8px 0; }
+[data-xet-replay-mode="native"] .xet-replay-pane { background: transparent; pointer-events: none; }
+[data-xet-replay-mode="native"] .xet-replay-toolbar, [data-xet-replay-mode="native"] .xet-replay-footer { pointer-events: auto; }
+[data-xet-replay-mode="native"] .xet-replay-footer { margin-top: auto; }
+[data-xet-replay-mode="native"] > .scroll-container { box-sizing: border-box; padding-top: 40px; padding-bottom: 35px; }
 @media (forced-colors: active) {
   .xet-chat-bubble { border: 1px solid CanvasText; }
   .xet-chat-status, .xet-chat-pending[data-state="unconfirmed"] .xet-chat-status { color: CanvasText; }
