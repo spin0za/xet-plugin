@@ -60,6 +60,10 @@ async function main() {
   assert.equal(fallback.install().ok, false);
   const detached = fixture(); detached.install(); detached.node.isConnected = false; detached.run();
   assert.equal(detached.win.__xetLiveCountdown.active, false);
+  const asleep = fixture({ elapsed: 45000 });
+  asleep.context.performance.timeOrigin = 1_800_000_000_000 - 1000;
+  asleep.context.performance.now = () => 1000; // Some platforms stop this clock during sleep.
+  asleep.install(); assert.equal(asleep.v.count, 75000, "Late install after sleep must anchor to the original response wall time");
 
   const requests = [], context = { URL, chrome: { scripting: { async executeScript(options) {
     requests.push(options); return [{ documentId: "current", result: { ok: true } }];
@@ -80,6 +84,9 @@ async function main() {
   assert.equal((await resolve()).ok, true); assert.equal(requests[0].world, "MAIN");
   assert.deepEqual(JSON.parse(JSON.stringify(requests[0].target)), { tabId: 3, documentIds: ["current"] });
   assert.equal((await resolve({ ...sender, documentId: "replaced" })).ok, false);
+  const roomPath = "/p/t_pc/live_pc/pc/l_room";
+  assert.equal((await resolve({ ...sender, url: "https://merchant.pc.xiaoe-tech.com" + roomPath }, roomPath)).ok, true);
+  assert.equal(requests.at(-1).func.name, "installLiveRoomCountdown");
   console.log("live-countdown-smoke: elapsed clock, late install, wake events, expiry, props, cleanup and authorization passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
