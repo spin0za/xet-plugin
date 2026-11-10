@@ -10,16 +10,25 @@
     async function sync() {
       if (!started || pending) return;
       const path = location.pathname;
-      const root = /^\/p\/t_pc\/course_pc_detail\/camp_pro\/[\w-]+\/?$/.test(path)
-        ? document.querySelector(".camp_pro") : null;
+      const match = path.match(/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video)\/([\w-]+)\/?$/);
+      const currentScope = () => /^\/p\/t_pc\/course_pc_detail\/video\/[\w-]+\/?$/.test(location.pathname)
+        ? "/p/t_pc/course_pc_detail/video/" + new URL(location.href).searchParams.get("product_id")
+        : location.pathname;
+      const scope = currentScope();
+      const root = match && (match[1] === "camp_pro" || /^course_[\w-]+$/.test(new URL(location.href).searchParams.get("product_id") || ""))
+        ? document.querySelector(match[1] === "camp_pro" ? ".camp_pro" : "#app") : null;
+      if (installed && (installed.root !== root || installed.scope !== scope)) stopMain();
       if (!root) { if (installed) stopMain(); return; }
       // Recheck occasionally because Vue can remount the catalog inside the
       // same outer course element (for example after permission changes).
-      if (installed?.root === root && installed.path === path && Date.now() - installed.checkedAt < 5000) return;
+      if (installed?.root === root && installed.scope === scope && Date.now() - installed.checkedAt < 5000) return;
       pending = true;
       try {
-        const result = await request({ type: "xet:course-progress", path });
-        if (result?.ok) installed = { root, path, checkedAt: Date.now() };
+        const result = await request({ type: "xet:course-progress", path, url: location.href });
+        if (result?.ok && started && scope === currentScope() &&
+            document.querySelector(match[1] === "camp_pro" ? ".camp_pro" : "#app") === root) {
+          installed = { root, scope, checkedAt: Date.now() };
+        } else if (result?.ok) stopMain();
       } catch { /* Retry readiness after extension reload or navigation. */ }
       finally { pending = false; if (!started) stopMain(); }
     }

@@ -1,11 +1,15 @@
 (() => {
   // Runs in MAIN so the site's Vue objects and authenticated read APIs stay
   // together. Only visibility-triggered reloads are replaced, not user actions.
-  function installCourseProgress(expectedPath) {
+  function installCourseProgress(expectedPath, expectedCourse) {
     const STATE = "__xetCourseProgress", STOP = "xet:course-progress-stop";
-    const match = location.pathname.match(/^\/p\/t_pc\/course_pc_detail\/camp_pro\/([\w-]+)\/?$/);
-    if (!match || location.pathname !== expectedPath) return { ok: false, reason: "route" };
-    const root = document.querySelector(".camp_pro")?.__vue__;
+    const match = location.pathname.match(/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video)\/([\w-]+)\/?$/);
+    const currentCourse = () => match?.[1] === "camp_pro" ? match[2] : new URL(location.href).searchParams.get("product_id");
+    const course = currentCourse();
+    if (!match || location.pathname !== expectedPath || !/^course_[\w-]+$/.test(course || "") ||
+        course !== expectedCourse) return { ok: false, reason: "route" };
+    const selector = match[1] === "camp_pro" ? ".camp_pro" : "#app";
+    const root = document.querySelector(selector)?.__vue__;
     function descendants(v) {
       const result = [], queue = v ? [v] : [], seen = new Set();
       for (let i = 0; i < queue.length; i++) {
@@ -16,7 +20,7 @@
       return result;
     }
     const tree = descendants(root);
-    const catalog = tree.find(v => v.$options?.name === "CampProCatalog" && v.courseId === match[1]);
+    const catalog = tree.find(v => v.$options?.name === "CampProCatalog" && v.courseId === course);
     const owner = tree.find(v => v.$refs?.CampProCatalog === catalog && typeof v.reload === "function");
     if (!catalog || !owner || !catalog.apiMap || typeof catalog.apiMap.getList !== "function" ||
         typeof catalog.apiMap.getLearnResource !== "function" || !Array.isArray(catalog.chapterList)) {
@@ -24,12 +28,13 @@
     }
     let state = window[STATE];
     if (state?.active && state.owner === owner && state.catalog === catalog && state.root === root &&
-        state.path === expectedPath && owner.reload === state.reload) return { ok: true };
+        state.course === course && owner.reload === state.reload) { state.path = expectedPath; return { ok: true }; }
     state?.stop();
     const original = owner.reload;
-    const live = () => state.active && location.pathname === expectedPath &&
-      document.querySelector(".camp_pro")?.__vue__ === root && !catalog._isDestroyed &&
-      catalog.courseId === match[1] && owner.$refs?.CampProCatalog === catalog;
+    const live = () => state.active && (match[1] === "video"
+      ? /^\/p\/t_pc\/course_pc_detail\/video\/[\w-]+\/?$/.test(location.pathname) : location.pathname === expectedPath) &&
+      currentCourse() === course && document.querySelector(selector)?.__vue__ === root && !catalog._isDestroyed &&
+      catalog.courseId === course && owner.$refs?.CampProCatalog === catalog;
     const set = (object, key, value) => {
       if (object[key] === value) return;
       if (typeof catalog.$set === "function") catalog.$set(object, key, value);
@@ -156,20 +161,24 @@
       return work;
     }
     function reload(...args) {
-      if (live() && state.visibilityDispatch) return refresh();
+      if (live() && state.visibilityDispatch) return state.dispatchWork || refresh();
       state.epoch++;
       return original.apply(this, args);
     }
     function visible() {
       if (!live() || document.visibilityState !== "visible") return;
+      state.path = location.pathname;
       state.visibilityDispatch = true;
       clearTimeout(state.dispatchTimer);
-      // A task, not a microtask: browsers may flush microtasks between native
-      // event listeners. The flag must cover the site's document listener.
-      state.dispatchTimer = setTimeout(() => { state.visibilityDispatch = false; }, 0);
-      void refresh();
+      // Video ContentCatalog defers owner.reload with setTimeout(0), unlike
+      // camp_pro's synchronous listener. Keep the guard through that next task,
+      // not just event dispatch. No debounce or delayed progress update.
+      state.dispatchTimer = setTimeout(() => {
+        state.dispatchTimer = setTimeout(() => { state.visibilityDispatch = false; state.dispatchWork = null; }, 0);
+      }, 0);
+      state.dispatchWork = refresh();
     }
-    state = { active: true, root, catalog, owner, reload, path: expectedPath, epoch: 0, work: null, visibilityDispatch: false,
+    state = { active: true, root, catalog, owner, reload, path: expectedPath, course, epoch: 0, work: null, visibilityDispatch: false,
       stop() {
         state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer);
         if (owner.reload === reload) owner.reload = original;
@@ -184,13 +193,21 @@
 
   async function resolve(message, sender, { siteAccess, readSettings }) {
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0 || typeof message.path !== "string" ||
-        !/^\/p\/t_pc\/course_pc_detail\/camp_pro\/[\w-]+\/?$/.test(message.path)) return { ok: false };
+        !/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video)\/[\w-]+\/?$/.test(message.path)) return { ok: false };
     const site = siteAccess.siteInfo(sender.url), settings = await readSettings();
-    if (!site || new URL(sender.url).pathname !== message.path || settings.disabledSites.includes(site.origin) ||
+    // MessageSender.url may retain the document's initial URL after history
+    // navigation. Authorize its origin, then verify the requested live route in
+    // MAIN in the exact sender document, including its course identity.
+    let url;
+    try { url = new URL(message.url); } catch { return { ok: false }; }
+    if (!site || url.origin !== site.origin || url.pathname !== message.path || settings.disabledSites.includes(site.origin) ||
         !(await siteAccess.isAuthorized(site.origin))) return { ok: false };
+    const match = url.pathname.match(/\/(camp_pro|video)\/([\w-]+)\/?$/);
+    const course = match[1] === "camp_pro" ? match[2] : url.searchParams.get("product_id");
+    if (!/^course_[\w-]+$/.test(course || "")) return { ok: false };
     const target = sender.documentId ? { tabId: sender.tab.id, documentIds: [sender.documentId] }
       : { tabId: sender.tab.id, frameIds: [0] };
-    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: installCourseProgress, args: [message.path] });
+    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: installCourseProgress, args: [message.path, course] });
     if (sender.documentId && result?.documentId !== sender.documentId) return { ok: false };
     return result?.result || { ok: false };
   }

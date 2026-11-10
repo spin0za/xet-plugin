@@ -27,7 +27,7 @@ async(page)=>{
           body{margin:0}.content_header{height:240px;background:#ddd}.catalog{height:160px;overflow:auto}
           .catalog-list{height:700px}.section_item_box{display:block;height:40px}.main_content{min-height:2000px}.panes{display:flex;gap:20px}.native-controls{height:30px}
         </style><script src=/vue.js></script><script src=/router.js></script><div id=app></div><script>
-        window.audit={created:[],destroyed:[],reports:[],reads:[],native:[],visibility:0};
+        window.audit={created:[],destroyed:[],reports:[],reads:[],native:[],visibility:0,catalogReloads:0};
         window.bus=new Vue();window.store=Vue.observable({videoInfo:{video_info:{resource_id:location.pathname.split('/').pop(),title:'Initial',course_id:'course_fixture',video_length:100}}});
         const id=()=>location.pathname.split('/').pop();
         const post=async(path,body)=>{audit.reads.push({path,...body});return(await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})).json()};
@@ -42,9 +42,12 @@ async(page)=>{
         const Header=Vue.extend({name:'ContentHeader',created(){this.onEventBus()},methods:{onEventBus(){bus.$on('sort',()=>{})}},render:h=>h(Player)});
         const Row={props:['item'],data(){return{sectionItem:this.item}},methods:{go(){if(this.sectionItem.unlock_state)this.openCatalogTarget('/p/t_pc/course_pc_detail/video/'+this.sectionItem.chapter_id+'?product_id='+this.sectionItem.course_id)},openCatalogTarget(url){audit.native.push(url)}},
           render(h){return h('button',{class:'section_item_box',attrs:{'data-id':this.item.chapter_id},on:{click:this.go}},this.item.chapter_id)}};
-        const Catalog={name:'CampProCatalog',data(){return{activeNames:['chapter'],lastStudyResourceId:'v_a',chapterList:[1,2,3],items:['v_a','v_b','v_c','v_locked','v_other','v_bad'].map(id=>({chapter_id:id,resource_type:3,course_id:id==='v_other'?'course_other':'course_fixture',unlock_state:id==='v_locked'?0:1}))}},
+        const Catalog={name:'CampProCatalog',data(){return{courseId:'course_fixture',appId:'fixture',catalogPageSize:50,lastPageSize:1,nextPageSize:1,currentItemPid:0,order_status:'asc',currentSubCourse:'',isOnlyShowWithRightsValue:false,
+          apiMap:{getList:async()=>({code:0,data:{list:[]}}),getLearnResource:async()=>({code:0,data:{resource_id:id()}})},
+          activeNames:['chapter'],lastStudyResourceId:'v_a',chapterList:[{chapter_id:'chapter'}],items:['v_a','v_b','v_c','v_locked','v_other','v_bad'].map(id=>({chapter_id:id,resource_type:3,course_id:id==='v_other'?'course_other':'course_fixture',unlock_state:id==='v_locked'?0:1}))}},
           render(h){return h('div',{class:'catalog'},[h('div',{class:'catalog-list'},this.items.map(item=>h(Row,{key:item.chapter_id,props:{item}})))])}};
-        const ContentCatalog={name:'ContentCatalog',render:h=>h(Catalog)};
+        const CatalogOwner={name:'CourseContentCatalog',methods:{reload(){audit.catalogReloads++;this.$refs.CampProCatalog.chapterList=[]}},render:h=>h(Catalog,{ref:'CampProCatalog'})};
+        const ContentCatalog={name:'ContentCatalog',mounted(){document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')setTimeout(()=>this.$refs.courseContentCatalog.reload(),0)})},render:h=>h(CatalogOwner,{ref:'courseContentCatalog'})};
         const Detail={name:'ContentDetail',data(){return{loaded:id()}},render(h){return h('p',{class:'detail'},this.loaded)}};
         const Comments={name:'ContentComments',data(){return{loaded:id()}},render(h){return h('p',{class:'comments'},this.loaded)}};
         const Pane={name:'SsTabPane',props:['name'],render(h){return h('div',this.$slots.default)}};
@@ -69,9 +72,13 @@ async(page)=>{
     });
     await fixture.goto(origin+prefix+'v_a'+query);await fixture.bringToFront();
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation?.active);stage='first switch';
+    await fixture.waitForFunction(()=>globalThis.__xetCourseProgress?.active);
     await fixture.evaluate(()=>{window.initialCatalog=document.querySelector('.catalog');initialCatalog.scrollTop=40;window.scrollTo({top:200,behavior:'instant'});document.documentElement.style.scrollBehavior='smooth'});
     await fixture.locator('[data-id=v_b]').click();
     await fixture.waitForFunction(()=>globalThis.__xetVideoNavigation?.lastResult?.id==='v_b');
+    await fixture.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
+    await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.work&&!globalThis.__xetCourseProgress.visibilityDispatch);
+    assert(await fixture.evaluate(()=>audit.catalogReloads===0&&globalThis.__xetCourseProgress.catalog.chapterList.length===1),'Returning to a partially navigated video rebuilt its catalog');
     let result=await fixture.evaluate(()=>({id:location.pathname.split('/').pop(),player:document.querySelector('.native-player').innerText,
       same:initialCatalog===document.querySelector('.catalog'),scroll:initialCatalog.scrollTop,pageScroll:scrollY,detail:document.querySelector('.detail').textContent,
       comments:document.querySelector('.comments').textContent,wares:document.querySelector('.wares').textContent,audit}));

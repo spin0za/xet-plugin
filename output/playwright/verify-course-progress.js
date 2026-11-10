@@ -1,7 +1,10 @@
 async(page)=>{
   const worker=page.context().serviceWorkers().find(w=>w.url().endsWith('/src/background.js'));
   if(!worker)throw Error('Load the real MV3 extension');
-  const origin='https://merchant.pc.xiaoe-tech.com',path='/p/t_pc/course_pc_detail/camp_pro/course_fixture';
+  const all=[];
+  for(const video of [false,true]){
+  const origin='https://merchant.pc.xiaoe-tech.com',path=video?
+    '/p/t_pc/course_pc_detail/video/v_fixture?product_id=course_fixture':'/p/t_pc/course_pc_detail/camp_pro/course_fixture';
   const fixture=await page.context().newPage(),checks=[],errors=[],calls=[];
   const flags={fail:false,delay:false,version:1};const releases=[];let stage='setup';
   const assert=(condition,message)=>{if(!condition)throw Error(message)};
@@ -25,8 +28,8 @@ async(page)=>{
         await route.fulfill({json:{code:0,data}});return;
       }
       await route.fulfill({contentType:'text/html',body:`<!doctype html><style>
-        .camp_pro{height:2000px}.catalog-scroll{height:180px;overflow:auto}.rows{height:700px}
-      </style><div class=camp_pro><h1>Course</h1><div class=catalog-scroll><div class=rows><span id=lesson>initial</span></div></div></div><script>
+        #app{height:2000px}.catalog-scroll{height:180px;overflow:auto}.rows{height:700px}
+      </style><div id=app class=${video?'video-page':'camp_pro'}><h1>Course</h1><div class=catalog-scroll><div class=rows><span id=lesson>initial</span></div></div></div><script>
       window.APPID='app_fixture';window.nativeReloads=0;window.auxVisible=0;window.saves=0;
       const post=async(path,payload)=>(await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})).json();
       const chapter={chapter_id:'chapter_one',p_id:'0',study_status:0,learn_progress:0,unlock_state:0,chapter_title:'Original chapter'};
@@ -39,9 +42,9 @@ async(page)=>{
         $set(object,key,value){object[key]=value;document.querySelector('#lesson').textContent=lesson.study_status+'/'+lesson.learn_progress},};
       window.owner={$options:{name:'CourseContentCatalog'},$refs:{CampProCatalog:catalog},$children:[catalog],reload(){nativeReloads++;catalog.chapterList=[];catalog.activeNames=[]}};
       window.header={$options:{name:'ContinueStudy'},$children:[],campProCourseInfo:{course_id:'course_fixture'},progerss:0};
-      window.root={$options:{name:'CourseCampPro'},$children:[owner,header]};document.querySelector('.camp_pro').__vue__=root;
+      window.root={$options:{name:'${video?'App':'CourseCampPro'}'},$children:[owner,header]};document.querySelector('#app').__vue__=root;
       window.originalReload=owner.reload;window.originalRows=catalog.chapterList;window.originalLesson=lesson;window.originalNode=document.querySelector('#lesson');
-      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){owner.reload();auxVisible++}});
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){${video?'setTimeout(()=>owner.reload(),0)':'owner.reload()'};auxVisible++}});
       </script>`});
     });
     await fixture.goto(origin+path);await fixture.bringToFront();stage='install';
@@ -66,14 +69,29 @@ async(page)=>{
     await fixture.waitForFunction(()=>globalThis.__xetCourseProgress.lastResult?.failures>0&&!globalThis.__xetCourseProgress.work);
     assert(await fixture.evaluate(()=>originalLesson.learn_progress===75&&nativeReloads===0&&catalog.chapterList===originalRows),'Failure cleared existing state');
     flags.fail=false;flags.delay=true;flags.version=2;stage='race';
+    const before=calls.filter(c=>c.path==='/fixture/catalog').length;
     await returnToTab();
     await fixture.waitForFunction(()=>!!globalThis.__xetCourseProgress.work);
+    await returnToTab();
+    await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.visibilityDispatch);
+    assert(calls.filter(c=>c.path==='/fixture/catalog').length===before+2,'Repeated visibility events duplicated in-flight catalog reads');
     // A filter/sort change invalidates responses for the previous view.
     await fixture.evaluate(()=>catalog.currentSubCourse='another_subcourse');
     flags.delay=false;releases.splice(0).forEach(r=>r());
     await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.work);
     assert(await fixture.evaluate(()=>originalLesson.learn_progress===75),'Late result overwrote a different subcourse');
     checks.push('failed reads retain existing data; late responses cannot overwrite another subcourse');
+    if(video){
+      stage='partial video navigation';
+      await fixture.evaluate(()=>history.pushState({},'','/p/t_pc/course_pc_detail/video/v_next?product_id=course_fixture'));
+      // No polling delay before returning: the installed guard must survive
+      // same-course video navigation even before the controller's next tick.
+      await returnToTab();
+      await fixture.waitForFunction(()=>globalThis.__xetCourseProgress.active&&globalThis.__xetCourseProgress.path.endsWith('/v_next'));
+      await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.work&&!globalThis.__xetCourseProgress.visibilityDispatch);
+      assert(await fixture.evaluate(()=>nativeReloads===0&&catalog.chapterList===originalRows&&document.querySelector('#lesson')===originalNode),'Partial video navigation rebuilt catalog');
+      checks.push('deferred native video listener and same-course partial navigation retain the catalog');
+    }
     await fixture.evaluate(()=>owner.reload());
     assert(await fixture.evaluate(()=>nativeReloads===1),'An explicit reload was incorrectly replaced by a quiet read');
     stage='disable';await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
@@ -87,11 +105,13 @@ async(page)=>{
     await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.active);
     assert(await fixture.evaluate(()=>owner.reload===originalReload),'Route exit did not restore native method');
     assert(!errors.length,errors.join('; '));checks.push('site disable/re-enable and SPA cleanup restore native reload');
-    return {checks,errors};
+    all.push({route:video?'video':'camp_pro',checks,errors});
   }catch(error){
     const state=await fixture.evaluate(()=>({installed:!!globalThis.__xetCourseProgress,active:globalThis.__xetCourseProgress?.active,
       work:!!globalThis.__xetCourseProgress?.work,result:globalThis.__xetCourseProgress?.lastResult,visibility:document.visibilityState,
       nativeReloads:window.nativeReloads,aux:window.auxVisible,modules:Object.keys(globalThis.__xetPlayerHelperModules||{})}));
     throw Error(`${stage}: ${error.message}; ${JSON.stringify({state,calls,errors})}`);
   }finally{flags.delay=false;releases.splice(0).forEach(r=>r());await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));await fixture.close();}
+  }
+  return all;
 }
