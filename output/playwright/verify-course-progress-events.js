@@ -2,8 +2,9 @@ async(page)=>{
   const context=page.context(),worker=context.serviceWorkers().find(w=>w.url().endsWith('/src/background.js'));
   if(!worker)throw Error('Real MV3 extension required');
   const origin='https://progress-events.pc.xiaoe-tech.com',results=[];
-  for(const vueVersion of ['2.7.16','2.6.14']){
-  const vue=await(await fetch('https://cdn.jsdelivr.net/npm/vue@'+vueVersion+'/dist/vue.js')).text();
+  for(const build of [{version:'2.7.16',file:'vue.js'},{version:'2.7.16',file:'vue.min.js'},{version:'2.6.14',file:'vue.min.js'}]){
+  const vueVersion=build.version,production=build.file==='vue.min.js';
+  const vue=await(await fetch('https://cdn.jsdelivr.net/npm/vue@'+vueVersion+'/dist/'+build.file)).text();
   const scenarios=[
     {kind:'camp_pro',query:'',course:'course_fixture'},
     {kind:'video',query:'?product_id=course_fixture',course:'course_fixture'},
@@ -91,10 +92,12 @@ async(page)=>{
         await fixture.evaluate(async()=>{document.dispatchEvent(new Event('visibilitychange'));bus.$emit('catalogRefresh');await Vue.nextTick()});
         assert(await fixture.evaluate(()=>!window.__xetCourseProgress?.active&&audit.native.includes('progress')&&Vue.prototype.$emit===originalEmit),'Unsupported catalog was intercepted');
         assert(!calls.length,'Unsupported page made progress queries');
-        results.push({vueVersion,kind,query,quanzi:!!quanzi,checks:['unsupported directory/route, social API environment or mismatched parent keeps native behavior and makes no progress reads'],errors});
+        results.push({vueVersion,production,kind,query,quanzi:!!quanzi,checks:['unsupported directory/route, social API environment or mismatched parent keeps native behavior and makes no progress reads'],errors});
         continue;
       }
       stage='install';await fixture.waitForFunction(()=>window.__xetCourseProgress?.active);
+      assert(await fixture.evaluate(()=>window.__xetCourseProgress.progressWatcherPatched),'Dedicated progress watcher was not patched');
+      if(production)assert(await fixture.evaluate(()=>[...(getCatalog()._watchers||[]),...(getCatalog()._scope?.effects||[])].filter(w=>w.user).every(w=>!w.expression)), 'Production test did not erase watcher debug expressions');
       await fixture.evaluate(()=>{
         const catalog=getCatalog();window.saved={catalog,rows:catalog.chapterList,row:catalog.chapterList[0],node:document.querySelector('#lesson'),frame:document.querySelector('#preview'),media:document.querySelector('#media')};
         saved.media.pause=()=>audit.mediaCalls++;saved.media.play=()=>{audit.mediaCalls++;return Promise.resolve()};saved.media.load=()=>audit.mediaCalls++;
@@ -109,6 +112,11 @@ async(page)=>{
       assert(previewLoads===1&&documents===1,'Preview or document reloaded');
       assert(calls.find(c=>c.path==='/catalog')?.body.community_id==='community_fixture','Catalog context omitted community id');
       checks.push('real Vue 2 watcher: asynchronous completion/report and other event listeners preserved; catalog, reading iframe, media and scroll identities unchanged');
+      stage='unchanged visibility';
+      await fixture.evaluate(()=>{window.lastStudyIdentity=getCatalog().lastStudyData;document.dispatchEvent(new Event('visibilitychange'))});
+      await fixture.waitForFunction(()=>!window.__xetCourseProgress.work&&!window.__xetCourseProgress.visibilityDispatch);
+      assert(await fixture.evaluate(()=>getCatalog().lastStudyData===lastStudyIdentity&&audit.native.length===0),'An unchanged response still invalidated native descendants');
+      checks.push('identical tab-return responses retain last-study object identity');
       stage='search';flags.progress=55;
       await fixture.evaluate(async()=>{getCatalog().isSearchShow=true;getOuter().isSearchActive=true;await Vue.nextTick();bus.$emit('catalogRefresh');await Vue.nextTick();document.dispatchEvent(new Event('visibilitychange'))});
       await fixture.waitForFunction(()=>!window.__xetCourseProgress.visibilityDispatch);
@@ -159,7 +167,7 @@ async(page)=>{
       await fixture.waitForFunction(n=>audit.native.filter(x=>x==='progress').length===n+1,resets);
       assert(await fixture.evaluate(()=>Vue.prototype.$emit===originalEmit),'Native event bus was modified');
       assert(!errors.length,errors.join('; '));checks.push('disable restores the native watcher, event bus untouched');
-      results.push({vueVersion,kind,query,checks,errors});
+      results.push({vueVersion,production,kind,query,checks,errors});
     }catch(error){
       const debug=await fixture.evaluate(()=>({active:window.__xetCourseProgress?.active,result:window.__xetCourseProgress?.lastResult,watchers:getCatalog?.()?._scope?.effects?.filter(w=>w.user).map(w=>w.expression),audit:window.audit}));
       throw Error(kind+' '+query+' '+stage+': '+error.message+' '+JSON.stringify({debug,calls,errors}));

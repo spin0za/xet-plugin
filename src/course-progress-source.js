@@ -66,13 +66,13 @@
       owner.courseInfo?.resource_type, owner.courseInfo?.resource_id]);
     const permissionKey = permissions();
     let state = window[STATE];
-    if (state?.active && state.adapterVersion === 2 && state.owner === owner && state.catalog === catalog &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 3 && state.owner === owner && state.catalog === catalog &&
         state.permissionKey !== permissionKey && !state.nativeReloaded) {
       // Do not bless a permission/account change merely because our poll ran.
       // First let a native reload (or the native prop watcher) revalidate it.
       return { ok: false, reason: "permissions-changed" };
     }
-    if (state?.active && state.adapterVersion === 2 && state.owner === owner && state.catalog === catalog && state.root === root &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 3 && state.owner === owner && state.catalog === catalog && state.root === root &&
         state.context === context && state.permissionKey === permissionKey && owner.reload === state.reload) {
       state.path = expectedPath;
       if (state.progressPending) void state.refresh("progress");
@@ -200,10 +200,14 @@
           const fresh = data(await bounded(catalog.apiMap.getLearnResource({ app_id: catalog.appId, course_id: catalog.courseId })));
           if (!valid() || typeof fresh.resource_id !== "string") return;
           const last = {};
-          for (const key of ["resource_id", "resource_type", "jump_url", "last_learn_course_name", "sub_course_id"]) {
+          const lastKeys = ["resource_id", "resource_type", "jump_url", "last_learn_course_name", "sub_course_id"];
+          for (const key of lastKeys) {
             if (["string", "number"].includes(typeof fresh[key])) last[key] = fresh[key];
           }
-          set(catalog, "lastStudyData", last);
+          // A fresh but identical object would still invalidate native Vue
+          // descendants on every tab return. Keep its identity when unchanged.
+          const previous = catalog.lastStudyData;
+          if (!previous || lastKeys.some(key => previous[key] !== last[key])) set(catalog, "lastStudyData", last);
           set(catalog, "lastStudyResourceId", fresh.resource_id);
           const row = groups().flatMap(g => g.rows).find(q => q.chapter_id === fresh.resource_id);
           if (row && typeof row.p_id === "string") set(catalog, "lastStudyPId", row.p_id);
@@ -246,7 +250,7 @@
       state.dispatchWork = refresh();
     }
     const restore = [];
-    state = { active: true, adapterVersion: 2, root, catalog, owner, reload, refresh, path: expectedPath, course, context, permissionKey,
+    state = { active: true, adapterVersion: 2, patchRevision: 3, root, catalog, owner, reload, refresh, path: expectedPath, course, context, permissionKey,
       epoch: 0, work: null, visibilityDispatch: false, progressPending: false, nativeReloaded: false,
       stop() {
         state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer);
@@ -259,8 +263,15 @@
     // Native catalogRefresh changes this prop after document/image completion
     // and audio/video progress. Patch only its dedicated user watcher, not the
     // event bus, reporting methods, rendering watcher or manual catalog actions.
+    // Production Vue deliberately erases watcher.expression. Identify the
+    // native callback from the component's actual watch option instead.
+    const option = catalog.$options?.watch?.reloadSwitch;
+    const callbacks = (Array.isArray(option) ? option : [option]).map(value => {
+      const handler = value && typeof value === "object" ? value.handler : value;
+      return typeof handler === "string" ? catalog[handler] : handler;
+    }).filter(value => typeof value === "function");
     const watchers = [...new Set([...(catalog._watchers || []), ...(catalog._scope?.effects || [])])]
-      .filter(w => w.user && w.expression === "reloadSwitch" && typeof w.cb === "function");
+      .filter(w => w.user && callbacks.includes(w.cb));
     if (watchers.length === 1) {
       const watcher = watchers[0], callback = watcher.cb;
       const quietProgress = function(...args) {
@@ -270,6 +281,7 @@
         return callback.apply(this, args);
       };
       watcher.cb = quietProgress;
+      state.progressWatcherPatched = true;
       restore.push(() => { if (watcher.cb === quietProgress) watcher.cb = callback; });
     }
     if (typeof catalog.$watch === "function") restore.push(catalog.$watch(searching, active => {
