@@ -1,15 +1,30 @@
 (() => {
-  // Runs in MAIN so the site's Vue objects and authenticated read APIs stay
-  // together. Only visibility-triggered reloads are replaced, not user actions.
-  function installCourseProgress(expectedPath, expectedCourse) {
+  // Runs in MAIN with the native catalog and read APIs. Page type is only an
+  // entry guard; the mounted catalog decides whether this adapter applies.
+  function installCourseProgress(expectedPath, expectedUrl) {
     const STATE = "__xetCourseProgress", STOP = "xet:course-progress-stop";
-    const match = location.pathname.match(/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video)\/([\w-]+)\/?$/);
-    const currentCourse = () => match?.[1] === "camp_pro" ? match[2] : new URL(location.href).searchParams.get("product_id");
-    const course = currentCourse();
-    if (!match || location.pathname !== expectedPath || !/^course_[\w-]+$/.test(course || "") ||
-        course !== expectedCourse) return { ok: false, reason: "route" };
-    const selector = match[1] === "camp_pro" ? ".camp_pro" : "#app";
-    const root = document.querySelector(selector)?.__vue__;
+    const ROUTE = /^\/p\/t_pc\/course_pc_detail\/(camp_pro|video|audio|document|image_text|camp|member|column|big_column)\/([\w-]+)\/?$/;
+    const COURSE = /^(?:course_|c_)[\w-]+$/;
+    const match = location.pathname.match(ROUTE), url = new URL(location.href);
+    let requested;
+    try { requested = new URL(expectedUrl); } catch { return { ok: false, reason: "route" }; }
+    if (!match || location.pathname !== expectedPath || requested.origin !== url.origin ||
+        requested.pathname !== url.pathname || requested.search !== url.search) return { ok: false, reason: "route" };
+    const rootElement = () => document.querySelector("#app") || document.querySelector(".camp_pro");
+    const root = rootElement()?.__vue__;
+    const contextKey = () => {
+      const current = new URL(location.href), route = current.pathname.match(ROUTE);
+      if (!route) return null;
+      const family = ["video", "audio", "document", "image_text"].includes(route[1]) ? "content" : current.pathname;
+      return JSON.stringify([family, ...["parent_pro_id", "pro_id", "product_id", "content_app_id", "community_id", "type", "resType", "sub_course_id"]
+        .map(key => current.searchParams.get(key))]);
+    };
+    const context = contextKey();
+    function declaredCourse() {
+      const current = new URL(location.href), route = current.pathname.match(ROUTE);
+      return current.searchParams.get("parent_pro_id") || current.searchParams.get("pro_id") ||
+        current.searchParams.get("product_id") || (route?.[1] === "camp_pro" ? route[2] : null);
+    }
     function descendants(v) {
       const result = [], queue = v ? [v] : [], seen = new Set();
       for (let i = 0; i < queue.length; i++) {
@@ -20,21 +35,55 @@
       return result;
     }
     const tree = descendants(root);
-    const catalog = tree.find(v => v.$options?.name === "CampProCatalog" && v.courseId === course);
-    const owner = tree.find(v => v.$refs?.CampProCatalog === catalog && typeof v.reload === "function");
+    const candidates = tree.filter(v => v.$options?.name === "CampProCatalog" && !v._isDestroyed);
+    const matches = candidates.map(catalog => {
+      const owner = tree.find(v => v.$refs?.CampProCatalog === catalog && typeof v.reload === "function");
+      const outer = tree.find(v => v.$refs?.courseContentCatalog === owner && typeof v.onCatalogRefresh === "function");
+      const info = owner?.courseInfo || outer?.courseInformation;
+      if (!COURSE.test(catalog.courseId || "") || info && (info.resource_type !== 50 || info.resource_id !== catalog.courseId) ||
+          declaredCourse() && declaredCourse() !== catalog.courseId || !info && !declaredCourse()) return null;
+      return { catalog, owner, outer };
+    }).filter(Boolean);
+    if (matches.length !== 1) {
+      window[STATE]?.stop();
+      const otherCatalog = tree.some(v => ["MemberCatalog", "ColumnCatalog", "BigColumnCatalog", "CampCatalog"].includes(v.$options?.name) ||
+        v.$options?.name === "CourseContentCatalog" && [5, 6, 8, 25].includes(v.courseInfo?.resource_type));
+      return { ok: false, reason: !candidates.length && otherCatalog ? "unsupported-catalog" : "not-ready" };
+    }
+    const { catalog, owner, outer } = matches[0], course = catalog.courseId;
+    if (catalog.isQuanzi) {
+      window[STATE]?.stop();
+      return { ok: false, reason: "unsupported-catalog" };
+    }
     if (!catalog || !owner || !catalog.apiMap || typeof catalog.apiMap.getList !== "function" ||
         typeof catalog.apiMap.getLearnResource !== "function" || !Array.isArray(catalog.chapterList)) {
       return { ok: false, reason: "not-ready" };
     }
+    const base = tree.find(v => v.$options?.name === "CourseBaseLayout");
+    const permissions = () => JSON.stringify([catalog.appId, catalog.isPermission, catalog.isAvailable, catalog.isQuanzi, catalog.community_id,
+      owner.isHasPermission, owner.isNeedMsgCollect, owner.courseInfo?.goods_status,
+      outer?.isPermission, outer?.shouldCollect, outer?.isSubscribe, base?.userId,
+      owner.courseInfo?.resource_type, owner.courseInfo?.resource_id]);
+    const permissionKey = permissions();
     let state = window[STATE];
-    if (state?.active && state.owner === owner && state.catalog === catalog && state.root === root &&
-        state.course === course && owner.reload === state.reload) { state.path = expectedPath; return { ok: true }; }
+    if (state?.active && state.adapterVersion === 2 && state.owner === owner && state.catalog === catalog &&
+        state.permissionKey !== permissionKey && !state.nativeReloaded) {
+      // Do not bless a permission/account change merely because our poll ran.
+      // First let a native reload (or the native prop watcher) revalidate it.
+      return { ok: false, reason: "permissions-changed" };
+    }
+    if (state?.active && state.adapterVersion === 2 && state.owner === owner && state.catalog === catalog && state.root === root &&
+        state.context === context && state.permissionKey === permissionKey && owner.reload === state.reload) {
+      state.path = expectedPath;
+      if (state.progressPending) void state.refresh("progress");
+      return { ok: true };
+    }
     state?.stop();
     const original = owner.reload;
-    const live = () => state.active && (match[1] === "video"
-      ? /^\/p\/t_pc\/course_pc_detail\/video\/[\w-]+\/?$/.test(location.pathname) : location.pathname === expectedPath) &&
-      currentCourse() === course && document.querySelector(selector)?.__vue__ === root && !catalog._isDestroyed &&
-      catalog.courseId === course && owner.$refs?.CampProCatalog === catalog;
+    const live = () => state.active && contextKey() === context && rootElement()?.__vue__ === root && !catalog._isDestroyed &&
+      catalog.courseId === course && owner.$refs?.CampProCatalog === catalog && (!declaredCourse() || declaredCourse() === course);
+    const safe = () => live() && permissions() === permissionKey;
+    const searching = () => Boolean(catalog.isSearchShow || outer?.isSearchActive);
     const set = (object, key, value) => {
       if (object[key] === value) return;
       if (typeof catalog.$set === "function") catalog.$set(object, key, value);
@@ -81,13 +130,17 @@
           : vm.chapterItem?.chapter_id === g.pid && vm.catalogOrder === g.order &&
             vm.subCourseId === g.sub && Number(vm.isOnlyShowWithRights) === g.rights);
     }
-    function refresh() {
-      if (!live()) return Promise.resolve();
-      if (state.work) return state.work;
+    function refresh(reason = "visibility") {
+      if (!safe()) return Promise.resolve();
+      if (searching() || state.work) {
+        if (reason === "progress") state.progressPending = true;
+        return state.work || Promise.resolve();
+      }
+      state.progressPending = false;
       const epoch = state.epoch, sub = catalog.currentSubCourse, order = catalog.order_status,
         rights = catalog.isOnlyShowWithRightsValue;
       const controller = new AbortController(); state.controller = controller;
-      const valid = () => live() && state.epoch === epoch && catalog.currentSubCourse === sub &&
+      const valid = () => safe() && !searching() && state.epoch === epoch && catalog.currentSubCourse === sub &&
         catalog.order_status === order && catalog.isOnlyShowWithRightsValue === rights;
       state.work = (async () => {
         let failures = 0;
@@ -101,9 +154,22 @@
             const params = { app_id: catalog.appId, course_id: catalog.courseId, p_id: g.pid,
               page, page_size: g.size, order: g.order, sub_course_id: g.sub,
               resource_id: "", is_display_auth_sections: g.rights };
+            if (catalog.community_id) params.community_id = catalog.community_id;
             const fresh = data(await bounded(catalog.apiMap.getList(params)));
             if (!Array.isArray(fresh.list)) throw new Error("list");
             if (!valid() || !groupLive(g)) return;
+            const booleanField = value => typeof value === "boolean" || value === 0 || value === 1;
+            if (g.vm === catalog && booleanField(fresh.available) &&
+                (typeof catalog.isPermission === "boolean" && Boolean(fresh.available) !== catalog.isPermission ||
+                 booleanField(fresh.subscribe) && typeof catalog.isAvailable === "boolean" &&
+                 Boolean(fresh.available && fresh.subscribe) !== catalog.isAvailable)) {
+              state.epoch++; state.progressPending = false; state.nativeReloaded = true;
+              state.lastResult = { ok: true, failures: 0, reason: "permissions", native: true };
+              // The server changed access even if the page has not noticed.
+              // Reuse native catalog validation, never reload the reading pane.
+              original.call(owner);
+              return;
+            }
             const byId = new Map(fresh.list.filter(q => typeof q?.chapter_id === "string").map(q => [q.chapter_id, q]));
             for (const row of g.rows) {
               const newer = byId.get(row.chapter_id);
@@ -120,7 +186,7 @@
             }
           });
         }
-        jobs.push(async () => {
+        if (tree.some(vm => vm.$options?.name === "ContinueStudy" && vm.campProCourseInfo?.course_id === course)) jobs.push(async () => {
           const fresh = await bounded(progress(controller.signal));
           if (!valid() || typeof fresh.progress !== "number" || !Number.isFinite(fresh.progress) ||
               fresh.progress < 0 || fresh.progress > 100) return;
@@ -149,43 +215,77 @@
             try { await job(); } catch { failures++; }
           }
         }));
-        if (valid()) state.lastResult = { ok: failures === 0, failures };
+        if (valid()) state.lastResult = { ok: failures === 0, failures, reason };
       })();
       const work = state.work;
       void (async () => {
         try { await work; } finally {
           controller.abort();
           if (state.work === work) { state.work = null; state.controller = null; }
+          if (state.progressPending && safe() && !searching()) void refresh("progress");
         }
       })();
       return work;
     }
     function reload(...args) {
-      if (live() && state.visibilityDispatch) return state.dispatchWork || refresh();
+      if (safe() && state.visibilityDispatch) return state.dispatchWork || refresh();
+      if (live() && permissions() !== permissionKey) state.nativeReloaded = true;
       state.epoch++;
       return original.apply(this, args);
     }
     function visible() {
-      if (!live() || document.visibilityState !== "visible") return;
+      if (!safe() || document.visibilityState !== "visible") return;
       state.path = location.pathname;
       state.visibilityDispatch = true;
       clearTimeout(state.dispatchTimer);
-      // Video ContentCatalog defers owner.reload with setTimeout(0), unlike
-      // camp_pro's synchronous listener. Keep the guard through that next task,
-      // not just event dispatch. No debounce or delayed progress update.
+      // Accommodate both the registered synchronous visibility handler and
+      // the site's deferred variant. Progress reads start immediately.
       state.dispatchTimer = setTimeout(() => {
         state.dispatchTimer = setTimeout(() => { state.visibilityDispatch = false; state.dispatchWork = null; }, 0);
       }, 0);
       state.dispatchWork = refresh();
     }
-    state = { active: true, root, catalog, owner, reload, path: expectedPath, course, epoch: 0, work: null, visibilityDispatch: false,
+    const restore = [];
+    state = { active: true, adapterVersion: 2, root, catalog, owner, reload, refresh, path: expectedPath, course, context, permissionKey,
+      epoch: 0, work: null, visibilityDispatch: false, progressPending: false, nativeReloaded: false,
       stop() {
         state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer);
         if (owner.reload === reload) owner.reload = original;
         document.removeEventListener("visibilitychange", visible, true);
         window.removeEventListener(STOP, state.stop);
+        for (const undo of restore.splice(0)) undo();
       } };
     window[STATE] = state; owner.reload = reload;
+    // Native catalogRefresh changes this prop after document/image completion
+    // and audio/video progress. Patch only its dedicated user watcher, not the
+    // event bus, reporting methods, rendering watcher or manual catalog actions.
+    const watchers = [...new Set([...(catalog._watchers || []), ...(catalog._scope?.effects || [])])]
+      .filter(w => w.user && w.expression === "reloadSwitch" && typeof w.cb === "function");
+    if (watchers.length === 1) {
+      const watcher = watchers[0], callback = watcher.cb;
+      const quietProgress = function(...args) {
+        if (safe()) return refresh("progress");
+        if (live() && permissions() !== permissionKey) state.nativeReloaded = true;
+        state.epoch++;
+        return callback.apply(this, args);
+      };
+      watcher.cb = quietProgress;
+      restore.push(() => { if (watcher.cb === quietProgress) watcher.cb = callback; });
+    }
+    if (typeof catalog.$watch === "function") restore.push(catalog.$watch(searching, active => {
+      if (!active && state.progressPending && safe()) void refresh("progress");
+    }));
+    if (typeof catalog.$once === "function" && typeof catalog.$off === "function") {
+      const detached = () => {
+        if (!state.active) return;
+        state.stop();
+        // Wait only for Vue's current synchronous remount, not the poll's
+        // five-second identity recheck, before connecting the replacement.
+        void (async () => { await Promise.resolve(); window.dispatchEvent(new Event("xet:course-progress-remount")); })();
+      };
+      catalog.$once("hook:beforeDestroy", detached);
+      restore.push(() => catalog.$off("hook:beforeDestroy", detached));
+    }
     document.addEventListener("visibilitychange", visible, true);
     window.addEventListener(STOP, state.stop);
     return { ok: true };
@@ -193,7 +293,7 @@
 
   async function resolve(message, sender, { siteAccess, readSettings }) {
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0 || typeof message.path !== "string" ||
-        !/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video)\/[\w-]+\/?$/.test(message.path)) return { ok: false };
+        !/^\/p\/t_pc\/course_pc_detail\/(camp_pro|video|audio|document|image_text|camp|member|column|big_column)\/[\w-]+\/?$/.test(message.path)) return { ok: false };
     const site = siteAccess.siteInfo(sender.url), settings = await readSettings();
     // MessageSender.url may retain the document's initial URL after history
     // navigation. Authorize its origin, then verify the requested live route in
@@ -202,12 +302,9 @@
     try { url = new URL(message.url); } catch { return { ok: false }; }
     if (!site || url.origin !== site.origin || url.pathname !== message.path || settings.disabledSites.includes(site.origin) ||
         !(await siteAccess.isAuthorized(site.origin))) return { ok: false };
-    const match = url.pathname.match(/\/(camp_pro|video)\/([\w-]+)\/?$/);
-    const course = match[1] === "camp_pro" ? match[2] : url.searchParams.get("product_id");
-    if (!/^course_[\w-]+$/.test(course || "")) return { ok: false };
     const target = sender.documentId ? { tabId: sender.tab.id, documentIds: [sender.documentId] }
       : { tabId: sender.tab.id, frameIds: [0] };
-    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: installCourseProgress, args: [message.path, course] });
+    const [result] = await chrome.scripting.executeScript({ target, world: "MAIN", func: installCourseProgress, args: [message.path, url.href] });
     if (sender.documentId && result?.documentId !== sender.documentId) return { ok: false };
     return result?.result || { ok: false };
   }
