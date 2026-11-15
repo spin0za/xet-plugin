@@ -66,15 +66,16 @@
       owner.courseInfo?.resource_type, owner.courseInfo?.resource_id]);
     const permissionKey = permissions();
     let state = window[STATE];
-    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 3 && state.owner === owner && state.catalog === catalog &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 4 && state.owner === owner && state.catalog === catalog &&
         state.permissionKey !== permissionKey && !state.nativeReloaded) {
       // Do not bless a permission/account change merely because our poll ran.
       // First let a native reload (or the native prop watcher) revalidate it.
       return { ok: false, reason: "permissions-changed" };
     }
-    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 3 && state.owner === owner && state.catalog === catalog && state.root === root &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 4 && state.owner === owner && state.catalog === catalog && state.root === root &&
         state.context === context && state.permissionKey === permissionKey && owner.reload === state.reload) {
       state.path = expectedPath;
+      state.tickCountdowns();
       if (state.progressPending) void state.refresh("progress");
       return { ok: true };
     }
@@ -130,6 +131,63 @@
           : vm.chapterItem?.chapter_id === g.pid && vm.catalogOrder === g.order &&
             vm.subCourseId === g.sub && Number(vm.isOnlyShowWithRights) === g.rights);
     }
+    // Native descText is a cached Vue computed value: Date.now() alone cannot
+    // invalidate it. Refresh just that section's label, not the catalog tree.
+    const countdowns = new Map();
+    function scheduledTime(value) {
+      if (typeof value !== "string") return null;
+      // The catalog supplies Beijing wall time, without a timezone. Explicit
+      // fixed-offset epoch parsing also works on our Chrome 119 minimum (no
+      // Temporal/polyfill or locale-dependent calendar arithmetic required).
+      const stamp = /^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d$/.test(value) ? value.replace(" ", "T") + "+08:00" :
+        /^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/i.test(value) ? value : "";
+      const epoch = stamp ? Date.parse(stamp) : NaN;
+      return Number.isFinite(epoch) ? epoch : null;
+    }
+    function updateLabel(v, watcher) {
+      const previous = v.descText;
+      watcher.update(); // Lazy computed watcher: mark dirty, do not rerender parents.
+      if (previous !== v.descText) v.$forceUpdate();
+    }
+    function restoreCountdown(v, r) {
+      if (v.getTimeDifference === r.format) v.getTimeDifference = r.original;
+      if (!v._isDestroyed) updateLabel(v, r.watcher);
+      countdowns.delete(v);
+    }
+    function tickCountdowns() {
+      clearTimeout(state.countdownTimer);
+      if (!live()) { state.stop(); return; }
+      if (document.visibilityState !== "visible") return;
+      const mounted = new Set(descendants(catalog));
+      for (const [v, r] of countdowns) {
+        if (!mounted.has(v) || v._isDestroyed || v._computedWatchers?.descText !== r.watcher) restoreCountdown(v, r);
+      }
+      let delay = 60_000;
+      for (const v of mounted) {
+        const row = v.sectionItem, watcher = v._computedWatchers?.descText;
+        if (v._isDestroyed || row?.resource_type !== 4 || row.alive_status !== 0 || scheduledTime(row.alive_start_time) === null ||
+            !watcher?.lazy || typeof watcher.update !== "function" || typeof v.$forceUpdate !== "function" ||
+            typeof v.getTimeDifference !== "function") continue;
+        if (!countdowns.has(v)) {
+          const original = v.getTimeDifference;
+          const format = function(from, until, ...args) {
+            const item = this.sectionItem, epoch = scheduledTime(item?.alive_start_time);
+            return original.call(this, from, state.active && live() && item?.resource_type === 4 &&
+              item.alive_status === 0 && until === item.alive_start_time && epoch !== null ? new Date(epoch) : until, ...args);
+          };
+          countdowns.set(v, { original, format, watcher }); v.getTimeDifference = format;
+        }
+        updateLabel(v, watcher);
+        // Align with the next displayed minute, but always derive remaining
+        // time from the deadline. A throttled timer or OS sleep cannot drift.
+        const left = scheduledTime(row.alive_start_time) - Date.now();
+        if (left > 0) delay = Math.min(delay, left % 60_000 + 25);
+        // Do not invent a live status when the scheduled time passes. Only
+        // the read API may say that the broadcast actually started/ended.
+      }
+      state.countdownTimer = setTimeout(tickCountdowns, Math.max(250, delay));
+    }
+    function countdownVisible() { tickCountdowns(); }
     function refresh(reason = "visibility") {
       if (!safe()) return Promise.resolve();
       if (searching() || state.work) {
@@ -183,6 +241,10 @@
                 set(row, key, value);
               }
               if (typeof newer.unlock_date === "string") set(row, "unlock_date", newer.unlock_date);
+              if (row.resource_type === 4) {
+                if ([0, 1, 2, 3].includes(newer.alive_status)) set(row, "alive_status", newer.alive_status);
+                if (scheduledTime(newer.alive_start_time) !== null) set(row, "alive_start_time", newer.alive_start_time);
+              }
             }
           });
         }
@@ -238,6 +300,7 @@
       return original.apply(this, args);
     }
     function visible() {
+      tickCountdowns();
       if (!safe() || document.visibilityState !== "visible") return;
       state.path = location.pathname;
       state.visibilityDispatch = true;
@@ -250,14 +313,18 @@
       state.dispatchWork = refresh();
     }
     const restore = [];
-    state = { active: true, adapterVersion: 2, patchRevision: 3, root, catalog, owner, reload, refresh, path: expectedPath, course, context, permissionKey,
+    state = { active: true, adapterVersion: 2, patchRevision: 4, root, catalog, owner, reload, refresh, tickCountdowns, path: expectedPath, course, context, permissionKey,
       epoch: 0, work: null, visibilityDispatch: false, progressPending: false, nativeReloaded: false,
       stop() {
-        state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer);
+        state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer); clearTimeout(state.countdownTimer);
         if (owner.reload === reload) owner.reload = original;
         document.removeEventListener("visibilitychange", visible, true);
+        document.removeEventListener("resume", countdownVisible);
+        window.removeEventListener("focus", countdownVisible);
+        window.removeEventListener("pageshow", countdownVisible);
         window.removeEventListener(STOP, state.stop);
         for (const undo of restore.splice(0)) undo();
+        for (const [v, r] of countdowns) restoreCountdown(v, r);
       } };
     window[STATE] = state; owner.reload = reload;
     // Native catalogRefresh changes this prop after document/image completion
@@ -287,6 +354,12 @@
     if (typeof catalog.$watch === "function") restore.push(catalog.$watch(searching, active => {
       if (!active && state.progressPending && safe()) void refresh("progress");
     }));
+    if (typeof catalog.$watch === "function") restore.push(catalog.$watch(() => groups().flatMap(g => g.rows)
+      .map(row => [row.chapter_id, row.resource_type, row.alive_status, row.alive_start_time].join(":")).join("|"), () => {
+      // Wait for newly loaded rows' section components to mount in Vue's
+      // current flush. No polling delay and no replacement of native rows.
+      void (async () => { await Promise.resolve(); if (state.active) tickCountdowns(); })();
+    }));
     if (typeof catalog.$once === "function" && typeof catalog.$off === "function") {
       const detached = () => {
         if (!state.active) return;
@@ -299,7 +372,11 @@
       restore.push(() => catalog.$off("hook:beforeDestroy", detached));
     }
     document.addEventListener("visibilitychange", visible, true);
+    document.addEventListener("resume", countdownVisible);
+    window.addEventListener("focus", countdownVisible);
+    window.addEventListener("pageshow", countdownVisible);
     window.addEventListener(STOP, state.stop);
+    tickCountdowns();
     return { ok: true };
   }
 
