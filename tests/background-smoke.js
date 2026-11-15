@@ -217,6 +217,10 @@ async function main() {
   const policy = await send({ type: "xet:get-settings" });
   assert.equal(policy.topOrigin, "https://custom.example");
   assert.equal(policy.volumeEnabled, true, "older installations default maximum volume to on");
+  assert.equal(policy.defaultLiveLine, 0, "older installations follow the website unless a line is chosen");
+  state.defaultLiveLine = 2;
+  assert.equal((await send({ type: "xet:get-settings" })).defaultLiveLine, 2, "live line preference must reach content scripts");
+  delete state.defaultLiveLine;
   state.volumeEnabled = false;
   assert.equal((await send({ type: "xet:get-settings" })).volumeEnabled, false,
     "volume setting must propagate to embedded players independently");

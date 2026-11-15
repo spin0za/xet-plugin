@@ -9,6 +9,10 @@ assert.match(html, /<small[^>]*>视频加载后自动选择可用的最高画质
 assert.match(html, /<strong[^>]*>默认最大音量<\/strong>/);
 assert.match(html, /for="volume-toggle"/);
 assert.match(html, /aria-describedby="volume-description"/);
+assert.match(html, /<strong[^>]*>默认直播线路<\/strong>/);
+assert.match(html, /<select id="default-live-line"[^>]*aria-describedby="live-line-description"/);
+for (const value of [0, 1, 2, 3]) assert.match(html, new RegExp(`<option value="${value}">`));
+assert.match(script, /saveSettings\(\{ defaultLiveLine: value \}\)/);
 assert.ok(html.indexOf('id="global-toggle"') < html.indexOf('id="volume-toggle"'));
 assert.ok(html.indexOf('id="volume-toggle"') < html.indexOf('id="keep-alive-toggle"'));
 assert.match(html, /<small[^>]*>延长登录状态，免去反复扫码<\/small>/);

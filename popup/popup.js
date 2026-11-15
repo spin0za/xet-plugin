@@ -1,6 +1,7 @@
 const siteAccess = globalThis.XetSiteAccess;
 const globalToggle = document.querySelector("#global-toggle");
 const volumeToggle = document.querySelector("#volume-toggle");
+const defaultLiveLine = document.querySelector("#default-live-line");
 const summary = document.querySelector("#summary");
 const siteSection = document.querySelector("#site-section");
 const hostnameLabel = document.querySelector("#hostname");
@@ -15,6 +16,7 @@ let activeUrl = null;
 let settings = {
   enabled: true,
   volumeEnabled: true,
+  defaultLiveLine: 0,
   disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
@@ -75,6 +77,8 @@ function render() {
   globalToggle.disabled = !ready || saving;
   volumeToggle.checked = settings.volumeEnabled;
   volumeToggle.disabled = !ready || saving;
+  defaultLiveLine.value = String([0, 1, 2, 3].includes(settings.defaultLiveLine) ? settings.defaultLiveLine : 0);
+  defaultLiveLine.disabled = !ready || saving;
   renderKeepAlive();
   hint.hidden = true;
   hint.textContent = "";
@@ -135,7 +139,7 @@ async function saveSettings(changes) {
     // Native disabled controls lose focus. Restore it after saving only if the
     // user has not moved elsewhere, so repeated keyboard toggles keep working.
     if (document.activeElement === document.body &&
-        [globalToggle, volumeToggle, keepAliveToggle].includes(focused) && !focused.disabled) {
+        [globalToggle, volumeToggle, defaultLiveLine, keepAliveToggle].includes(focused) && !focused.disabled) {
       focused.focus();
     }
     if (failed) summary.textContent = "设置保存失败，请重试";
@@ -148,6 +152,11 @@ globalToggle.addEventListener("change", async () => {
 
 volumeToggle.addEventListener("change", async () => {
   await saveSettings({ volumeEnabled: volumeToggle.checked });
+});
+
+defaultLiveLine.addEventListener("change", async () => {
+  const value = Number(defaultLiveLine.value);
+  if ([0, 1, 2, 3].includes(value)) await saveSettings({ defaultLiveLine: value });
 });
 
 keepAliveToggle.addEventListener("change", async () => {
@@ -206,6 +215,7 @@ manageSites.addEventListener("click", () => {
     settings = await chrome.storage.local.get({
       enabled: true,
       volumeEnabled: true,
+      defaultLiveLine: 0,
       disabledSites: null,
       disabledHosts: [],
       keepAliveEnabled: false,
@@ -230,6 +240,7 @@ manageSites.addEventListener("click", () => {
     ready = false;
     globalToggle.disabled = true;
     volumeToggle.disabled = true;
+    defaultLiveLine.disabled = true;
     keepAliveToggle.disabled = true;
     siteSection.hidden = true;
     summary.textContent = "无法读取设置，请重新打开扩展";

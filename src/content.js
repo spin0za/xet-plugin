@@ -12,7 +12,7 @@
     !modules.analysisActions ||
     !modules.practiceMarks ||
     !modules.practiceHistory ||
-    !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation || !modules.liveCountdown || !modules.liveChat ||
+    !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation || !modules.liveCountdown || !modules.liveChat || !modules.liveLine ||
     !modules.pageTitle ||
     !modules.textSelection ||
     !modules.questionTypography ||
@@ -38,8 +38,7 @@
     window[INSTANCE_KEY].wake();
     return;
   }
-
-  const settings = { enabled: true, volumeEnabled: true, disabledSites: [], topOrigin: "" };
+  const settings = { enabled: true, volumeEnabled: true, defaultLiveLine: 0, disabledSites: [], topOrigin: "" };
   let settingsLoaded = false;
   let frameCoordinator = null;
   let featuresStarted = false;
@@ -58,6 +57,7 @@
       settings.topOrigin = stored.topOrigin || (window.top === window ? location.origin : "");
       settings.enabled = stored?.enabled !== false;
       settings.volumeEnabled = stored.volumeEnabled !== false;
+      settings.defaultLiveLine = modules.liveLine.normalize(stored.defaultLiveLine);
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         stored?.disabledSites,
         stored?.disabledHosts,
@@ -68,12 +68,13 @@
       if (window.top !== window && !settings.topOrigin) return;
       const stored = await chrome.storage.local.get({
         enabled: true,
-        volumeEnabled: true,
+        volumeEnabled: true, defaultLiveLine: 0,
         disabledSites: null,
         disabledHosts: [],
       });
       settings.enabled = stored.enabled !== false;
       settings.volumeEnabled = stored.volumeEnabled !== false;
+      settings.defaultLiveLine = modules.liveLine.normalize(stored.defaultLiveLine);
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         stored.disabledSites,
         stored.disabledHosts,
@@ -82,7 +83,6 @@
       settingsLoaded = true;
     }
   }
-
   const fullscreen = modules.fullscreen.createFullscreenController({
     playerDom: modules.playerDom,
     onWebModeChange: (active) => frameCoordinator?.publish(active),
@@ -101,7 +101,7 @@
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const pageFeatures = [analysisLayout, analysisScroll, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
-    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController()];
+    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine })];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -120,6 +120,7 @@
       else quality.stop();
       if (settings.volumeEnabled) volume.start();
       else volume.stop();
+      for (const feature of pageFeatures) feature.wake?.();
       return;
     }
     featuresStarted = true;
@@ -159,16 +160,15 @@
     download.stop();
     modules.toast.hide?.();
   }
-
   function applySiteState() {
     if (isSiteEnabled()) startFeatures();
     else stopFeatures();
   }
-
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes.enabled) settings.enabled = changes.enabled.newValue !== false;
     if (changes.volumeEnabled) settings.volumeEnabled = changes.volumeEnabled.newValue !== false;
+    if (changes.defaultLiveLine) settings.defaultLiveLine = modules.liveLine.normalize(changes.defaultLiveLine.newValue);
     if (changes.disabledSites || changes.disabledHosts) {
       settings.disabledSites = siteAccess.normalizeDisabledSites(
         changes.disabledSites?.newValue ?? settings.disabledSites,

@@ -4,6 +4,7 @@ const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
   enabled: true,
   volumeEnabled: true,
+  defaultLiveLine: 0,
   disabledSites: [],
   keepAliveEnabled: false,
   keepAliveUrl: "",
