@@ -3,6 +3,7 @@ async(page)=>{
   if(!worker)throw Error('Load the real MV3 extension');
   const all=[];
   for(const kind of ['camp_pro','video','audio','document','image_text']){
+  for(const delay of [null,0,50,250]){
   const video=kind!=='camp_pro';
   const origin='https://merchant.pc.xiaoe-tech.com',path=kind==='camp_pro'?
     '/p/t_pc/course_pc_detail/camp_pro/course_fixture':
@@ -41,12 +42,13 @@ async(page)=>{
         chapterList:[chapter],currentItemPid:0,catalogPageSize:20,lastPageSize:1,nextPageSize:1,order_status:'asc',currentSubCourse:'',isOnlyShowWithRightsValue:false,
         activeNames:['chapter_one'],chapterPage:1,lastStudyResourceId:'old_video',lastStudyData:{},lastStudyPId:'old_chapter',
         apiMap:{getList:p=>post('/fixture/catalog',p),getLearnResource:p=>post('/fixture/last',p)},
-        $set(object,key,value){object[key]=value;document.querySelector('#lesson').textContent=lesson.study_status+'/'+lesson.learn_progress},};
-      window.owner={$options:{name:'CourseContentCatalog'},courseInfo:{resource_type:50,resource_id:'course_fixture'},$refs:{CampProCatalog:catalog},$children:[catalog],reload(){nativeReloads++;catalog.chapterList=[];catalog.activeNames=[]}};
+        $set(object,key,value){object[key]=value;document.querySelector('#lesson').textContent=lesson.study_status+'/'+lesson.learn_progress},
+        reload(){nativeReloads++;this.chapterList=[];this.activeNames=[]}};
+      window.owner={$options:{name:'CourseContentCatalog'},courseInfo:{resource_type:50,resource_id:'course_fixture'},$refs:{CampProCatalog:catalog},$children:[catalog],reload(){catalog.reload()}};
       window.header={$options:{name:'ContinueStudy'},$children:[],campProCourseInfo:{course_id:'course_fixture'},progerss:0};
       window.root={$options:{name:'${video?'App':'CourseCampPro'}'},$children:[owner,header]};document.querySelector('#app').__vue__=root;
       window.originalReload=owner.reload;window.originalRows=catalog.chapterList;window.originalLesson=lesson;window.originalNode=document.querySelector('#lesson');
-      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){${video?'setTimeout(()=>owner.reload(),0)':'owner.reload()'};auxVisible++}});
+      document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){${delay===null?'owner.reload()':`setTimeout(()=>owner.reload(),${delay})`};auxVisible++}});
       </script>`});
     });
     await fixture.goto(origin+path);await fixture.bringToFront();stage='install';
@@ -56,6 +58,7 @@ async(page)=>{
     // through the browser's capture/bubble path to exercise both listeners.
     const returnToTab=()=>fixture.evaluate(()=>document.dispatchEvent(new Event('visibilitychange')));
     await returnToTab();stage='initial refresh';
+    await fixture.waitForTimeout((delay||0)+40);
     await fixture.waitForFunction(()=>globalThis.__xetCourseProgress.lastResult?.ok&& !globalThis.__xetCourseProgress.work);
     const result=await fixture.evaluate(()=>({reloads:nativeReloads,aux:auxVisible,status:originalLesson.study_status,progress:originalLesson.learn_progress,
       unlock:originalLesson.unlock_state,total:header.progerss,last:catalog.lastStudyResourceId,pid:catalog.lastStudyPId,
@@ -94,7 +97,10 @@ async(page)=>{
       assert(await fixture.evaluate(()=>nativeReloads===0&&catalog.chapterList===originalRows&&document.querySelector('#lesson')===originalNode),'Partial video navigation rebuilt catalog');
       checks.push('deferred native video listener and same-course partial navigation retain the catalog');
     }
-    await fixture.evaluate(()=>owner.reload());
+    // Drain the site's queued automatic callbacks before deliberately
+    // disabling our wrapper; callbacks after disable are rightly native.
+    await fixture.waitForTimeout((delay||0)+40);
+    await fixture.evaluate(()=>catalog.reload());
     assert(await fixture.evaluate(()=>nativeReloads===1),'An explicit reload was incorrectly replaced by a quiet read');
     stage='disable';await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.active);
@@ -107,13 +113,14 @@ async(page)=>{
     await fixture.waitForFunction(()=>!globalThis.__xetCourseProgress.active);
     assert(await fixture.evaluate(()=>owner.reload===originalReload),'Route exit did not restore native method');
     assert(!errors.length,errors.join('; '));checks.push('site disable/re-enable and SPA cleanup restore native reload');
-    all.push({route:kind,checks,errors});
+    all.push({route:kind,delay,checks,errors});
   }catch(error){
     const state=await fixture.evaluate(()=>({installed:!!globalThis.__xetCourseProgress,active:globalThis.__xetCourseProgress?.active,
       work:!!globalThis.__xetCourseProgress?.work,result:globalThis.__xetCourseProgress?.lastResult,visibility:document.visibilityState,
       nativeReloads:window.nativeReloads,aux:window.auxVisible,modules:Object.keys(globalThis.__xetPlayerHelperModules||{})}));
     throw Error(`${kind} ${stage}: ${error.message}; ${JSON.stringify({state,calls,errors})}`);
   }finally{flags.delay=false;releases.splice(0).forEach(r=>r());await worker.evaluate(()=>chrome.storage.local.set({disabledSites:[]}));await fixture.close();}
+  }
   }
   return all;
 }

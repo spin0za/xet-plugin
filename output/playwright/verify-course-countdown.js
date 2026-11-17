@@ -41,7 +41,7 @@ async page => {
           </script>` });
         });
         await fixture.goto(origin + routePath); await fixture.bringToFront();
-        await fixture.waitForFunction(() => window.__xetCourseProgress?.patchRevision === 4);
+        await fixture.waitForFunction(() => window.__xetCourseProgress?.patchRevision === 5);
         const initial = await fixture.evaluate(() => ({ text: initialText, now: new Date().toISOString(), zone: Intl.DateTimeFormat().resolvedOptions().timeZone }));
         assert(initial.text.includes('16小时后开始'), 'Fixture failed to reproduce native timezone bug: ' + JSON.stringify(initial));
         await fixture.waitForFunction(() => document.querySelector('#l_fixture').textContent.includes('30分钟后开始'));

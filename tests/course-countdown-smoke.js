@@ -72,6 +72,13 @@ async function main() {
     document.dispatchEvent(new Event('resume'));
     assert.doesNotMatch(label.descText, /后开始|直播中/, 'Expired schedule must not invent live status');
     assert.equal(row.alive_status, 0);
+    await state.owner.reload();
+    assert.equal(reloads, 0, 'Automatic parent entry must stay quiet outside the visibility dispatch task');
+    document.dispatchEvent(new Event('visibilitychange'));
+    await state.visibilityWork;
+    const completedReads = reads;
+    await state.owner.reload();
+    assert.equal(reads, completedReads, 'Late native callbacks must reuse a completed capture read, not query again');
     now = Date.parse('2026-11-15T06:30:00Z');
     fresh = { ...row, alive_start_time: '2026-11-15 16:00:00', alive_status: 0 };
     await state.refresh(); state.tickCountdowns();

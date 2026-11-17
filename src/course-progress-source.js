@@ -66,13 +66,13 @@
       owner.courseInfo?.resource_type, owner.courseInfo?.resource_id]);
     const permissionKey = permissions();
     let state = window[STATE];
-    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 4 && state.owner === owner && state.catalog === catalog &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 5 && state.owner === owner && state.catalog === catalog &&
         state.permissionKey !== permissionKey && !state.nativeReloaded) {
       // Do not bless a permission/account change merely because our poll ran.
       // First let a native reload (or the native prop watcher) revalidate it.
       return { ok: false, reason: "permissions-changed" };
     }
-    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 4 && state.owner === owner && state.catalog === catalog && state.root === root &&
+    if (state?.active && state.adapterVersion === 2 && state.patchRevision === 5 && state.owner === owner && state.catalog === catalog && state.root === root &&
         state.context === context && state.permissionKey === permissionKey && owner.reload === state.reload) {
       state.path = expectedPath;
       state.tickCountdowns();
@@ -294,7 +294,13 @@
       return work;
     }
     function reload(...args) {
-      if (safe() && state.visibilityDispatch) return state.dispatchWork || refresh();
+      // CourseContentCatalog.reload is the parent's automatic entry. Native
+      // sorting/search/manual operations call CampProCatalog itself instead.
+      // A timeout flag cannot identify a deferred visibility callback: timer
+      // throttling and intervening tasks can let it outlive that flag. Protect
+      // this entry for the mounted course's whole lifetime, reusing the read
+      // already started by capture, even if its result arrived before native.
+      if (safe()) return state.visibilityWork || refresh();
       if (live() && permissions() !== permissionKey) state.nativeReloaded = true;
       state.epoch++;
       return original.apply(this, args);
@@ -303,20 +309,13 @@
       tickCountdowns();
       if (!safe() || document.visibilityState !== "visible") return;
       state.path = location.pathname;
-      state.visibilityDispatch = true;
-      clearTimeout(state.dispatchTimer);
-      // Accommodate both the registered synchronous visibility handler and
-      // the site's deferred variant. Progress reads start immediately.
-      state.dispatchTimer = setTimeout(() => {
-        state.dispatchTimer = setTimeout(() => { state.visibilityDispatch = false; state.dispatchWork = null; }, 0);
-      }, 0);
-      state.dispatchWork = refresh();
+      state.visibilityWork = refresh();
     }
     const restore = [];
-    state = { active: true, adapterVersion: 2, patchRevision: 4, root, catalog, owner, reload, refresh, tickCountdowns, path: expectedPath, course, context, permissionKey,
-      epoch: 0, work: null, visibilityDispatch: false, progressPending: false, nativeReloaded: false,
+    state = { active: true, adapterVersion: 2, patchRevision: 5, root, catalog, owner, reload, refresh, tickCountdowns, path: expectedPath, course, context, permissionKey,
+      epoch: 0, work: null, visibilityWork: null, progressPending: false, nativeReloaded: false,
       stop() {
-        state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.dispatchTimer); clearTimeout(state.countdownTimer);
+        state.active = false; state.epoch++; state.controller?.abort(); clearTimeout(state.countdownTimer); state.visibilityWork = null;
         if (owner.reload === reload) owner.reload = original;
         document.removeEventListener("visibilitychange", visible, true);
         document.removeEventListener("resume", countdownVisible);

@@ -146,8 +146,8 @@ async(page)=>{
       flags.serverPermission=undefined;
       checks.push('server-side access changes trigger native catalog validation without reloading reading content');
       stage='native actions';
-      await fixture.evaluate(()=>{getOwner().reload();getCatalog().sort();getCatalog().filter();getCatalog().unlock()});
-      assert(await fixture.evaluate(()=>['owner','sort','filter','unlock'].every(x=>audit.native.includes(x))),'An explicit action was blocked');
+      await fixture.evaluate(()=>{getCatalog().nativeReset('manual');getCatalog().sort();getCatalog().filter();getCatalog().unlock()});
+      assert(await fixture.evaluate(()=>['manual','sort','filter','unlock'].every(x=>audit.native.includes(x))),'An explicit action was blocked');
       stage='catalog remount';
       const previousResets=await fixture.evaluate(()=>audit.native.length);
       await fixture.evaluate(()=>getOuter().generation++);
