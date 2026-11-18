@@ -34,7 +34,36 @@
     } = playerDom;
     let suppressWebFullscreenEscapeKeyup = false;
     let suppressWebFullscreenTKeyup = false;
+    const audioSeekKeys = new Set();
     let started = false;
+
+    function findCourseAudio() {
+      if (!/^\/p\/t_pc\/course_pc_detail\/audio\/[^/]+\/?$/.test(globalThis.location?.pathname || "")) return null;
+      // The actual <audio> is hidden; visibility belongs to its native toolbar.
+      const roots = Array.from(document.querySelectorAll(".audio-content-header"))
+        .filter(root => playerDom.isVisible(root) && !root.closest("[inert]"));
+      const root = roots.find(root => root.contains(document.activeElement)) ||
+        roots.find(root => { const audio = root.querySelector("audio"); return audio && !audio.paused; }) || roots[0];
+      const audio = root?.querySelector("audio");
+      return audio?.readyState >= 1 && Number.isFinite(audio.duration) && audio.duration > 0 ? audio : null;
+    }
+
+    function handleAudioSeek(event) {
+      if (!["ArrowLeft", "ArrowRight"].includes(event.code) || event.shiftKey ||
+          isModifiedOrEditableShortcut(event)) return false;
+      // Preserve native editing/slider/menu navigation, including shadow hosts.
+      if ((event.composedPath?.() || [event.target]).some(node =>
+        isEditableTarget(node) || (node instanceof Element && node.closest(
+          '[role="slider"], [role="spinbutton"], [role="combobox"], [role="listbox"], [role="tablist"], [role="menu"]',
+        )))) return false;
+      const audio = findCourseAudio();
+      if (!audio) return false;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      audioSeekKeys.add(event.code);
+      seekMedia(audio, event.code === "ArrowLeft" ? -5 : 5);
+      return true;
+    }
 
     function playerShortcutAction(event) {
       const key = event.key.toLowerCase();
@@ -62,7 +91,7 @@
       );
     }
 
-    function seekVideo(video, seconds) {
+    function seekMedia(video, seconds) {
       const currentTime = Number.isFinite(video.currentTime)
         ? video.currentTime
         : 0;
@@ -123,6 +152,7 @@
 
       const action = playerShortcutAction(event);
       if (event.defaultPrevented || !action) return;
+      if (handleAudioSeek(event)) return;
       // Space on a focused quality option activates that option, not playback.
       if (event.code === "Space" || event.key === " ") {
         if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
@@ -161,16 +191,16 @@
 
       switch (action) {
         case "seek-back-5":
-          seekVideo(video, -5);
+          seekMedia(video, -5);
           break;
         case "seek-forward-5":
-          seekVideo(video, 5);
+          seekMedia(video, 5);
           break;
         case "seek-back-10":
-          seekVideo(video, -10);
+          seekMedia(video, -10);
           break;
         case "seek-forward-10":
-          seekVideo(video, 10);
+          seekMedia(video, 10);
           break;
         case "toggle-play":
           toggleVideoPlayback(video);
@@ -196,6 +226,11 @@
     }
 
     function handleKeyup(event) {
+      if (audioSeekKeys.delete(event.code)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        return;
+      }
       if (event.code === "Space" || event.key === " ") {
         if (modules.qualityPreference?.qualityOptionFor(event.target)) return;
         if (event.composedPath().some(node => node instanceof Element && node.matches(".xet-download-button, .xet-screenshot-button, .xet-analysis-action"))) {
@@ -246,6 +281,7 @@
       window.removeEventListener("keyup", handleKeyup, true);
       suppressWebFullscreenEscapeKeyup = false;
       suppressWebFullscreenTKeyup = false;
+      audioSeekKeys.clear();
     }
 
     return Object.freeze({ start, stop });
