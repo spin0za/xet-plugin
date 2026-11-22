@@ -10,7 +10,7 @@ const wait = async predicate => {
 };
 function fixture(name='ErrbookTab', tab=0) {
   const requests=[], rows=Array.from({length:5},(_,i)=>({id:'row_'+i,resource_id:'wb_'+i,source_id:'wb_'+i,qs_count:i===0?0:1}));
-  let fail=false, repeat=false, hold=false, release, watch;
+  let fail=false, repeat=false, hold=false, release, watch, now=1000;
   const window=new EventTarget();window.top=window;window.USERID='user_fixture';window.navigation=new EventTarget();
   const component={$options:{name,methods:{}},activeSubTab:tab,filterValue:'2',pagination:{page:1,pageSize:2},
     list:rows.slice(0,2),loading:false,noMore:false,
@@ -21,9 +21,9 @@ function fixture(name='ErrbookTab', tab=0) {
     const page=this.pagination.page;requests.push({page,tab:this.activeSubTab,filter:this.filterValue});
     this.loading=true;
     try {
-      if(hold)await new Promise(r=>{release=r});
-      if(fail)return; // Native methods swallow API/network failures without assigning list.
-      const chunk=repeat?rows.slice(0,2):rows.slice((page-1)*2,page*2);
+      if(hold && page===2)await new Promise(r=>{release=r});
+      if(fail && page<=2)return; // Native methods swallow API/network failures without assigning list.
+      const chunk=repeat && page===2?rows.slice(0,2):rows.slice((page-1)*2,page*2);
       this.list=page===1?chunk:this.list.concat(chunk);
       this.noMore=name==='QuestionCollectTab'?this.list.length>=rows.length:chunk.length<2;
     }finally{this.loading=false}
@@ -38,12 +38,13 @@ function fixture(name='ErrbookTab', tab=0) {
   for(const [name,method]of Object.entries(methods))component[name]=method.bind(component);
   const env={URL,Event,window,location:{href:origin+key,pathname:new URL(origin+key).pathname,search:'?tab=1&subTab=0'},
     document:{querySelector:()=>({__vue__:{$children:[component]},querySelectorAll:()=>[]})},
-    AbortController,setTimeout,clearTimeout};
+    Date:{now:()=>now},AbortController,setTimeout,clearTimeout};
   vm.runInNewContext(source,env);
   const read=action=>env.XetPracticeHistorySource.readContext(key,action||'all');
   return {window,component,requests,rows,read,first,more,env,
     fail(v){fail=v},repeat(v){repeat=v},hold(v){hold=v},release(){release?.()},changed(){watch?.()},
-    status:()=>window.__xetRecordListLoader?.status,stop:()=>window.dispatchEvent(new Event('xet:practice-history-stop-all'))};
+    expire(){now+=120_001},reset(tab){component.activeSubTab=tab;component.list=[];component.pagination.page=1;component.noMore=false;component[name==='PracticeHistoryTab'?'fetchData':'fetchList']()},
+    status:()=>window.__xetRecordListLoader?.job?.state,stop:()=>window.dispatchEvent(new Event('xet:practice-history-stop-all'))};
 }
 async function main(){
   for(const name of ['PracticeHistoryTab','ErrbookTab','QuestionCollectTab'])for(const tab of name==='QuestionCollectTab'?[0,1,2]:[0,1,2,3]){
@@ -51,7 +52,7 @@ async function main(){
     for(let i=0;i<8;i++)f.read();
     f.component.loadMore(); // Must be suppressed while automatic requests own the list.
     await wait(()=>f.status()==='done');
-    assert.deepEqual(f.requests.map(r=>r.page),[2,3]);
+    assert.deepEqual(f.requests.map(r=>r.page),[2,3,4]);
     assert(f.requests.every(r=>r.tab===tab&&r.filter==='2'));
     assert.equal(f.component.list.length,5);assert.equal(f.component.list[0],f.first);
     assert.equal(f.component.pagination.page,3);assert.equal(f.component.noMore,true);
@@ -62,14 +63,19 @@ async function main(){
   assert.equal(f.read().allPages.state,'waiting');assert.equal(f.requests.length,0);
   f.component.loading=false;f.read();await wait(()=>f.status()==='done');f.stop();
   f=fixture();f.fail(true);f.read();await wait(()=>f.status()==='error');
-  assert.deepEqual(f.requests.map(r=>r.page),[2]);assert.equal(f.component.pagination.page,1);
+  assert.deepEqual(f.requests.map(r=>r.page),[2,3,4]);assert.equal(f.component.pagination.page,1);
   f.component.loadMore();assert.equal(f.component.pagination.page,1,'Native scrolling cannot skip a failed page');
-  f.read();assert.equal(f.requests.length,1,'No error retry flood');
+  f.read();assert.equal(f.requests.length,3,'No error retry flood');
   f.fail(false);f.read('retry-all');await wait(()=>f.status()==='done');
-  assert.deepEqual(f.requests.map(r=>r.page),[2,2,3],'Retry the failed page, never skip it');f.stop();
+  assert.deepEqual(f.requests.map(r=>r.page),[2,3,4,2,3,4],'Retry the failed page, never skip it');f.stop();
   f=fixture();f.repeat(true);f.read();await wait(()=>f.status()==='error');
   assert.equal(f.component.list.length,2);assert.equal(f.component.pagination.page,1);f.stop();
-  f=fixture();f.hold(true);f.read();f.stop();
+  f=fixture();f.hold(true);f.read();
+  assert.deepEqual(f.requests.map(r=>r.page),[2,3,4],'Tail pages start together');
+  await new Promise(setImmediate);
+  assert.equal(f.component.list.length,2,'Page 3 cannot render before page 2');
+  assert.equal(f.component.loading,false,'Existing records stay readable while the tail loads');
+  f.stop();
   assert.equal(f.component.loading,false,'Disable releases the native loading flag');
   assert.equal(f.component.loadMore,f.more);f.release();await new Promise(setImmediate);
   assert.equal(f.component.list.length,2,'A late canceled response cannot append');
@@ -81,6 +87,20 @@ async function main(){
   assert.equal(f.component.list.length,2,'Old filter response is discarded');
   f=fixture();f.component.list=[];f.fail(true);f.read();await wait(()=>f.status()==='error');
   assert.equal(f.requests[0].page,1,'An initially failed empty first page is retried, not skipped');f.stop();
+  f=fixture();f.read();await wait(()=>f.status()==='done');
+  f.reset(1);await wait(()=>f.status()==='done');
+  const beforeReturn=f.requests.length;
+  f.reset(0);
+  assert.equal(f.component.list.length,5,'Fresh cache is restored synchronously by the tab handler');
+  assert.equal(f.requests.length,beforeReturn,'Fresh cache hits make zero requests');
+  f.expire();f.reset(1);
+  assert.equal(f.component.list.length,5,'Expired cache remains visible during background refresh');
+  assert.equal(f.requests.at(-1).page,1);
+  await wait(()=>f.status()==='done');f.stop();
+  f=fixture();f.hold(true);f.read();f.reset(1);f.reset(0);
+  assert.equal(f.component.list.length,2,'Partial cache is restored synchronously');
+  assert.equal(f.requests.slice(-3)[0].page,2,'Partial cache resumes at its first missing page');
+  f.hold(false);f.release();await wait(()=>f.status()==='done');f.stop();
   f=fixture();f.env.location.href=origin+'/unrelated';assert.equal(f.read(),null);assert.equal(f.requests.length,0);
   console.log('record autoload: all categories, native bound/nested fetch staging, single-flight, paging/total, retry, repeated pages and cancellation passed');
 }

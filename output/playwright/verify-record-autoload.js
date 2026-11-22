@@ -39,16 +39,16 @@ async page => {
         <div id="app"></div><script>${vue}</script><script>
         window.USERID='user_fixture';window.nativeClicks=0;
         Vue.component('resource-card',{props:['item'],template:'<a class="resource-card" href="#" @click.prevent="clicked"><div class="resource-card__info"><div class="resource-card__title">{{item.name}}</div><div class="card-line">{{item.qs_count||0}}题</div></div></a>',methods:{clicked(){nativeClicks++}}});
-        window.showView=(kind,tab=0)=>{
-          if(window.recordVM)recordVM.$destroy();
-          history.replaceState({},'','${path}?tab='+kind+'&subTab='+tab);
-          const mount=document.createElement('div');app.replaceChildren(mount);
+        const names=['PracticeHistoryTab','ErrbookTab','QuestionCollectTab'];
+        const components=Object.fromEntries(names.map((name,kind)=>{
           const root=['practice-history-tab','errbook-tab','question-collect-tab'][kind];
-          window.recordVM=new Vue({el:mount,name:['PracticeHistoryTab','ErrbookTab','QuestionCollectTab'][kind],
-            data:{activeSubTab:tab,filterValue:kind===0&&tab===1?1:0,list:[],loading:false,noMore:false,pagination:{page:1,pageSize:3}},
-            template:'<main class="practice-record-page"><section class="'+root+'"><nav><button class="sub-tab-item active">当前分类</button></nav><div class="list-grid"><resource-card v-for="(item,i) in list" :key="i" :item="item"/></div><div v-if="loading" class="list-loading">加载中</div><div v-if="noMore" class="scroll-footer">没有更多了</div></section></main>',
+          return [name,{name,props:['initSubTab'],
+            data(){return {activeSubTab:this.initSubTab,filterValue:kind===0&&this.initSubTab===1?1:0,list:[],loading:false,noMore:false,pagination:{page:1,pageSize:3}}},
+            template:'<section class="'+root+'"><nav><button class="sub-tab-item active">当前分类</button></nav><div class="list-grid"><resource-card v-for="(item,i) in list" :key="i" :item="item"/></div><div v-if="loading" class="list-loading">加载中</div><div v-if="noMore" class="scroll-footer">没有更多了</div></section>',
             created(){kind===0?this.fetchData():this.fetchList()},
+            mounted(){window.recordVM=this},
             methods:{
+              reset(sub,filter){this.activeSubTab=sub;this.filterValue=filter;this.list=[];this.noMore=false;this.pagination.page=1;kind===0?this.fetchData():this.fetchList()},
               loadMore(){this.pagination.page++;return kind===0?this.fetchData():this.fetchList()},
               async fetchData(){this.loading=true;try{await [this.fetchPractice,this.fetchExam,this.fetchExercise,this.fetchDrillbook][this.activeSubTab]()}catch{}finally{this.loading=false}},
               async fetchPractice(){await this.fetchChunk('/evaluation_wechat/practices/owner',{page:this.pagination.page,page_size:3},'array')},
@@ -61,17 +61,33 @@ async page => {
                 const rows=shape==='array'?j.data:shape==='claasfy'?j.data.claasfy:j.data.list;
                 this.list=this.pagination.page===1?rows:this.list.concat(rows);
                 this.noMore=shape==='total'?this.list.length>=j.data.total:rows.length<3;},
-            }});
+            }}];
+        }));
+        const params=new URLSearchParams(location.search);
+        const parent=new Vue({el:app,name:'PracticeRecord',components,data:{activeTab:Number(params.get('tab')||1),sub:Number(params.get('subTab')||0)},
+          render(h){return h('main',{class:'practice-record-page'},[h(names[this.activeTab],{key:this.activeTab,props:{initSubTab:this.sub}})])}});
+        window.showView=async(kind,tab=0)=>{
+          if(parent.activeTab===kind)recordVM.reset(tab,kind===0&&tab===1?1:0);
+          else {parent.sub=tab;parent.activeTab=kind}
+          history.replaceState({},'','${path}?tab='+kind+'&subTab='+tab);
           dispatchEvent(new PopStateEvent('popstate'));
+          await Vue.nextTick();
         };
-        showView(1,0);
         </script>`});
     });
-    await fixture.goto(origin+path+'?tab=1&subTab=0');await fixture.bringToFront();
-    stage='initial wrong records';await fixture.waitForFunction(()=>window.recordVM?.list.length===7&&recordVM.noMore&&!recordVM.loading);
-    assert(requests.filter(r=>r.kind===1&&r.tab===0).map(r=>r.page).join(',')==='1,2,3','Did not automatically load all error pages');
+    const restart=async()=>{await fixture.goto(origin+path+'?tab=1&subTab=0');await fixture.bringToFront()};
+    stage='initial wrong records';hold=true;await restart();
+    await waitForHold();
+    await fixture.waitForFunction(()=>document.querySelectorAll('.resource-card').length===3&&!recordVM.loading);
+    const deadline=Date.now()+10000;
+    while(!requests.some(r=>r.page===4)&&Date.now()<deadline)await new Promise(r=>setTimeout(r,5));
+    assert(requests.some(r=>r.page===3)&&requests.some(r=>r.page===4),'Tail requests did not start in parallel');
+    assert(await fixture.evaluate(()=>recordVM.pagination.page===1&&recordVM.list.length===3),'Later page jumped ahead of held page 2');
+    hold=false;release();
+    await fixture.waitForFunction(()=>window.recordVM?.list.length===7&&recordVM.noMore&&!recordVM.loading);
+    assert(await fixture.evaluate(()=>recordVM.list.every((r,i)=>r.id.endsWith('_'+i))),'Tail rows appended out of order');
     assert(await fixture.evaluate(()=>scrollY)===0,'Auto-loading scrolled the page');
-    checks.push('opens at top and automatically loads every wrong-record page without scrolling/clicking');
+    checks.push('first page usable while tail requests run concurrently; appended in order without scrolling');
     for(const kind of [0,1,2])for(const tab of kind===2?[0,1,2]:[0,1,2,3]){
       stage='category '+kind+'/'+tab;await switchView(kind,tab);
       assert(await fixture.evaluate(()=>recordVM.list.length)===7,'Missing rows '+stage);
@@ -82,8 +98,25 @@ async page => {
       }
     }
     checks.push('all 11 subcategories auto-load; collection filtering and saved result links retained');
+    stage='cached category returns';
+    const beforeCache=requests.length;
+    for(const [kind,tab] of [[1,0],[1,1],[2,0],[0,1],[1,0]]) {
+      await fixture.evaluate(({kind,tab})=>showView(kind,tab),{kind,tab});
+      assert(await fixture.evaluate(()=>recordVM.list.length===7&&recordVM.noMore&&!recordVM.loading),'Tab cache was not available in the first render');
+    }
+    assert(requests.length===beforeCache,'Fresh tab cache hit made network requests');
+    checks.push('main-tab remounts and sub-tab resets restore complete cache without requesting page 1');
+    stage='expired cache refresh';hold=true;release=null;
+    await fixture.evaluate(()=>{const now=Date.now;Date.now=()=>now()+121000});
+    await fixture.evaluate(()=>showView(1,1));
+    await waitForHold();
+    assert(await fixture.evaluate(()=>recordVM.list.length===7&&recordVM.noMore&&!recordVM.loading),
+      'Background refresh hid the expired snapshot');
+    hold=false;release();
+    await fixture.waitForFunction(()=>window.__xetRecordListLoader?.job?.state==='done');
+    checks.push('expired cache stays visible while revalidating');
     stage='failed page';fault=true;
-    await fixture.evaluate(()=>showView(1,0));
+    await restart();
     await fixture.waitForFunction(()=>document.querySelector('.xet-history-more')?.textContent==='加载未完成，重试');
     assert(await fixture.evaluate(()=>recordVM.pagination.page===1&&recordVM.list.length===3&&!recordVM.loading),'Failed page was committed');
     const count=requests.length;await fixture.evaluate(()=>new Promise(r=>setTimeout(r,150)));
@@ -91,20 +124,30 @@ async page => {
     await fixture.locator('.xet-history-more').click();
     await fixture.waitForFunction(()=>recordVM.list.length===7&&recordVM.noMore&&!recordVM.loading);
     checks.push('failure keeps loaded rows, stops automatic retries and resumes the same failed page');
-    stage='repeated page';repeat=true;await fixture.evaluate(()=>showView(1,0));
+    stage='repeated page';repeat=true;await restart();
     await fixture.waitForFunction(()=>document.querySelector('.xet-history-more')?.textContent==='加载未完成，重试');
     assert(await fixture.evaluate(()=>recordVM.list.length===3&&recordVM.pagination.page===1),'Repeated page appended');repeat=false;
-    stage='cancel on category change';hold=true;release=null;await fixture.evaluate(()=>showView(1,0));
-    await fixture.waitForFunction(()=>recordVM.loading&&recordVM.pagination.page===1&&recordVM.list.length===3);
+    stage='cancel on category change';hold=true;release=null;await restart();
+    await fixture.waitForFunction(()=>!recordVM.loading&&recordVM.pagination.page===1&&recordVM.list.length===3);
     await waitForHold();
     await switchView(2,0);hold=false;release();await fixture.evaluate(()=>new Promise(r=>setTimeout(r,50)));
     assert(await fixture.evaluate(()=>recordVM.list.every(r=>r.id.startsWith('row_2_'))),'Old response polluted another category');
-    checks.push('repeated-page protection and late category response isolation');
+    const beforeResume=requests.length;
+    await fixture.evaluate(()=>showView(1,0));
+    assert(await fixture.evaluate(()=>recordVM.list.length>=3),'Partial cached list not restored immediately');
+    await fixture.waitForFunction(()=>recordVM.noMore&&recordVM.list.length===7);
+    assert(requests.slice(beforeResume).every(r=>r.page>=2),'Partial cache restarted from the first page');
+    checks.push('late responses isolated; partially loaded views resume at their first missing page');
     stage='same-URL filter change';await switchView(0,1);
-    await fixture.evaluate(()=>{recordVM.filterValue=2;recordVM.list=[];recordVM.noMore=false;recordVM.pagination.page=1;recordVM.fetchData()});
+    await fixture.evaluate(()=>recordVM.reset(1,2));
     await fixture.waitForFunction(()=>recordVM.noMore&&!recordVM.loading&&recordVM.list.length===7);
     assert(await fixture.evaluate(()=>recordVM.list.every(r=>r.id.startsWith('row_0_1_2_'))),'Filter response isolation failed');
-    stage='disable in flight';hold=true;release=null;await fixture.evaluate(()=>showView(1,0));
+    const beforeFilterReturn=requests.length;
+    await fixture.evaluate(()=>recordVM.reset(1,'1'));
+    assert(await fixture.evaluate(()=>recordVM.list.length===7&&recordVM.list.every(r=>r.id.startsWith('row_0_1_1_'))),
+      'Original filter cache was not restored synchronously');
+    assert(requests.length===beforeFilterReturn,'Equivalent numeric/string filter caused a fresh request');
+    stage='disable in flight';hold=true;release=null;await restart();
     await waitForHold();
     await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-history-list]')&&!recordVM.loading);

@@ -3,6 +3,7 @@
   if (modules.practiceHistory || !modules.practiceHistoryData) return;
   const data = modules.practiceHistoryData;
   const PATH = /^\/p\/t_pc\/pc_evaluation\/(?:practice_record\/?|(?:practice_result|practice_analysis)\/[\w-]+\/?)$/;
+  const RECORD = /^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/;
   const routeKey = () => PATH.test(location.pathname) ? location.pathname + location.search : "";
   function createPracticeHistoryController({ request = m => chrome.runtime.sendMessage(m),
     storage = chrome.storage.local, syncStorage = chrome.storage.sync } = {}) {
@@ -20,7 +21,6 @@
       return cachedRecords;
     }
     function clean() {
-      window.dispatchEvent(new Event("xet:practice-history-stop-all"));
       list?.remove(); list = null; status?.remove(); status = null;
       for (const root of roots) {
         root.removeAttribute("data-xet-history-list"); root.removeAttribute("data-xet-history-results");
@@ -31,7 +31,7 @@
       for (const card of document.querySelectorAll("[data-xet-empty-collection]")) card.removeAttribute("data-xet-empty-collection");
     }
     function layout() {
-      if (!started || !/^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(location.pathname)) return;
+      if (!started || !RECORD.test(location.pathname)) return;
       const root = document.querySelector(".practice-record-page");
       if (root) { root.setAttribute("data-xet-history-list", ""); roots.add(root); }
     }
@@ -41,7 +41,7 @@
       syncProblem = !response.synced; cacheDirty = true;
     }
     function renderMore(root, available) {
-      if (available && !context.noMore) {
+      if (available && (!context.noMore || context.allPages?.state === "error")) {
         if (!more?.isConnected) {
           more = document.createElement("button"); more.type = "button"; more.className = "xet-history-more";
           more.addEventListener("click", async () => {
@@ -55,7 +55,7 @@
         const state = context.allPages?.state;
         more.disabled = context.loading || ["running", "waiting"].includes(state);
         const label = state === "error" ? "加载未完成，重试"
-          : ["running", "waiting"].includes(state) ? `正在加载全部…（已加载 ${context.allPages.count} 条）`
+          : ["running", "waiting"].includes(state) ? `正在后台加载…（已加载 ${context.allPages.count} 条）`
           : context.loading ? "加载中…" : "加载更多";
         if (more.textContent !== label) more.textContent = label;
       } else { more?.remove(); more = null; }
@@ -71,7 +71,8 @@
           status = document.createElement("div"); status.className = "xet-history-status";
           status.setAttribute("role", "status"); root.append(status);
         }
-        const message = context.noMore ? "暂无收藏" : "暂无非空收藏，请继续加载。";
+        const message = context.noMore ? "暂无收藏" : context.allPages?.state === "running"
+          ? "暂无非空收藏，正在查看后续页…" : "暂无非空收藏，请继续加载。";
         if (status.textContent !== message) status.textContent = message;
       } else { status?.remove(); status = null; }
       // Explicit continuation also works when filtering leaves too little
@@ -169,14 +170,17 @@
       if (!started) return;
       if (pending) { dirty = true; return; }
       const next = routeKey();
-      if (key !== next) { generation++; clean(); key = next; synchronized = ""; verified.clear(); }
+      if (key !== next) {
+        if (!RECORD.test(location.pathname)) window.dispatchEvent(new Event("xet:practice-history-stop-all"));
+        generation++; clean(); key = next; synchronized = ""; verified.clear();
+      }
       if (!key) return;
       layout();
       const current = generation, expected = key;
       pending = true;
       try {
         const response = await request({ type: "xet:practice-history", key: expected,
-          action: /^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(location.pathname) ? "all" : "read" });
+          action: RECORD.test(location.pathname) ? "all" : "read" });
         if (!started || current !== generation || routeKey() !== expected || !response?.ok || response.context.key !== expected) return;
         context = response.context;
         if (context.kind === "attempt") {
@@ -234,7 +238,7 @@
     }
     function schedule() { if (started && frame === null) frame = requestAnimationFrame(sync); }
     function click(event) {
-      if (!started || !/^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(location.pathname)) return;
+      if (!started || !RECORD.test(location.pathname)) return;
       const card = event.target.closest?.(".practice-history-tab .resource-card");
       if (card?.closest(".practice-history-tab")?.querySelector(".sub-tab-item")?.classList.contains("active")) {
         event.preventDefault(); event.stopImmediatePropagation();
@@ -265,7 +269,8 @@
       observer?.disconnect(); observer = null; clearInterval(timer); timer = null;
       window.removeEventListener("popstate", schedule); window.removeEventListener("pageshow", schedule);
       window.navigation?.removeEventListener("currententrychange", schedule);
-      window.removeEventListener("click", click, true); chrome.storage.onChanged.removeListener(changed); clean();
+      window.removeEventListener("click", click, true); chrome.storage.onChanged.removeListener(changed);
+      window.dispatchEvent(new Event("xet:practice-history-stop-all")); clean();
     }
     return Object.freeze({ start, stop });
   }
