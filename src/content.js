@@ -8,7 +8,7 @@
     !siteAccess ||
     !modules?.playerDom ||
     !modules.analysisLayout ||
-    !modules.analysisScroll ||
+    !modules.analysisScroll || !modules.errbookScroll ||
     !modules.analysisActions ||
     !modules.practiceMarks ||
     !modules.practiceHistory ||
@@ -100,7 +100,7 @@
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
-  const pageFeatures = [analysisLayout, analysisScroll, analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
+  const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
     textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine })];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,

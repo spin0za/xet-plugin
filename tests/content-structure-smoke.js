@@ -13,6 +13,7 @@ const expectedScripts = [
   "src/content/screenshot.js",
   "src/content/analysis-layout.js",
   "src/content/analysis-scroll.js",
+  "src/content/errbook-scroll.js",
   "src/content/analysis-icons.js",
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
@@ -59,6 +60,7 @@ assert.match(entry, /createQuestionTypographyController/);
 assert.match(entry, /createQuestionOrderController/);
 assert.match(entry, /createPageTitleController/);
 assert.match(entry, /createAnalysisScrollController/);
+assert.match(entry, /createErrbookScrollController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);
 
