@@ -171,7 +171,6 @@
       if (pending) { dirty = true; return; }
       const next = routeKey();
       if (key !== next) {
-        if (!RECORD.test(location.pathname)) window.dispatchEvent(new Event("xet:practice-history-stop-all"));
         generation++; clean(); key = next; synchronized = ""; verified.clear();
       }
       if (!key) return;

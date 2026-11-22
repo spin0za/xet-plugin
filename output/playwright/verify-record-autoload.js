@@ -63,9 +63,17 @@ async page => {
                 this.noMore=shape==='total'?this.list.length>=j.data.total:rows.length<3;},
             }}];
         }));
-        const params=new URLSearchParams(location.search);
-        const parent=new Vue({el:app,name:'PracticeRecord',components,data:{activeTab:Number(params.get('tab')||1),sub:Number(params.get('subTab')||0)},
+        let parent;
+        const recordsPath='${path}';
+        const RecordView=Vue.extend({name:'PracticeRecord',components,
+          data(){const params=new URLSearchParams(location.search);return {activeTab:Number(params.get('tab')||1),sub:Number(params.get('subTab')||0)}},
+          mounted(){parent=this;window.rowsAtRecordMount=recordVM.list.length},
           render(h){return h('main',{class:'practice-record-page'},[h(names[this.activeTab],{key:this.activeTab,props:{initSubTab:this.sub}})])}});
+        const shell=new Vue({el:app,data:{showRecord:location.pathname===recordsPath},
+          render(h){return this.showRecord?h(RecordView):h('main',{attrs:{id:'other-view'}},'查看错题')}});
+        const updateRoute=()=>{shell.showRecord=location.pathname===recordsPath};
+        addEventListener('popstate',updateRoute);
+        window.visit=async path=>{history.pushState({},'',path);updateRoute();await Vue.nextTick()};
         window.showView=async(kind,tab=0)=>{
           if(parent.activeTab===kind)recordVM.reset(tab,kind===0&&tab===1?1:0);
           else {parent.sub=tab;parent.activeTab=kind}
@@ -106,6 +114,18 @@ async page => {
     }
     assert(requests.length===beforeCache,'Fresh tab cache hit made network requests');
     checks.push('main-tab remounts and sub-tab resets restore complete cache without requesting page 1');
+    stage='wrong-question round trip';
+    const detail='/p/t_pc/pc_evaluation/errbook/detail/123?tab=1&source_id=wb_fixture';
+    const beforeDetail=requests.length;
+    await fixture.evaluate(path=>visit(path),detail);
+    assert(await fixture.evaluate(()=>recordVM._isDestroyed&&!window.__xetRecordListLoader?.job),
+      'Leaving for details did not suspend the record view');
+    await fixture.goBack();
+    await fixture.waitForSelector('.practice-record-page');
+    assert(await fixture.evaluate(()=>rowsAtRecordMount===7&&recordVM.list.length===7),
+      'Returned view did not get the cache during its initial mount');
+    assert(requests.length===beforeDetail,'Returning from details fetched a cached list again');
+    checks.push('browser Back from a wrong-question detail restores all cached rows before first paint');
     stage='expired cache refresh';hold=true;release=null;
     await fixture.evaluate(()=>{const now=Date.now;Date.now=()=>now()+121000});
     await fixture.evaluate(()=>showView(1,1));
@@ -147,13 +167,38 @@ async page => {
     assert(await fixture.evaluate(()=>recordVM.list.length===7&&recordVM.list.every(r=>r.id.startsWith('row_0_1_1_'))),
       'Original filter cache was not restored synchronously');
     assert(requests.length===beforeFilterReturn,'Equivalent numeric/string filter caused a fresh request');
+    checks.push('same-URL filters restart correctly and restore cached results');
+
+    stage='partial wrong-question round trip';
+    hold=true;release=null;await restart();await waitForHold();
+    const preReturn=await fixture.evaluate(()=>({rows:recordVM.list.length,job:window.__xetRecordListLoader?.job?.state,
+      path:location.pathname,mount:rowsAtRecordMount}));
+    await fixture.evaluate(path=>visit(path),detail);
+    await fixture.evaluate(()=>visit('/p/t_pc/pc_evaluation/errbook/practice/123?readonly=1'));
+    await fixture.goBack();await fixture.waitForURL('**/errbook/detail/**');
+    const inDetail=await fixture.evaluate(()=>({pager:!!window.__xetRecordListLoader,path:location.pathname}));
+    hold=false;release();const beforePartialReturn=requests.length;
+    await fixture.goBack();await fixture.waitForSelector('.practice-record-page');
+    const returned=await fixture.evaluate(()=>({mount:rowsAtRecordMount,rows:recordVM.list.length,job:window.__xetRecordListLoader?.job?.state,path:location.pathname}));
+    assert(returned.mount===3,'Cached prefix not available at mount '+JSON.stringify({preReturn,inDetail,returned,requests:requests.slice(beforePartialReturn)}));
+    await fixture.waitForFunction(()=>recordVM.noMore&&recordVM.list.length===7);
+    assert(requests.slice(beforePartialReturn).every(r=>r.page>=2),'Detail return requested page 1 again');
+    checks.push('Back resumes a partially loaded record list at the first missing page');
+
+    stage='other route clears cache';
+    const beforeOtherRoute=requests.length;
+    await fixture.evaluate(()=>visit('/unrelated'));
+    assert(await fixture.evaluate(()=>!window.__xetRecordListLoader),'Unrelated page retained the record cache');
+    await fixture.goBack();await fixture.waitForFunction(()=>recordVM.noMore&&recordVM.list.length===7);
+    assert(requests.slice(beforeOtherRoute).some(r=>r.page===1),'Cache leaked across an unrelated route');
+
     stage='disable in flight';hold=true;release=null;await restart();
     await waitForHold();
     await worker.evaluate(origin=>chrome.storage.local.set({disabledSites:[origin]}),origin);
     await fixture.waitForFunction(()=>!document.querySelector('[data-xet-history-list]')&&!recordVM.loading);
     hold=false;release();await fixture.evaluate(()=>new Promise(r=>setTimeout(r,50)));
     assert(await fixture.evaluate(()=>recordVM.list.length===3&&recordVM.pagination.page===1),'Disabled loader appended a late response');
-    checks.push('same-URL filters restart correctly; disabling restores native loading and rejects late responses');
+    checks.push('disabling restores native loading and rejects late responses');
     assert(errors.length===0,errors.join('\n'));
     return {passed:true,checks,requests:requests.length};
   }catch(error){throw Error(stage+': '+error.message+' '+errors.join(';'));}

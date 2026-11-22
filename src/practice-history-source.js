@@ -10,19 +10,22 @@
     const clean = value => typeof value === "string" && id.test(value) ? value : "";
     const text = value => typeof value === "string" ? value.slice(0, 1000) : "";
     const recordPath = /^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/;
+    const reviewPath = /^\/p\/t_pc\/pc_evaluation\/errbook\/(?:detail|practice|drillbook)\/[\w-]+\/?$/;
     const tabNames = ["PracticeHistoryTab", "ErrbookTab", "QuestionCollectTab"];
     const fetchName = v => v.$options.name === tabNames[0] ? "fetchData" : "fetchList";
     const pagerKey = "__xetRecordListLoader";
-    function createPager(root) {
+    function createPager(initialRoot) {
       const scope = account, cache = new Map(), native = new WeakMap(), undo = new Set();
       const stopEvent = "xet:practice-history-stop-all", maxRows = 5000, freshFor = 120_000;
-      const manager = { root, scope, job: null, stopped: false };
+      const manager = { root: null, scope, job: null, stopped: false };
+      let detachRoot, detachConstructor;
       const routeLive = () => recordPath.test(location.pathname) && window.USERID === scope;
       const keyFor = v => JSON.stringify([v.$options.name, v.activeSubTab, String(v.filterValue ?? ""), v.pagination.pageSize]);
       const supported = v => tabNames.includes(v.$options.name) && Array.isArray(v.list) &&
         Number.isSafeInteger(v.pagination?.page) && v.pagination.page >= 1 &&
         Number.isSafeInteger(v.pagination.pageSize) && v.pagination.pageSize > 0 && v.pagination.pageSize <= maxRows;
-      const owns = v => !v._isDestroyed && (!root || tabNames[root.activeTab] === v.$options.name);
+      const owns = v => !v._isDestroyed && (!manager.root ||
+        (v.$parent === manager.root && tabNames[manager.root.activeTab] === v.$options.name));
       const live = job => !manager.stopped && manager.job === job && routeLive() &&
         owns(job.v) && keyFor(job.v) === job.key;
       function remember(key, snapshot) {
@@ -41,11 +44,15 @@
         job.abort.abort(); job.release?.(); job.unwatch?.();
         job.v.$off?.("hook:beforeDestroy", job.destroy);
       }
-      const changedRoute = () => { if (!routeLive()) manager.stop(); };
+      const changedRoute = () => {
+        if (routeLive()) return;
+        if (window.USERID === scope && reviewPath.test(location.pathname)) mount(null);
+        else manager.stop();
+      };
       const stop = () => {
-        stopJob(); manager.stopped = true; cache.clear();
+        mount(null); manager.stopped = true; cache.clear();
         for (const detach of undo) detach();
-        root?.$off?.("hook:beforeDestroy", stop);
+        detachConstructor?.();
         window.removeEventListener(stopEvent, stop); window.removeEventListener("pagehide", stop);
         window.removeEventListener("popstate", changedRoute);
         window.navigation?.removeEventListener("currententrychange", changedRoute);
@@ -55,7 +62,6 @@
       window.addEventListener(stopEvent, stop); window.addEventListener("pagehide", stop);
       window.addEventListener("popstate", changedRoute);
       window.navigation?.addEventListener("currententrychange", changedRoute);
-      root?.$once?.("hook:beforeDestroy", stop);
       function show(v, snapshot) {
         if (v.list !== snapshot.rows) v.list = snapshot.rows;
         v.pagination.page = snapshot.page; v.noMore = snapshot.end;
@@ -218,22 +224,54 @@
         }
         return select(v, retry, reset);
       };
-      // The site uses v-if for its three main tabs. Override only this page
-      // instance's local registrations so new children can hydrate in created().
-      const components = root?.$options.components, base = root?.$options._base;
-      if (components && typeof base?.extend === "function") {
-        const local = Object.create(components);
-        for (const name of tabNames) {
-          const definition = components[name], options = definition?.options || definition;
-          const method = name === tabNames[0] ? "fetchData" : "fetchList", fetch = options?.methods?.[method];
-          if (typeof fetch !== "function") continue;
-          const ctor = typeof definition === "function" ? definition : base.extend(definition);
-          if (typeof ctor.extend === "function") local[name] = ctor.extend({ methods: {
-            [method](...args) { return atFirst(this, fetch, args); },
-          } });
+      function mount(root) {
+        if (root === manager.root && root) return;
+        stopJob();
+        detachRoot?.(); detachRoot = null; manager.root = root;
+        if (!root) return;
+        // Main tabs are conditional children. Patch only the record view's local
+        // registrations, so they can hydrate from cache before their first paint.
+        const options = root.$options, components = options.components, base = options._base;
+        let local;
+        if (components && typeof base?.extend === "function") {
+          local = Object.create(components);
+          for (const name of tabNames) {
+            const definition = components[name], source = definition?.options || definition;
+            const method = name === tabNames[0] ? "fetchData" : "fetchList", fetch = source?.methods?.[method];
+            if (typeof fetch !== "function") continue;
+            const ctor = typeof definition === "function" ? definition : base.extend(definition);
+            if (typeof ctor.extend === "function") local[name] = ctor.extend({ methods: {
+              [method](...args) { return atFirst(this, fetch, args); },
+            } });
+          }
+          options.components = local;
         }
-        root.$options.components = local;
-        undo.add(() => { if (root.$options.components === local) root.$options.components = components; });
+        const destroy = () => { if (manager.root === root) mount(null); };
+        root.$once?.("hook:beforeDestroy", destroy);
+        detachRoot = () => {
+          root.$off?.("hook:beforeDestroy", destroy);
+          if (local && options.components === local) options.components = components;
+        };
+      }
+      manager.mount = mount;
+      mount(initialRoot);
+      // The router destroys the record view on entry to a wrong-question page.
+      // Reattach to this exact route component on return, before child created
+      // hooks can request page 1. Do not modify the global Vue constructor.
+      const options = initialRoot?.constructor?.options;
+      if (options?.name === "PracticeRecord") {
+        const initial = options.beforeCreate, hooks = [].concat(initial || []);
+        const restore = function () {
+          if (!manager.stopped && routeLive()) mount(this);
+        };
+        const installed = [...hooks, restore];
+        options.beforeCreate = installed;
+        detachConstructor = () => {
+          if (options.beforeCreate === installed) {
+            if (initial === undefined) delete options.beforeCreate;
+            else options.beforeCreate = initial;
+          }
+        };
       }
       return manager;
     }
@@ -273,13 +311,14 @@
         let manager = window[pagerKey];
         const root = v.$parent?.$options?.name === "PracticeRecord" ? v.$parent : null;
         const switchedAccount = Boolean(manager && manager.scope !== account);
-        if (manager && (manager.root !== root || switchedAccount)) { manager.stop(); manager = null; }
+        if (switchedAccount) { manager.stop(); manager = null; }
         if (switchedAccount && v.pagination) {
           v.list = []; v.pagination.page = 1; v.noMore = false;
         }
         if (account && !manager && typeof v.$options.methods?.[fetchName(v)] === "function") {
           manager = window[pagerKey] = createPager(root);
         }
+        if (manager && manager.root !== root) manager.mount(root);
         allPages = manager?.update(v, action === "retry-all", switchedAccount) || { state: "unsupported", count: v.list.length };
       }
       const collections = v.$options.name === "QuestionCollectTab";
