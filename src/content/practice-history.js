@@ -20,6 +20,7 @@
       return cachedRecords;
     }
     function clean() {
+      window.dispatchEvent(new Event("xet:practice-history-stop-all"));
       list?.remove(); list = null; status?.remove(); status = null;
       for (const root of roots) {
         root.removeAttribute("data-xet-history-list"); root.removeAttribute("data-xet-history-results");
@@ -46,11 +47,17 @@
           more.addEventListener("click", async () => {
             if (!started || more.disabled) return;
             more.disabled = true;
-            try { await request({ type: "xet:practice-history", key, action: "more" }); } catch { /* Retry on wake. */ }
+            try { await request({ type: "xet:practice-history", key,
+              action: context?.allPages?.state === "error" ? "retry-all" : "more" }); } catch { /* Retry on wake. */ }
             schedule();
           }); root.append(more);
         }
-        more.disabled = context.loading; more.textContent = context.loading ? "加载中…" : "加载更多";
+        const state = context.allPages?.state;
+        more.disabled = context.loading || ["running", "waiting"].includes(state);
+        const label = state === "error" ? "加载未完成，重试"
+          : ["running", "waiting"].includes(state) ? `正在加载全部…（已加载 ${context.allPages.count} 条）`
+          : context.loading ? "加载中…" : "加载更多";
+        if (more.textContent !== label) more.textContent = label;
       } else { more?.remove(); more = null; }
     }
     function renderCollections(current) {
@@ -120,7 +127,7 @@
           }
         }
       }
-      renderMore(root, !active);
+      renderMore(root, !active || Boolean(context.allPages && context.allPages.state !== "unsupported"));
     }
     async function inspectRecord(record, current, expected, account, requireResult = false) {
       const scope = data.prefix(location.origin, account), token = scope + record.joinId;
@@ -168,7 +175,8 @@
       const current = generation, expected = key;
       pending = true;
       try {
-        const response = await request({ type: "xet:practice-history", key: expected, action: "read" });
+        const response = await request({ type: "xet:practice-history", key: expected,
+          action: /^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(location.pathname) ? "all" : "read" });
         if (!started || current !== generation || routeKey() !== expected || !response?.ok || response.context.key !== expected) return;
         context = response.context;
         if (context.kind === "attempt") {
@@ -179,6 +187,9 @@
           }
         } else if (context.kind === "collections") {
           renderCollections(current);
+        } else if (context.kind === "errors") {
+          const root = document.querySelector(".practice-record-page .errbook-tab");
+          if (root) renderMore(root, true);
         } else if (context.kind === "list") {
           const scope = data.prefix(location.origin, context.account);
           if (cacheScope !== scope) { syncProblem = false; discovered = ""; }

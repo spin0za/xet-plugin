@@ -1,6 +1,7 @@
 (() => {
-  // Serialized into MAIN. Read only record identities/metadata, never answers
-  // or authentication credentials. The stable user ID partitions local records.
+  // Serialized into MAIN. Record identities/metadata only, never answers or
+  // credentials. Pagination reuses the site's read-only methods in a staged
+  // receiver so a late response cannot modify a different tab/filter.
   function readContext(expectedKey, action = "read") {
     const url = new URL(location.href), id = /^[\w-]{1,160}$/;
     if (window.top !== window || `${url.pathname}${url.search}` !== expectedKey) return null;
@@ -30,7 +31,7 @@
       while (stack.length && ++count < 500) {
         const current = stack.pop();
         if (!current || current._isDestroyed) continue;
-        if (["PracticeHistoryTab", "QuestionCollectTab"].includes(current.$options?.name)) { v = current; break; }
+        if (["PracticeHistoryTab", "ErrbookTab", "QuestionCollectTab"].includes(current.$options?.name)) { v = current; break; }
         stack.push(...(current.$children || []));
       }
       if (!v || !Array.isArray(v.list) || v.list.length > 5000) return null;
@@ -38,7 +39,112 @@
         if (!v.loading && !v.noMore && typeof v.loadMore === "function") v.loadMore();
         return { kind: "loading" };
       }
-      if (!["read", "sync"].includes(action)) return null;
+      if (!["read", "sync", "all", "retry-all"].includes(action)) return null;
+      const property = "__xetRecordListLoader", stopEvent = "xet:practice-history-stop-all";
+      let state = window[property];
+      if (state && (state.owner !== v || !state.live())) { state.stop(); state = null; }
+      if (["all", "retry-all"].includes(action)) {
+        const methods = v.$options.methods;
+        const method = v.$options.name === "PracticeHistoryTab" ? "fetchData" : "fetchList";
+        if (!state && typeof methods?.[method] === "function" && account && v.pagination &&
+            Number.isSafeInteger(v.pagination.page) && v.pagination.page >= 1 &&
+            Number.isSafeInteger(v.pagination.pageSize) && v.pagination.pageSize > 0) {
+          const subTab = v.activeSubTab, filter = v.filterValue;
+          const owner = v, controller = new AbortController();
+          let unwatch, removeHook;
+          state = { status: "waiting", owner, running: false, signal: controller.signal, originalMore: owner.loadMore };
+          const ownsView = () => !owner._isDestroyed &&
+            `${location.pathname}${location.search}` === expectedKey && window.USERID === account &&
+            owner.activeSubTab === subTab && owner.filterValue === filter;
+          const live = () => window[property] === state && !controller.signal.aborted && ownsView();
+          state.live = live;
+          const changed = () => { if (!live()) state.stop(); };
+          state.stop = () => {
+            state.release?.();
+            if (state.running && ownsView()) owner.loading = false;
+            controller.abort(); unwatch?.(); removeHook?.();
+            window.removeEventListener(stopEvent, state.stop);
+            window.removeEventListener("popstate", changed); window.removeEventListener("pagehide", state.stop);
+            window.navigation?.removeEventListener("currententrychange", changed);
+            if (window[property] === state) delete window[property];
+          };
+          window[property] = state;
+          unwatch = owner.$watch?.(() => [owner.activeSubTab, owner.filterValue], changed);
+          owner.$once?.("hook:beforeDestroy", state.stop);
+          removeHook = () => owner.$off?.("hook:beforeDestroy", state.stop);
+          window.addEventListener(stopEvent, state.stop); window.addEventListener("pagehide", state.stop);
+          window.addEventListener("popstate", changed);
+          window.navigation?.addEventListener("currententrychange", changed);
+        }
+        if (state && action === "retry-all" && state.status === "error") state.status = "waiting";
+        if (state && !state.running && state.status === "waiting" && !v.loading) {
+          state.running = true; state.status = v.noMore ? "done" : "running";
+          const current = state, originalMore = state.originalMore, blockedMore = () => {};
+          // Native infinite scroll must not race this reader for the same page.
+          v.loadMore = blockedMore;
+          current.release = () => { if (v.loadMore === blockedMore) v.loadMore = originalMore; };
+          void (async () => {
+            const rowKey = item => JSON.stringify([item?.join_id || item?.user_exam_id || "",
+              item?.collection_id || item?.id || item?.resource_id || item?.source_id || item]);
+            const pageKey = rows => JSON.stringify(rows.map(rowKey));
+            const seen = new Set();
+            for (let i = 0; i < v.list.length; i += v.pagination.pageSize) seen.add(pageKey(v.list.slice(i, i + v.pagination.pageSize)));
+            try {
+              while (current.live() && !v.noMore) {
+                const before = v.list, beforePage = v.pagination.page, size = v.pagination.pageSize;
+                const next = before.length ? beforePage + 1 : 1;
+                const staged = { list: before.slice(), pagination: { page: next, pageSize: size },
+                  activeSubTab: v.activeSubTab, filterValue: v.filterValue, loading: false, noMore: false };
+                let wrote = false, timeout, cancel;
+                const receiver = new Proxy(v, {
+                  get(target, name) {
+                    if (Object.hasOwn(staged, name)) return staged[name];
+                    // Vue binds public methods to the real component. Use the
+                    // original fetch functions with our receiver, including
+                    // fetchData's nested practice/exam/exercise/drill calls.
+                    if (typeof name === "string" && name.startsWith("fetch") && typeof methods[name] === "function") {
+                      return (...args) => methods[name].apply(receiver, args);
+                    }
+                    return Reflect.get(target, name, target);
+                  },
+                  set(_target, name, value) { if (name === "list") wrote = true; staged[name] = value; return true; },
+                });
+                v.loading = true;
+                try {
+                  await Promise.race([methods[method].call(receiver), new Promise((_, reject) => {
+                    cancel = () => reject(Error("canceled"));
+                    current.signal.addEventListener("abort", cancel, { once: true });
+                    timeout = setTimeout(() => reject(Error("timeout")), 15000);
+                  })]);
+                } finally { clearTimeout(timeout); if (cancel) current.signal.removeEventListener("abort", cancel); }
+                if (!current.live()) return;
+                if (v.list !== before || v.pagination.page !== beforePage) { current.stop(); return; }
+                if (!wrote || !Array.isArray(staged.list) || staged.list.length < before.length) throw Error("page-failed");
+                const added = staged.list.slice(before.length), fingerprint = pageKey(added);
+                if (added.length && seen.has(fingerprint) || !added.length && !staged.noMore) throw Error("no-progress");
+                if (staged.list.length > 5000) throw Error("too-many-records");
+                seen.add(fingerprint);
+                // Never skip a failed page. Commit pagination only with its
+                // verified response, keeping existing row objects/click handlers.
+                v.list = staged.list;
+                v.pagination.page = next; v.noMore = Boolean(staged.noMore);
+                if (typeof scheduler !== "undefined" && typeof scheduler.yield === "function") await scheduler.yield();
+                else await new Promise(resolve => setTimeout(resolve, 0));
+              }
+              if (current.live()) current.status = "done";
+            } catch { if (current.live()) current.status = "error"; }
+            finally {
+              current.running = false;
+              // Leave native infinite-scroll paused on failure too; its
+              // optimistic page++ would otherwise skip the failed page.
+              if (current.status !== "error") current.release();
+              if (current.live()) v.loading = false;
+            }
+          })();
+        }
+      }
+      const allPages = ["all", "retry-all"].includes(action)
+        ? { state: state?.status || "unsupported", count: v.list.length } : undefined;
       const collections = v.$options.name === "QuestionCollectTab";
       // Missing/invalid counts are unknown, not empty. Never infer emptiness
       // from the card's `qs_count || 0` presentation fallback.
@@ -59,10 +165,12 @@
       }
       // Keep the native list and raw total intact: its pagination compares
       // list.length with the server total, which includes the empty groups.
-      if (collections) return { kind: "collections", account, key: expectedKey, tab: v.activeSubTab,
+      if (collections) return { kind: "collections", account, key: expectedKey, tab: v.activeSubTab, allPages,
         loading: Boolean(v.loading), noMore: Boolean(v.noMore),
         rows: v.list.map(item => ({ resourceId: clean(item.resource_id), questionCount: questionCount(item) })) };
-      return { kind: "list", account, key: expectedKey, tab: v.activeSubTab,
+      if (v.$options.name === "ErrbookTab") return { kind: "errors", account, key: expectedKey, tab: v.activeSubTab, allPages,
+        loading: Boolean(v.loading), noMore: Boolean(v.noMore), rows: v.list.map(item => ({ resourceId: clean(item.source_id) })) };
+      return { kind: "list", account, key: expectedKey, tab: v.activeSubTab, allPages,
         loading: Boolean(v.loading), noMore: Boolean(v.noMore),
         rows: v.list.map(item => ({ resourceId: clean(item.practice_id || item.id),
           title: text(item.name || item.title), productId: clean(item.resource_id || item.product_id),
@@ -88,7 +196,7 @@
   let writes = Promise.resolve();
   async function resolve(message, sender, { siteAccess, readSettings }) {
     if (!Number.isInteger(sender.tab?.id) || sender.frameId !== 0 ||
-        !["read", "more", "discover", "capture", "sync"].includes(message.action) || typeof message.key !== "string" || message.key.length > 1000) return { ok: false };
+        !["read", "more", "all", "retry-all", "discover", "capture", "sync"].includes(message.action) || typeof message.key !== "string" || message.key.length > 1000) return { ok: false };
     const site = siteAccess.siteInfo(sender.url), settings = await readSettings();
     if (!site || settings.disabledSites.includes(site.origin) || !(await siteAccess.isAuthorized(site.origin))) return { ok: false };
     const target = sender.documentId ? { tabId: sender.tab.id, documentIds: [sender.documentId] }
