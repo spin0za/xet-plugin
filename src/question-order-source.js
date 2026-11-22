@@ -3,15 +3,18 @@
   // Never read answers, account variables or cookies, or mutate Vue state.
   function readQuestionOrderContext(expectedKey) {
     const url = new URL(location.href);
-    const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/detail)\/([\w-]+)\/?$/);
+    const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
     const id = /^[\w-]{1,160}$/;
     if (!match) return null;
-    const book = match[1] === "errbook/detail";
+    const review = match[1] === "errbook/practice", book = match[1].startsWith("errbook/");
     const sourceId = book ? url.searchParams.get("source_id") || "" : match[2];
     const taskId = url.searchParams.get("task_id") || "";
-    const key = `${url.pathname}|${sourceId}|${taskId}|${url.searchParams.get("join_id") || ""}|${url.searchParams.get("tab") || "1"}`;
+    const questionId = url.searchParams.get("question_id") || "";
+    const key = `${url.pathname}|${sourceId}|${taskId}|${url.searchParams.get("join_id") || ""}|${url.searchParams.get("tab") || "1"}` +
+      (review ? `|${questionId}|${url.searchParams.get("readonly") || ""}` : "");
     if (key !== expectedKey || !id.test(sourceId) || (taskId && !id.test(taskId))) return null;
-    const page = document.querySelector(book ? ".errbook-detail-page" :
+    if (review && (url.searchParams.get("readonly") !== "1" || (questionId && !id.test(questionId)))) return null;
+    const page = document.querySelector(review ? ".errbook-practice" : book ? ".errbook-detail-page" :
       match[1] === "practice_sheet" ? ".practice-sheet" : ".practice-analysis");
     const instance = page?.__vue__;
     if (!instance || instance._isDestroyed) return null;
@@ -29,7 +32,8 @@
       };
       state.unwatch = instance.$watch(() => [instance.loading, instance.questionList,
         instance.join_id, instance.resourceId, instance.sourceId, instance.taskId,
-        instance.classifyId, instance.currentTab], () => {
+        instance.classifyId, instance.currentTab, instance.pageLoading, instance.tab,
+        instance.questionId, instance.isReadonly, instance.answerSheetArray], () => {
         instance.$nextTick(() => {
           if (!instance._isDestroyed && window[property] === state) {
             window.dispatchEvent(new Event("xet:question-order-ready"));
@@ -51,8 +55,12 @@
     const classifyId = typeof instance.classifyId === "string" ? instance.classifyId
       : Number.isSafeInteger(instance.classifyId) && instance.classifyId >= 0 ? String(instance.classifyId) : null;
     if (instance.sourceId !== sourceId || classifyId !== match[2] ||
-        Number(instance.currentTab) !== 1 || instance.loading ||
+        Number(review ? instance.tab : instance.currentTab) !== 1 || (review ? instance.pageLoading : instance.loading) ||
         !Array.isArray(instance.questionList) || instance.questionList.length > 2000) return null;
+    if (review && (instance.isReadonly !== true || instance.isCollect !== false ||
+        (instance.questionId || "") !== questionId ||
+        questionId && (instance.questionList.length !== 1 || instance.questionList[0]?.id !== questionId) ||
+        !Array.isArray(instance.answerSheetArray) || instance.answerSheetArray.length !== instance.questionList.length)) return null;
     const questions = instance.questionList.map(question => ({ id: question.id, taskId: question.task_id || "" }));
     if (questions.some(q => typeof q.id !== "string" || !id.test(q.id) || (q.taskId && !id.test(q.taskId))) ||
         new Set(questions.map(q => q.id)).size !== questions.length) return null;
@@ -65,13 +73,14 @@
     while (stack.length && ++visited <= 12000) {
       const node = stack.pop();
       if (!node) continue;
-      if (known.has(node.key) && node.elm?.matches?.(".question-card")) identities.set(node.elm, node.key);
+      if (known.has(node.key) && node.elm?.matches?.(review ? ".question-wrapper" : ".question-card")) identities.set(node.elm, node.key);
       if (Array.isArray(node.children)) stack.push(...node.children);
     }
-    const cards = [...page.querySelectorAll(".question-list > .question-card")];
+    const cards = [...page.querySelectorAll(review ? ".all-questions-container > .question-wrapper" : ".question-list > .question-card")];
     if (cards.length !== questions.length || cards.some(card => !identities.has(card))) return null;
+    if (review && cards.some((card, index) => identities.get(card) !== questions[index].id)) return null;
     for (const card of cards) card.setAttribute("data-xet-question-order-id", identities.get(card));
-    return { key, kind: "book", sourceId, questions, cardIds: cards.map(card => identities.get(card)) };
+    return { key, kind: review ? "review" : "book", sourceId, questions, cardIds: cards.map(card => identities.get(card)) };
   }
 
   async function resolve(message, sender, { siteAccess, readSettings }) {

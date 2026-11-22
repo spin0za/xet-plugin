@@ -8,12 +8,16 @@
   const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}";
 
   function routeKey() {
-    const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/detail)\/([\w-]+)\/?$/);
+    const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
     if (!match) return "";
     const query = new URLSearchParams(location.search);
-    const source = match[1] === "errbook/detail" ? query.get("source_id") || "" : match[2];
-    if (!/^[\w-]{1,160}$/.test(source) || (match[1] === "errbook/detail" && (query.get("tab") || "1") !== "1")) return "";
-    return `${location.pathname}|${source}|${query.get("task_id") || ""}|${query.get("join_id") || ""}|${query.get("tab") || "1"}`;
+    const book = match[1].startsWith("errbook/"), review = match[1] === "errbook/practice";
+    const source = book ? query.get("source_id") || "" : match[2];
+    if (!/^[\w-]{1,160}$/.test(source) || (book && (query.get("tab") || "1") !== "1")) return "";
+    const questionId = query.get("question_id") || "";
+    if (review && (query.get("readonly") !== "1" || questionId && !/^[\w-]{1,160}$/.test(questionId))) return "";
+    return `${location.pathname}|${source}|${query.get("task_id") || ""}|${query.get("join_id") || ""}|${query.get("tab") || "1"}` +
+      (review ? `|${questionId}|1` : "");
   }
 
   function validOrder(record) {
@@ -99,11 +103,13 @@
     let generation = 0, loading = false, pending = false, needsRetry = false, capturedJoin = "";
     let abort = null, style = null, hint = null, restoreOrder = [];
     const labels = new Map();
+    const reviewText = new Map();
     const autoRequested = new Set();
     const autoResults = new Map();
     let helperFinished = false;
     const cache = createOrderCache(storage, location.origin);
-    const observe = () => observer?.observe(document.body, { childList: true, subtree: true });
+    const observe = () => observer?.observe(document.body, { childList: true, subtree: true,
+      characterData: location.pathname.includes("/errbook/practice/") });
     const cacheKey = (source, task) => `${PREFIX}${location.origin}|${source}|${task}`;
 
     async function post(path, payload, signal) {
@@ -116,12 +122,17 @@
       return result.data;
     }
 
+    function restoreReviewText() {
+      for (const [node, record] of reviewText) if (node.isConnected && node.data === record.applied) node.data = record.original;
+      reviewText.clear();
+    }
     function clear() {
       generation++; abort?.abort(); abort = null;
       loading = pending = needsRetry = false; capturedJoin = "";
       autoRequested.clear(); autoResults.clear(); helperFinished = false;
       window.dispatchEvent(new Event(STOP_WATCH));
       observer?.disconnect();
+      restoreReviewText();
       for (const label of labels.values()) label.remove();
       labels.clear(); hint?.remove(); hint = null;
       for (const card of document.querySelectorAll("[data-xet-question-order-id]")) card.removeAttribute("data-xet-question-order-id");
@@ -273,6 +284,48 @@
       void autoLoad(context, records, numbers, current);
     }
 
+    async function renderReview(context, current) {
+      const records = await cache.index(context.sourceId);
+      if (!started || current !== generation || routeKey() !== key) return;
+      const page = document.querySelector(".errbook-practice");
+      if (!page) return;
+      const wrappers = [...page.querySelectorAll(".all-questions-container > .question-wrapper")];
+      const cells = [...page.querySelectorAll(".answer-card__content__card__item")];
+      if (wrappers.length !== context.questions.length || cells.length !== context.questions.length ||
+          wrappers.some((wrapper, i) => wrapper.getAttribute("data-xet-question-order-id") !== context.questions[i].id)) return;
+      const { numbers } = resolveOrdering(context.questions, {}, "", records);
+      const touched = new Set();
+      function display(element, text) {
+        // Change only the native number text node, never replace a cell, icon,
+        // event handler, anchor ID, Vue answerIndex or internal current index.
+        const node = [...(element?.childNodes || [])].find(n => n.nodeType === 3 && n.data.trim());
+        if (!node) return;
+        let record = reviewText.get(node);
+        if (!record) { record = { original: node.data }; reviewText.set(node, record); }
+        else if (node.data !== record.applied) record.original = node.data;
+        record.applied = text; touched.add(node);
+        if (node.data !== text) node.data = text;
+      }
+      observer.disconnect();
+      try {
+        for (let i = 0; i < wrappers.length; i++) {
+          const wrapper = wrappers[i], number = numbers[i] || "?";
+          display(wrapper.querySelector(".question-block__meta > .question-block__index"), `${number}.`);
+          // Material subquestion numbers are local to their parent: leave them.
+          if (!wrapper.classList.contains("is-material-wrapper")) display(wrapper.querySelector(".question-header .question-index"), `${number}.`);
+          display(cells[i].querySelector("span"), String(number));
+        }
+        for (const [node, record] of reviewText) if (!touched.has(node)) {
+          if (node.isConnected && node.data === record.applied) node.data = record.original;
+          reviewText.delete(node);
+        }
+        if (wrappers[0]) setHint(wrappers[0], numbers.some(n => !n)
+          ? "原题号尚未取得或存在冲突，请先打开对应错题列表读取；插件不会猜填题号。" : "");
+      } finally { if (started) observe(); }
+      // Readonly review reuses verified numbering only. Never create a new
+      // attempt or invoke the legacy tab helper from a single-question view.
+    }
+
     async function refresh() {
       const next = routeKey();
       if (next !== key) { clear(); key = next; }
@@ -282,17 +335,18 @@
       const current = generation;
       abort ||= new AbortController();
       try {
-        if (location.pathname.includes("/errbook/detail/")) void cache.warm().catch(() => {});
+        if (location.pathname.includes("/errbook/")) void cache.warm().catch(() => {});
         const result = await request({ type: "xet:question-order-context", key });
         if (!started) { window.dispatchEvent(new Event(STOP_WATCH)); return; }
         if (current !== generation || routeKey() !== key) return;
-        if (!result?.ok || result.context?.key !== key) { needsRetry = true; recognitionFailed(); return; }
+        if (!result?.ok || result.context?.key !== key) { needsRetry = true; restoreReviewText(); recognitionFailed(); return; }
         needsRetry = false;
         if (result.context.kind === "practice") {
           const status = await capture(result.context, abort.signal, current);
           if (current === generation) needsRetry = status === "failed";
           if (status) await finishHelper(status);
         }
+        else if (result.context.kind === "review") await renderReview(result.context, current);
         else await render(result.context, current);
       } catch {
         if (current === generation) { needsRetry = true; recognitionFailed(); await finishHelper("failed"); }
@@ -333,7 +387,9 @@
       style = document.createElement("style"); style.textContent = STYLE; document.documentElement.append(style);
       observer = new MutationObserver(records => {
         if (records.some(r => !r.target.closest?.(`[${BADGE}], .xet-question-order-hint`) &&
-            [...r.addedNodes, ...r.removedNodes].some(n => n.nodeType === 1))) schedule();
+            ([...(r.addedNodes || []), ...(r.removedNodes || [])].some(n => n.nodeType === 1) ||
+             r.type === "characterData" && location.pathname.includes("/errbook/practice/") &&
+             r.target.parentElement?.closest(".question-block__index, .question-index, .answer-card__content__card__item")))) schedule();
       });
       observe();
       // Fallback only: readiness/DOM/storage/navigation signals always run now,
