@@ -11,6 +11,10 @@
   min-inline-size: 0;
   box-sizing: border-box;
 }
+.practice-record-page[data-xet-history-list] .question-collect-tab .resource-card[data-xet-empty-collection],
+.practice-record-page[data-xet-history-list] .question-collect-tab[data-xet-collection-empty] .scroll-footer {
+  display: none !important;
+}
 .practice-record-page[data-xet-history-list] .resource-card__cover {
   flex: 0 0 104px;
   inline-size: 104px !important;

@@ -30,7 +30,7 @@
       while (stack.length && ++count < 500) {
         const current = stack.pop();
         if (!current || current._isDestroyed) continue;
-        if (current.$options?.name === "PracticeHistoryTab") { v = current; break; }
+        if (["PracticeHistoryTab", "QuestionCollectTab"].includes(current.$options?.name)) { v = current; break; }
         stack.push(...(current.$children || []));
       }
       if (!v || !Array.isArray(v.list) || v.list.length > 5000) return null;
@@ -39,13 +39,29 @@
         return { kind: "loading" };
       }
       if (!["read", "sync"].includes(action)) return null;
+      const collections = v.$options.name === "QuestionCollectTab";
+      // Missing/invalid counts are unknown, not empty. Never infer emptiness
+      // from the card's `qs_count || 0` presentation fallback.
+      const questionCount = item => {
+        const value = item?.qs_count;
+        if (typeof value !== "number" && !(typeof value === "string" && /^\d+$/.test(value.trim()))) return null;
+        const count = Number(value);
+        return Number.isSafeInteger(count) && count >= 0 ? count : null;
+      };
       const cards = [...page.querySelectorAll(".resource-card")];
       for (const card of cards) {
         card.removeAttribute("data-xet-history-row");
         const item = card.__vue__?.item;
         const index = v.list.indexOf(item);
         if (index >= 0) card.setAttribute("data-xet-history-row", String(index));
+        if (collections && index >= 0 && questionCount(item) === 0) card.setAttribute("data-xet-empty-collection", "");
+        else card.removeAttribute("data-xet-empty-collection");
       }
+      // Keep the native list and raw total intact: its pagination compares
+      // list.length with the server total, which includes the empty groups.
+      if (collections) return { kind: "collections", account, key: expectedKey, tab: v.activeSubTab,
+        loading: Boolean(v.loading), noMore: Boolean(v.noMore),
+        rows: v.list.map(item => ({ resourceId: clean(item.resource_id), questionCount: questionCount(item) })) };
       return { kind: "list", account, key: expectedKey, tab: v.activeSubTab,
         loading: Boolean(v.loading), noMore: Boolean(v.noMore),
         rows: v.list.map(item => ({ resourceId: clean(item.practice_id || item.id),

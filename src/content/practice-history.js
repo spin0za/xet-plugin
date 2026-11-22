@@ -23,9 +23,11 @@
       list?.remove(); list = null; status?.remove(); status = null;
       for (const root of roots) {
         root.removeAttribute("data-xet-history-list"); root.removeAttribute("data-xet-history-results");
+        root.removeAttribute("data-xet-collection-empty");
       }
       roots.clear(); more?.remove(); more = null; context = null;
       for (const card of document.querySelectorAll("[data-xet-history-row]")) card.removeAttribute("data-xet-history-row");
+      for (const card of document.querySelectorAll("[data-xet-empty-collection]")) card.removeAttribute("data-xet-empty-collection");
     }
     function layout() {
       if (!started || !/^\/p\/t_pc\/pc_evaluation\/practice_record\/?$/.test(location.pathname)) return;
@@ -36,6 +38,38 @@
       const response = await request({ type: "xet:practice-history", key, action: "sync" });
       if (!response?.ok || response.context?.account !== context?.account) throw Error("Sync unavailable");
       syncProblem = !response.synced; cacheDirty = true;
+    }
+    function renderMore(root, available) {
+      if (available && !context.noMore) {
+        if (!more?.isConnected) {
+          more = document.createElement("button"); more.type = "button"; more.className = "xet-history-more";
+          more.addEventListener("click", async () => {
+            if (!started || more.disabled) return;
+            more.disabled = true;
+            try { await request({ type: "xet:practice-history", key, action: "more" }); } catch { /* Retry on wake. */ }
+            schedule();
+          }); root.append(more);
+        }
+        more.disabled = context.loading; more.textContent = context.loading ? "加载中…" : "加载更多";
+      } else { more?.remove(); more = null; }
+    }
+    function renderCollections(current) {
+      if (!started || current !== generation || routeKey() !== key) return;
+      const root = document.querySelector(".practice-record-page .question-collect-tab");
+      if (!root) return;
+      const empty = context.rows.length > 0 && context.rows.every(row => row.questionCount === 0);
+      root.toggleAttribute("data-xet-collection-empty", empty); roots.add(root);
+      if (empty && !context.loading) {
+        if (!status?.isConnected) {
+          status = document.createElement("div"); status.className = "xet-history-status";
+          status.setAttribute("role", "status"); root.append(status);
+        }
+        const message = context.noMore ? "暂无收藏" : "暂无非空收藏，请继续加载。";
+        if (status.textContent !== message) status.textContent = message;
+      } else { status?.remove(); status = null; }
+      // Explicit continuation also works when filtering leaves too little
+      // content for native infinite-scroll to fire. Never change its page/total.
+      renderMore(root, true);
     }
     async function render(all, current) {
       if (!started || current !== generation || routeKey() !== key || context?.kind !== "list") return;
@@ -86,18 +120,7 @@
           }
         }
       }
-      if (!active && !context.noMore) {
-        if (!more?.isConnected) {
-          more = document.createElement("button"); more.type = "button"; more.className = "xet-history-more";
-          more.addEventListener("click", async () => {
-            if (!started || more.disabled) return;
-            more.disabled = true;
-            try { await request({ type: "xet:practice-history", key, action: "more" }); } catch { /* Retry on wake. */ }
-            schedule();
-          }); root.append(more);
-        }
-        more.disabled = context.loading; more.textContent = context.loading ? "加载中…" : "加载更多";
-      } else { more?.remove(); more = null; }
+      renderMore(root, !active);
     }
     async function inspectRecord(record, current, expected, account, requireResult = false) {
       const scope = data.prefix(location.origin, account), token = scope + record.joinId;
@@ -154,6 +177,8 @@
             const saved = await request({ type: "xet:practice-history", key: expected, action: "capture" });
             if (saved?.ok) captured = signature;
           }
+        } else if (context.kind === "collections") {
+          renderCollections(current);
         } else if (context.kind === "list") {
           const scope = data.prefix(location.origin, context.account);
           if (cacheScope !== scope) { syncProblem = false; discovered = ""; }
