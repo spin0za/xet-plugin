@@ -90,7 +90,7 @@
   outline: 2px solid #1472ff;
   outline-offset: 3px;
 }
-.practice-record-page[data-xet-history-list] .xet-history-more {
+.practice-record-page[data-xet-history-list] :is(.xet-history-more, .xet-duplicate-favorites-button) {
   display: block;
   margin: 16px auto;
   padding: 8px 24px;
@@ -101,10 +101,14 @@
   color: #1472ff;
   cursor: pointer;
 }
-.practice-record-page[data-xet-history-list] .xet-history-more:focus-visible {
+.practice-record-page[data-xet-history-list] :is(.xet-history-more, .xet-duplicate-favorites-button):focus-visible {
   outline: 2px solid #1472ff;
   outline-offset: 3px;
 }
+.xet-duplicate-favorites { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-block-end: 12px; }
+.practice-record-page[data-xet-history-list] .xet-duplicate-favorites-button { margin: 0; padding-inline: 12px; }
+.xet-duplicate-favorites .xet-duplicate-favorites-button:disabled { cursor: default; color: #626975; }
+.xet-duplicate-favorites [role="status"] { color: #4b5563; font-size: 14px; }
 @media (width < 600px) {
   .practice-record-page[data-xet-history-list] .resource-card__cover { display: none; }
 }

@@ -5,7 +5,8 @@
   const BADGE = "data-xet-original-question-number";
   const READY = "xet:question-order-ready";
   const STOP_WATCH = "xet:question-order-stop-watch";
-  const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}";
+  const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}" +
+    ".xet-wrong-count{display:inline-block;margin-inline:8px 4px;padding:1px 7px;border-radius:5px;white-space:nowrap;color:#713d11;background:#fff0df;font:500 13px/1.5 sans-serif}.xet-wrong-count[data-unknown]{color:#545b65;background:#f0f2f5}";
 
   function routeKey() {
     const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
@@ -98,11 +99,13 @@
   }
 
   function createQuestionOrderController({ request = message => chrome.runtime.sendMessage(message),
-    storage = chrome.storage.local } = {}) {
+    storage = chrome.storage.local, syncStorage = chrome.storage.sync } = {}) {
     let started = false, key = "", timer = null, frame = null, observer = null;
     let generation = 0, loading = false, pending = false, needsRetry = false, capturedJoin = "";
     let abort = null, style = null, hint = null, restoreOrder = [];
     const labels = new Map();
+    const badges = new Map(), countCache = new Map();
+    let countJob = null;
     const reviewText = new Map();
     const autoRequested = new Set();
     const autoResults = new Map();
@@ -122,12 +125,58 @@
       return result.data;
     }
 
+    function wrongCounts(context, current) {
+      const api = modules.wrongAttemptCounts, history = modules.practiceHistoryData;
+      if (!api || !history || !context.account || !abort) return null;
+      const key = JSON.stringify([context.account, context.sourceId]);
+      const cached = countCache.get(key);
+      if (cached?.until > Date.now()) return cached.result;
+      if (countJob?.key === key) return cached?.result || null;
+      const job = { key, signal: abort.signal };
+      countJob = job;
+      void (async () => {
+        let result;
+        try {
+          const records = await history.loadBoth(storage, syncStorage, location.origin, context.account);
+          if (job.signal.aborted) return;
+          result = await api.readCounts(records, context.sourceId, post, job.signal);
+        } catch { result = { counts: new Map(), checked: 0, total: 0 }; }
+        if (countJob !== job || current !== generation || job.signal.aborted || !started) return;
+        countJob = null;
+        countCache.delete(key); countCache.set(key, { result, until: Date.now() + 120_000 });
+        if (countCache.size > 12) countCache.delete(countCache.keys().next().value);
+        schedule();
+      })();
+      return cached?.result || null;
+    }
+    function countBadge(owner, question, result, anchor, fallback) {
+      let badge = badges.get(owner);
+      if (!result || !question || !(anchor || fallback)) {
+        badge?.remove(); badges.delete(owner); return;
+      }
+      const n = result.counts.get(modules.wrongAttemptCounts.keyOf(question.id, question.taskId || null));
+      if (!badge?.isConnected) {
+        badge = document.createElement("span"); badge.className = "xet-wrong-count"; badges.set(owner, badge);
+      }
+      if (anchor && anchor.nextElementSibling !== badge) anchor.after(badge);
+      else if (!anchor && fallback.firstElementChild !== badge) fallback.prepend(badge);
+      const title = `按可核实的交卷记录统计（核对 ${result.checked}/${result.total} 次）。不含未答、未交卷和未保留的历史。`;
+      if (badge.title !== title) badge.title = title;
+      badge.toggleAttribute("data-unknown", !n);
+      const text = n ? `已核对错 ${n} 次` : "次数未核实";
+      if (badge.textContent !== text) badge.textContent = text;
+    }
+    function pruneBadges() {
+      for (const [owner, badge] of badges) if (!owner.isConnected) { badge.remove(); badges.delete(owner); }
+    }
+
     function restoreReviewText() {
       for (const [node, record] of reviewText) if (node.isConnected && node.data === record.applied) node.data = record.original;
       reviewText.clear();
     }
     function clear() {
       generation++; abort?.abort(); abort = null;
+      countJob = null;
       loading = pending = needsRetry = false; capturedJoin = "";
       autoRequested.clear(); autoResults.clear(); helperFinished = false;
       window.dispatchEvent(new Event(STOP_WATCH));
@@ -135,6 +184,8 @@
       restoreReviewText();
       for (const label of labels.values()) label.remove();
       labels.clear(); hint?.remove(); hint = null;
+      for (const badge of badges.values()) badge.remove();
+      badges.clear();
       for (const card of document.querySelectorAll("[data-xet-question-order-id]")) card.removeAttribute("data-xet-question-order-id");
       // Move existing nodes back; never clone cards or replace site event handlers.
       const surviving = restoreOrder.filter(card => card.isConnected);
@@ -237,6 +288,7 @@
       const records = await cache.index(context.sourceId);
       if (!started || current !== generation || routeKey() !== key) return;
       const { numbers, sortable } = resolveOrdering(context.questions, {}, "", records);
+      const stats = wrongCounts(context, current);
       const cards = [...document.querySelectorAll(".errbook-detail-page .question-list > .question-card")];
       if (cards.length !== context.cardIds.length) return;
       const byId = new Map(cards.map(card => [card.getAttribute("data-xet-question-order-id"), card]));
@@ -253,7 +305,7 @@
       try {
         for (let i = 0; i < numbered.length; i++) {
           if (!started || current !== generation || routeKey() !== key) return;
-          const { card, number } = numbered[i];
+          const question = numbered[i], { card, number } = question;
           if (!card.isConnected || card.parentElement !== parent) { pending = true; return; }
           let label = labels.get(card);
           if (number) {
@@ -263,7 +315,8 @@
               labels.set(card, label);
             }
             label.textContent = `${number}.`;
-          } else { label?.remove(); labels.delete(card); }
+          } else { label?.remove(); labels.delete(card); label = null; }
+          countBadge(card, question, stats, label, card.querySelector(".card-body"));
           if (parent.children[i] !== card) parent.insertBefore(card, parent.children[i] || null);
           if ((i + 1) % 20 === 0) {
             observe();
@@ -272,6 +325,7 @@
           }
         }
         for (const [card, label] of labels) if (!card.isConnected) { label.remove(); labels.delete(card); }
+        pruneBadges();
         const unknown = numbered.some(q => !q.number);
         const outcomes = numbered.filter(q => !q.number).map(q => autoResults.get(q.taskId));
         const feedback = outcomes.includes("failed") ? "原题号后台读取未能完成，请刷新页面重试；插件不会猜填题号。"
@@ -294,6 +348,7 @@
       if (wrappers.length !== context.questions.length || cells.length !== context.questions.length ||
           wrappers.some((wrapper, i) => wrapper.getAttribute("data-xet-question-order-id") !== context.questions[i].id)) return;
       const { numbers } = resolveOrdering(context.questions, {}, "", records);
+      const stats = wrongCounts(context, current);
       const touched = new Set();
       function display(element, text) {
         // Change only the native number text node, never replace a cell, icon,
@@ -313,8 +368,12 @@
           display(wrapper.querySelector(".question-block__meta > .question-block__index"), `${number}.`);
           // Material subquestion numbers are local to their parent: leave them.
           if (!wrapper.classList.contains("is-material-wrapper")) display(wrapper.querySelector(".question-header .question-index"), `${number}.`);
+          const anchor = (!wrapper.classList.contains("is-material-wrapper") && wrapper.querySelector(".question-header .question-index")) ||
+            wrapper.querySelector(".question-block__meta > .question-block__index");
+          countBadge(wrapper, context.questions[i], stats, anchor);
           display(cells[i].querySelector("span"), String(number));
         }
+        pruneBadges();
         for (const [node, record] of reviewText) if (!touched.has(node)) {
           if (node.isConnected && node.data === record.applied) node.data = record.original;
           reviewText.delete(node);
@@ -371,6 +430,10 @@
       frame = requestAnimationFrame(() => { frame = null; void refresh(); });
     }
     function storageChanged(changes, area) {
+      if (["local", "sync"].includes(area) && Object.keys(changes).some(k => k.startsWith(`xetPracticeHistory:${location.origin}|`))) {
+        countCache.clear(); countJob = null;
+        if (key.includes("/errbook/")) schedule();
+      }
       if (area !== "local" || !cache.update(changes)) return;
       const [path, source, task] = key.split("|");
       const change = changes[cacheKey(source, task)];
@@ -386,7 +449,7 @@
       started = true;
       style = document.createElement("style"); style.textContent = STYLE; document.documentElement.append(style);
       observer = new MutationObserver(records => {
-        if (records.some(r => !r.target.closest?.(`[${BADGE}], .xet-question-order-hint`) &&
+        if (records.some(r => !r.target.closest?.(`[${BADGE}], .xet-question-order-hint, .xet-wrong-count`) &&
             ([...(r.addedNodes || []), ...(r.removedNodes || [])].some(n => n.nodeType === 1) ||
              r.type === "characterData" && location.pathname.includes("/errbook/practice/") &&
              r.target.parentElement?.closest(".question-block__index, .question-index, .answer-card__content__card__item")))) schedule();
@@ -402,7 +465,7 @@
     function stop() {
       if (!started) return;
       started = false; clear(); key = "";
-      cache.clear();
+      cache.clear(); countCache.clear();
       observer?.disconnect(); observer = null;
       clearInterval(timer); timer = null;
       if (frame !== null) cancelAnimationFrame(frame); frame = null;

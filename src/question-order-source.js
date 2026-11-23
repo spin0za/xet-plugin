@@ -1,6 +1,7 @@
 (() => {
   // Only identities and rendering positions cross the isolated-world boundary.
-  // Never read answers, account variables or cookies, or mutate Vue state.
+  // Only the account ID needed to scope history statistics accompanies wrong
+  // questions. Never read answers or cookies, or mutate the site's Vue state.
   function readQuestionOrderContext(expectedKey) {
     const url = new URL(location.href);
     const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
@@ -80,7 +81,10 @@
     if (cards.length !== questions.length || cards.some(card => !identities.has(card))) return null;
     if (review && cards.some((card, index) => identities.get(card) !== questions[index].id)) return null;
     for (const card of cards) card.setAttribute("data-xet-question-order-id", identities.get(card));
-    return { key, kind: review ? "review" : "book", sourceId, questions, cardIds: cards.map(card => identities.get(card)) };
+    const account = typeof window.USERID === "string" && id.test(window.USERID) &&
+      !window.USERID.includes("anonymous") ? window.USERID : undefined;
+    return { key, kind: review ? "review" : "book", sourceId, ...(account ? { account } : {}),
+      questions, cardIds: cards.map(card => identities.get(card)) };
   }
 
   async function resolve(message, sender, { siteAccess, readSettings }) {

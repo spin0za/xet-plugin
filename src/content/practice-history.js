@@ -9,6 +9,7 @@
     storage = chrome.storage.local, syncStorage = chrome.storage.sync } = {}) {
     let started = false, pending = false, dirty = false, frame = null, timer = null, observer = null;
     let context = null, key = "", generation = 0, discovered = "", more = null, list = null, status = null;
+    let duplicates = null;
     let captured = "", synchronized = "", syncProblem = false;
     const roots = new Set(), verified = new Set();
     let cacheScope = "", cacheDirty = true, cachedRecords = [];
@@ -21,6 +22,7 @@
       return cachedRecords;
     }
     function clean() {
+      duplicates?.stop(); duplicates = null;
       list?.remove(); list = null; status?.remove(); status = null;
       for (const root of roots) {
         root.removeAttribute("data-xet-history-list"); root.removeAttribute("data-xet-history-results");
@@ -78,6 +80,23 @@
       // Explicit continuation also works when filtering leaves too little
       // content for native infinite-scroll to fire. Never change its page/total.
       renderMore(root, true);
+    }
+    function renderDuplicateTool(root) {
+      if (duplicates?.node.parentElement !== root || context.kind !== "errors" || context.tab !== 0) {
+        duplicates?.stop(); duplicates = null;
+      }
+      if (!root || context.kind !== "errors" || context.tab !== 0 || !context.rows.length) return;
+      duplicates ||= modules.duplicateFavorites?.mount(root, {
+        context: () => started && routeKey() === key && context?.kind === "errors" ? context : null,
+        async verify(before) {
+          const result = await request({ type: "xet:practice-history", key: before.key, action: "read" });
+          const actual = result?.context;
+          return result?.ok && actual?.kind === "errors" && actual.key === before.key &&
+            actual.account === before.account && actual.tab === 0;
+        },
+        onChanged: () => window.dispatchEvent(new Event("xet:invalidate-collection-cache")),
+      });
+      duplicates?.update();
     }
     async function render(all, current) {
       if (!started || current !== generation || routeKey() !== key || context?.kind !== "list") return;
@@ -182,6 +201,7 @@
           action: RECORD.test(location.pathname) ? "all" : "read" });
         if (!started || current !== generation || routeKey() !== expected || !response?.ok || response.context.key !== expected) return;
         context = response.context;
+        renderDuplicateTool(context.kind === "errors" ? document.querySelector(".practice-record-page .errbook-tab") : null);
         if (context.kind === "attempt") {
           const signature = JSON.stringify([context.account, data.normalize(context)]);
           if (captured !== signature) {

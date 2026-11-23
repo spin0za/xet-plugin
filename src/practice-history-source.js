@@ -16,7 +16,8 @@
     const pagerKey = "__xetRecordListLoader";
     function createPager(initialRoot) {
       const scope = account, cache = new Map(), native = new WeakMap(), undo = new Set();
-      const stopEvent = "xet:practice-history-stop-all", maxRows = 5000, freshFor = 120_000;
+      const stopEvent = "xet:practice-history-stop-all", invalidateCollections = "xet:invalidate-collection-cache";
+      const maxRows = 5000, freshFor = 120_000;
       const manager = { root: null, scope, job: null, stopped: false };
       let detachRoot, detachConstructor;
       const routeLive = () => recordPath.test(location.pathname) && window.USERID === scope;
@@ -49,17 +50,22 @@
         if (window.USERID === scope && reviewPath.test(location.pathname)) mount(null);
         else manager.stop();
       };
+      const invalidate = () => {
+        for (const key of cache.keys()) if (key.startsWith('["QuestionCollectTab",')) cache.delete(key);
+      };
       const stop = () => {
         mount(null); manager.stopped = true; cache.clear();
         for (const detach of undo) detach();
         detachConstructor?.();
         window.removeEventListener(stopEvent, stop); window.removeEventListener("pagehide", stop);
+        window.removeEventListener(invalidateCollections, invalidate);
         window.removeEventListener("popstate", changedRoute);
         window.navigation?.removeEventListener("currententrychange", changedRoute);
         if (window[pagerKey] === manager) delete window[pagerKey];
       };
       manager.stop = stop;
       window.addEventListener(stopEvent, stop); window.addEventListener("pagehide", stop);
+      window.addEventListener(invalidateCollections, invalidate);
       window.addEventListener("popstate", changedRoute);
       window.navigation?.addEventListener("currententrychange", changedRoute);
       function show(v, snapshot) {
@@ -346,7 +352,9 @@
         loading: Boolean(v.loading), noMore: Boolean(v.noMore),
         rows: v.list.map(item => ({ resourceId: clean(item.resource_id), questionCount: questionCount(item) })) };
       if (v.$options.name === "ErrbookTab") return { kind: "errors", account, key: expectedKey, tab: v.activeSubTab, allPages,
-        loading: Boolean(v.loading), noMore: Boolean(v.noMore), rows: v.list.map(item => ({ resourceId: clean(item.source_id) })) };
+        loading: Boolean(v.loading), noMore: Boolean(v.noMore), rows: v.list.map(item => ({
+          sourceId: clean(item.source_id), bookId: Number.isSafeInteger(item.id) && item.id > 0 ? item.id : clean(item.id),
+        })) };
       return { kind: "list", account, key: expectedKey, tab: v.activeSubTab, allPages,
         loading: Boolean(v.loading), noMore: Boolean(v.noMore),
         rows: v.list.map(item => ({ resourceId: clean(item.practice_id || item.id),
