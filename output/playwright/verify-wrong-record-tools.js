@@ -72,8 +72,9 @@ async page => {
     assert(mutations.length===1&&mutations[0].question_id==='qs_same'&&mutations[0].is_collect===false&&
       mutations[0].task_id===task&&mutations[0].resource_id===resource,'Confirmed cleanup did not target the exact favorite');
     await fixture.goto(origin+book);
-    await fixture.getByText('已核对错 2 次').waitFor();
-    assert(await fixture.getByText('次数未核实').count()===1,'Unverifiable value was not kept distinct');
+    await fixture.getByText('错2次',{exact:true}).waitFor();
+    assert(await fixture.getByText('错1次',{exact:true}).count()===1,'Missing history did not default to one');
+    assert(await fixture.getByText(/次数未核实|已核对错/).count()===0,'Old wording remains visible');
     assert(await fixture.locator('.question-card').first().evaluate(card =>
       card.querySelector('[data-xet-original-question-number]').nextElementSibling?.className==='xet-wrong-count'),
     'Count is not immediately to the right of original number');
@@ -81,7 +82,7 @@ async page => {
     await fixture.waitForFunction(()=>!document.querySelector('.xet-wrong-count'));
     assert(!errors.length,errors.join('; '));
     return {passed:true,checks:['read-only until explicit confirmation','removed only the exact matching simulated favorite',
-      'two verified wrong answers; no count for unanswered or unverifiable records','badge adjacent to question number and removed on disable']};
+      'two real wrong answers; existing wrong question with no history defaults to one','badge adjacent to question number and removed on disable']};
   } finally {
     await worker.evaluate(async keys=>{await chrome.storage.local.remove(keys);await chrome.storage.local.set({disabledSites:[]})},Object.keys(seed));
     await fixture.close();

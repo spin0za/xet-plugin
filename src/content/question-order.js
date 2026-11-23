@@ -6,7 +6,7 @@
   const READY = "xet:question-order-ready";
   const STOP_WATCH = "xet:question-order-stop-watch";
   const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}" +
-    ".xet-wrong-count{display:inline-block;margin-inline:8px 4px;padding:1px 7px;border-radius:5px;white-space:nowrap;color:#713d11;background:#fff0df;font:500 13px/1.5 sans-serif}.xet-wrong-count[data-unknown]{color:#545b65;background:#f0f2f5}";
+    ".xet-wrong-count{display:inline-block;margin-inline:8px 4px;padding:1px 7px;border-radius:5px;white-space:nowrap;color:#713d11;background:#fff0df;font:500 13px/1.5 sans-serif}";
 
   function routeKey() {
     const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
@@ -150,20 +150,21 @@
       return cached?.result || null;
     }
     function countBadge(owner, question, result, anchor, fallback) {
+      const api = modules.wrongAttemptCounts;
       let badge = badges.get(owner);
-      if (!result || !question || !(anchor || fallback)) {
+      if (!api || !question || !(anchor || fallback)) {
         badge?.remove(); badges.delete(owner); return;
       }
-      const n = result.counts.get(modules.wrongAttemptCounts.keyOf(question.id, question.taskId || null));
+      const verified = result?.counts.get(api.keyOf(question.id, question.taskId || null));
       if (!badge?.isConnected) {
         badge = document.createElement("span"); badge.className = "xet-wrong-count"; badges.set(owner, badge);
       }
       if (anchor && anchor.nextElementSibling !== badge) anchor.after(badge);
       else if (!anchor && fallback.firstElementChild !== badge) fallback.prepend(badge);
-      const title = `按可核实的交卷记录统计（核对 ${result.checked}/${result.total} 次）。不含未答、未交卷和未保留的历史。`;
+      const title = verified ? "按可用的交卷记录统计，未答和未保留的历史不计入。"
+        : "当前在错题本中，没有查到可核实的错误记录时按错 1 次显示。";
       if (badge.title !== title) badge.title = title;
-      badge.toggleAttribute("data-unknown", !n);
-      const text = n ? `已核对错 ${n} 次` : "次数未核实";
+      const text = `错${verified || 1}次`;
       if (badge.textContent !== text) badge.textContent = text;
     }
     function pruneBadges() {
