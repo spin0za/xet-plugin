@@ -7,6 +7,7 @@
   const routeKey = () => PATH.test(location.pathname) ? location.pathname + location.search : "";
   function createPracticeHistoryController({ request = m => chrome.runtime.sendMessage(m),
     storage = chrome.storage.local, syncStorage = chrome.storage.sync } = {}) {
+    const titles = modules.practiceRecordTitles?.create(location.origin);
     let started = false, pending = false, dirty = false, frame = null, timer = null, observer = null;
     let context = null, key = "", generation = 0, discovered = "", more = null, list = null, status = null;
     let duplicates = null;
@@ -22,6 +23,7 @@
       return cachedRecords;
     }
     function clean() {
+      titles?.clear();
       duplicates?.stop(); duplicates = null;
       list?.remove(); list = null; status?.remove(); status = null;
       for (const root of roots) {
@@ -119,7 +121,8 @@
             const record = sorted[i], li = document.createElement("li"), link = document.createElement("a");
             link.href = data.resultUrl(location.origin, record);
             link.className = "xet-history-result-link";
-            link.textContent = record.title || context.rows.find(r => r.resourceId === record.resourceId)?.title || record.resourceId;
+            link.textContent = titles?.resolve(record) || record.title ||
+              context.rows.find(r => r.resourceId === record.resourceId)?.title || record.resourceId;
             li.append(link);
             if (record.submittedAt || record.startedAt) {
               const time = document.createElement("span");
@@ -201,6 +204,7 @@
           action: RECORD.test(location.pathname) ? "all" : "read" });
         if (!started || current !== generation || routeKey() !== expected || !response?.ok || response.context.key !== expected) return;
         context = response.context;
+        if (RECORD.test(location.pathname)) titles?.render(document.querySelector(".practice-record-page"), context.rows);
         renderDuplicateTool(context.kind === "errors" ? document.querySelector(".practice-record-page .errbook-tab") : null);
         if (context.kind === "attempt") {
           const signature = JSON.stringify([context.account, data.normalize(context)]);

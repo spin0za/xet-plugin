@@ -1,0 +1,28 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const env = {};
+vm.runInNewContext(fs.readFileSync('src/content/practice-record-titles.js', 'utf8'), env);
+const api = env.__xetPlayerHelperModules.practiceRecordTitles;
+const origin = 'https://app5qnhc4gj6683.pc.xiaoe-tech.com';
+const foundation = 'wb_course_6a257ff4bc978_TJWoBvwh', specialty = 'wb_course_6a662b901118b_XSoH4DU2';
+const original = '练习任务-【练习】第十讲：在线练习与逐题讲解';
+const tool = api.create(origin), row = { resourceId: foundation }, err = { sourceId: specialty };
+assert.equal(tool.resolve(row), '语法基础-第10讲 难点句型辨析');
+assert.equal(tool.resolve(err), '语法专项5');
+assert.equal(tool.resolve({ resourceId: 'wb_course_6a25803212235_V7CEFRoe' }), '语法基础-综合练习');
+assert.equal(tool.resolve({ resourceId: 'other', title: original }), '');
+assert.equal(api.create('https://other.pc.xiaoe-tech.com').resolve(row), '');
+
+const node = { nodeType: 3, data: original, isConnected: true };
+const target = { childNodes: [node], firstChild: node };
+const card = { getAttribute: () => '0', querySelector: () => target };
+const root = { querySelectorAll: () => [card] };
+tool.render(root, [row]); assert.equal(node.data, tool.resolve(row));
+tool.render(root, [row]); tool.clear(); assert.equal(node.data, original);
+tool.render(root, [row]); node.data = '原生重新渲染'; tool.render(root, [err]);
+assert.equal(node.data, '语法专项5');
+tool.render(root, [{resourceId:'unknown'}]); assert.equal(node.data, '原生重新渲染');
+target.childNodes.push({});
+tool.render(root, [row]); assert.equal(node.data, '原生重新渲染', 'Do not replace rich title markup');
+console.log('practice record titles: exact scoped IDs, known foundation and specialty mappings, native title restoration and reused card safety passed');

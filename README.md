@@ -435,7 +435,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.30.1**
+Current version: **1.30.2**
+
+1.30.2：练习历史、我的错题、题目收藏统一按精确练习 ID 显示 N3 语法标题。语法基础 10 讲和综合练习使用课程父章节名，语法专项显示「语法专项1」至「语法专项10」。未知记录保留原名，不改变链接、课程目录或网站记录，无新增请求、权限或存储。
 
 1.30.1：错题右侧统一显示「错 N 次」。已在错题本里但缺少可核实记录的题按 1 次显示；可查到的次数直接显示，不额外加 1。
 
