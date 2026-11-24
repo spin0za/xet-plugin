@@ -2,7 +2,7 @@
   const modules = (globalThis.__xetPlayerHelperModules ||= {});
   if (modules.liveEntry) return;
   function createLiveEntryController({ request = message => chrome.runtime.sendMessage(message) } = {}) {
-    const PATH = /^(?:\/p\/t_pc\/course_pc_detail\/(?:camp_pro|video|audio|document|image_text|camp|member|column|big_column)\/[\w-]+|\/detail\/l_[\w-]+\/4)\/?$/;
+    const PATH = /^\/p\/t_pc\/course_pc_detail\/(?:camp_pro|video|audio|document|image_text|camp|member|column|big_column)\/[\w-]+\/?$/;
     let started = false, installed = "", pending = false;
     const stopMain = () => window.dispatchEvent(new Event("xet:live-entry-stop"));
     async function sync() {

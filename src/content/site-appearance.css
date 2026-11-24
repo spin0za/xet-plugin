@@ -1,3 +1,7 @@
+.camp_pro_content_catalog .section_item_box[data-xet-live-entry-pending] {
+  cursor: progress;
+}
+
 .errbook-detail-page .xet-errbook-chapter-title {
   margin: 0 0 14px;
   color: inherit;

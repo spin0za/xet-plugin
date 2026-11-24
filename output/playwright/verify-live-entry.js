@@ -1,158 +1,127 @@
 async page => {
   const context = page.context(), worker = context.serviceWorkers().find(w => w.url().endsWith("/src/background.js"));
   if (!worker) throw new Error("Use a fresh isolated Chromium profile with the extension");
-  const origin = "https://live-entry-fixture.pc.xiaoe-tech.com", course = "course_fixture";
+  const origin = "https://live-entry-fixture.pc.xiaoe-tech.com", course = "course_fixture", app = "app_fixture";
   const coursePath = "/p/t_pc/course_pc_detail/camp_pro/" + course;
   const roomPath = "/p/t_pc/live_pc/pc/";
+  const detailPath = id => "/detail/l_" + id + "/4";
   const source = await context.newPage();
-  const cases = ["future", "current", "replay", "locked", "anonymous", "conditions", "phone", "password",
-    "expired", "special", "other_origin", "other_course", "free_pending", "cancel", "unsupported"];
+  const successes = ["future", "live", "replay", "learned", "free"];
+  const failures = ["guest", "locked_detail", "password", "learning", "collect", "phone", "expired", "special",
+    "teacher", "endpoint_error", "form_denied", "unknown_live", "bad_id"];
+  const rows = [...successes, ...failures, "locked_row", "slow"];
+  const documents = [], lookups = [], errors = [];
+  let testCase, slowRelease;
   const assert = (value, message) => { if (!value) throw new Error(message); };
-  const detailPath = id => "/detail/l_" + id + "/4?course_id=" + course;
-  const errors = [], arrived = [];
-  context.on("page", tab => tab.on("pageerror", error => errors.push(error.message)));
+  source.on("pageerror", error => errors.push(error.message));
   await context.route(origin + "/**", async route => {
-    const { pathname } = new URL(route.request().url());
+    const request = route.request();
+    const { pathname, searchParams } = new URL(request.url());
+    if (request.resourceType() === "document") documents.push(pathname);
     if (pathname === coursePath) {
-      return route.fulfill({ contentType: "text/html", body: `<!doctype html>
-        <div class="camp_pro_content_catalog">${cases.map(id => `<div class="section_item_box" id="${id}"><span>${id}</span></div>`).join("")}</div>
-        <script>
-          for (const row of document.querySelectorAll(".section_item_box")) {
-            const locked = row.id === "locked";
-            const vm = { $el: row, isAvailable: true, isNeedMsgCollect: false, communityId: "",
-              sectionItem: { chapter_id: "l_" + row.id, course_id: "${course}", resource_type: 4, unlock_state: locked ? 0 : 1 },
-              goToContentPage() {
-                if (this.isAvailable && this.sectionItem.unlock_state)
-                  window.open("/detail/" + this.sectionItem.chapter_id + "/4?course_id=" + this.sectionItem.course_id);
-              } };
-            row.__vue__ = vm;
-            row.addEventListener("click", () => vm.goToContentPage());
-          }
-        </script>` });
+      const items = rows.map(id => '<div class="section_item_box" id="' + id + '"><span>' + id + '</span></div>').join("");
+      return route.fulfill({ contentType: "text/html", body: '<!doctype html><div class="camp_pro_content_catalog">' + items + '</div><button id="stay">Stay here</button><script>' +
+        'const catalog = {$options:{name:"CampProCatalog"}, appId:"app_fixture", courseId:"course_fixture", userId:"u_fixture"};' +
+        'for (const row of document.querySelectorAll(".section_item_box")) {' +
+        'const vm = {$el:row,$parent:catalog,appId:catalog.appId,isAvailable:true,sectionItem:{chapter_id:"l_"+row.id,course_id:catalog.courseId,resource_type:4,unlock_state:row.id!=="locked_row"},' +
+        'goToContentPage(){window.nativeClicks=(window.nativeClicks||0)+1;if(this.sectionItem.unlock_state)window.open("/detail/"+this.sectionItem.chapter_id+"/4?course_id="+catalog.courseId)}};' +
+        'row.__vue__=vm;row.addEventListener("click",()=>vm.goToContentPage());}</script>' });
     }
     if (pathname.startsWith(roomPath)) {
-      arrived.push(pathname);
-      return route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Fixture live room</h1>" });
+      return route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Live room</h1>" });
     }
-    if (pathname === "/_alive/api/is_in_special_menu") return route.fulfill({ json: { code: 0 } });
+    if (pathname.startsWith("/detail/")) {
+      return route.fulfill({ contentType: "text/html", body: "<!doctype html><h1>Original live detail</h1><button>Enter manually</button>" });
+    }
+    assert(searchParams.get("app_id") === app && request.headers()["app-id"] === app, "Missing merchant scope");
+    lookups.push(pathname);
+    const json = data => route.fulfill({ json: { code: 0, data } });
+    const id = "l_" + testCase;
+    if (pathname === "/api/xe.goods.detail.get/2.0.0") {
+      const body = request.postDataJSON();
+      assert(body.goods_id === id && body.course_id === course && body.goods_type === 4, "Wrong detail eligibility target");
+      if (testCase === "slow") {
+        await new Promise(resolve => { slowRelease = resolve; });
+        try { await route.fulfill({ status: 503 }); } catch { /* The test aborts the request. */ }
+        return;
+      }
+      if (testCase === "endpoint_error") return route.fulfill({ status: 503 });
+      return json({ resource_id: testCase === "bad_id" ? "l_wrong" : id, is_login: testCase !== "guest",
+        available: testCase !== "locked_detail", have_password: testCase === "password" ? 1 : 0,
+        alive_status: testCase === "live" ? 1 : ["replay", "expired"].includes(testCase) ? 3 : testCase === "unknown_live" ? 2 : 0,
+        zb_start_rest_time: 4 * 86400000, payment_type: ["phone", "free"].includes(testCase) ? 1 : 2,
+        is_public: ["phone", "free"].includes(testCase) ? 1 : 0 });
+    }
+    if (pathname === "/auth/get-live-url") {
+      assert(request.method() === "GET" && searchParams.get("id") === id, "Wrong room lookup");
+      return json(testCase === "teacher" ? { is_teacher: true, link: "https://other.invalid" } : {});
+    }
+    if (pathname === "/_alive/api/is_in_special_menu") return json({ jump_live_pc_client: { [app]: testCase === "special" } });
+    if (pathname.endsWith("/get_learning_condition_state_api/1.0.0")) return json({ is_enable: ["learned", "learning"].includes(testCase) });
+    if (pathname.endsWith("/get_user_learning_condition_passed_api/1.0.0")) return json({ is_passed: testCase === "learned" });
+    if (pathname === "/information_form/get_information_formv3") {
+      assert(request.postDataJSON().bizData.user_id === "u_fixture", "Wrong information-form scope");
+      if (testCase === "replay") return route.fulfill({ json: { code: 1 } });
+      if (testCase === "form_denied") return route.fulfill({ json: { code: 4005 } });
+      return json(testCase === "collect" ? { purchase_data: { switch: true }, append_condition: { value: true },
+        user_data: { need_collect: true } } : { purchase_data: { switch: false } });
+    }
+    if (pathname === "/_alive/api/get_lookback_expire") {
+      return json({ server_time: 150, lookback_time: { expire_type: 2, expire: testCase === "expired" ? 100 : 200 } });
+    }
     if (pathname === "/_alive/bff_h5/guide_phone_config/user_info/1.0.0") {
-      return route.fulfill({ status: 503, json: { code: 1 } });
+      return json({ alive_role: 0, bind_pohone: testCase === "free",
+        bind_config: { phone_bind_switch: true, phone_bind_terminal: { pc: true }, phone_bind_config: { free_live: true } } });
     }
-    const id = pathname.match(/^\/detail\/l_(\w+)\/4$/)?.[1];
-    if (!id) return route.fulfill({ status: 404, body: "" });
-    const status = ["replay", "expired"].includes(id) ? 3 : id === "current" ? 1 : 0;
-    const target = (id === "other_origin" ? "https://not-the-merchant.invalid" : origin) + roomPath + "l_" + id +
-      "?course_id=" + (id === "other_course" ? "course_unrelated" : course) + "&source=fixture";
-    return route.fulfill({ contentType: "text/html", body: `<!doctype html>
-      <main class="detail"><div class="detail-header__wrapper">
-        <div id="detail-header-right-subr"><button class="theme-customize-bg">Enter manually</button>
-          <div class="status-wrapper"></div></div>
-      </div><button id="stay">Read details</button></main>
-      <script>
-        window.wasArmed = sessionStorage.getItem("xet:live-entry-intent") !== null;
-        window.checked = false;
-        const id = ${JSON.stringify(id)}, root = document.querySelector(".detail-header__wrapper");
-        const enterLiveRoom = async function() {
-          const old = Number(sessionStorage.getItem("fixtureGateCalls") || 0);
-          sessionStorage.setItem("fixtureGateCalls", String(old + 1));
-          if (this.infos.is_login && this.infos.available && this.learningConditionPassed &&
-              !this.isFreeLiveNeedBindPhone && id !== "unsupported") {
-            this.$funcTool.jumpTargetUrl({ url: this.liveRoomUrl, isWindowOpen: true });
-          }
-        };
-        const vm = { $el: root, $route: { params: { type: "4", id: "l_" + id } },
-          infos: { resource_id: "l_" + id, is_login: id !== "anonymous", available: true,
-            alive_status: ${status}, zb_start_rest_time: 4 * 86400000, have_password: id === "password" ? 1 : 0,
-            is_public: id === "free_pending" ? 1 : 0, payment_type: id === "free_pending" ? 1 : 2 },
-          detailInfos: { id: "l_" + id }, learningConditionPassed: false, isFreeLiveNeedBindPhone: id === "phone",
-          limitTimeLookInfo: { server_time: ${status} === 3 ? 100 : -1 }, isSpecialAliveAppId() { return id === "special"; },
-          $options: { methods: { enterLiveRoom } }, $funcTool: { jumpTargetUrl() { window.manualJump = true; } },
-          getliveRoomUrl() {}, liveRoomUrl: location.origin + "/live/l_" + id };
-        root.__vue__ = vm;
-        root.querySelector(".status-wrapper").__vue__ = { playBackValid: id !== "expired" };
-        root.querySelector("button").addEventListener("click", () => enterLiveRoom.call(vm));
-        (async () => {
-          await fetch("/_alive/api/is_in_special_menu", { method: "POST" });
-          if (id === "free_pending") await fetch("/_alive/bff_h5/guide_phone_config/user_info/1.0.0", { method: "POST" });
-          setTimeout(() => {
-            vm.liveRoomUrl = ${JSON.stringify(target)};
-            vm.learningConditionPassed = id !== "conditions";
-            window.checked = true;
-          }, id === "cancel" ? 1100 : 160);
-        })();
-      </script>` });
+    throw new Error("Unexpected fixture endpoint: " + pathname);
   });
-  const open = async (id, modifiers = []) => {
-    await source.bringToFront();
-    const [tab] = await Promise.all([
-      context.waitForEvent("page"), source.locator("#" + id + " span").click({ modifiers }),
-    ]);
-    await tab.bringToFront();
-    return tab;
-  };
   try {
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [], keepAliveEnabled: false }));
     await source.goto(origin + coursePath);
-    await source.waitForFunction(() => Boolean(window.__xetLiveEntry));
-    for (const id of ["future", "current", "replay"]) {
-      const tab = await open(id);
-      await tab.waitForURL(origin + roomPath + "l_" + id + "?**");
-      assert(await tab.evaluate(() => Number(sessionStorage.getItem("fixtureGateCalls")) === 1), "Native gate not called once: " + id);
-      assert(new URL(tab.url()).searchParams.get("source") === "fixture", "Original room URL was rebuilt");
-      assert(await tab.evaluate(() => !navigation.entries().some(entry => new URL(entry.url).pathname.startsWith("/detail/"))),
-        "Intermediate detail is still in history");
-      await tab.close();
+    async function ready() { await source.waitForFunction(() => Boolean(window.__xetLiveEntry)); }
+    await ready();
+    for (const id of [...successes, ...failures]) {
+      testCase = id;
+      const before = documents.length;
+      await source.locator("#" + id + " span").click();
+      const expected = successes.includes(id) ? roomPath + "l_" + id : detailPath(id);
+      await source.waitForURL(origin + expected + "?course_id=" + course);
+      assert(documents.slice(before).join(",") === expected, "Intermediate or extra document loaded: " + id);
+      if (!successes.includes(id)) assert(await source.evaluate(() => !window.__xetLiveEntry), "Fallback still auto-enters from detail");
+      await source.goBack();
+      await ready();
     }
-    await source.locator("#locked span").click();
-    assert(await source.evaluate(() => !sessionStorage.getItem("xet:live-entry-intent")), "Locked row was marked");
-    for (const id of ["anonymous", "conditions", "phone", "password", "expired", "special", "other_origin", "other_course", "free_pending", "unsupported"]) {
-      const tab = await open(id);
-      await tab.waitForFunction(() => window.wasArmed && window.checked && !sessionStorage.getItem("xet:live-entry-intent"));
-      // Advance the fixture's wall time so the bounded check finishes instead of waiting 8s per case.
-      if (id === "unsupported") {
-        await tab.waitForFunction(() => !window.__xetLiveEntry);
-        assert(await tab.evaluate(() => Number(sessionStorage.getItem("fixtureGateCalls")) === 1), "Native handler veto was not respected");
-      } else {
-        await tab.evaluate(() => { const started = Date.now(); Date.now = () => started + 10_000; });
-        await tab.waitForFunction(() => !window.__xetLiveEntry);
-        assert(await tab.evaluate(() => !sessionStorage.getItem("fixtureGateCalls")), "Gate ran on an ineligible route: " + id);
-      }
-      assert(tab.url() === origin + detailPath(id), "Unexpected auto-entry: " + id);
-      await tab.close();
-    }
-    const cancelled = await open("cancel");
-    await cancelled.waitForFunction(() => Boolean(window.__xetLiveEntry));
-    await cancelled.locator("#stay").click();
-    await cancelled.waitForFunction(() => window.checked);
-    assert(await cancelled.evaluate(() => !window.__xetLiveEntry && !sessionStorage.getItem("fixtureGateCalls")), "Manual interaction did not cancel the shortcut");
-    await cancelled.close();
-    const modified = await open("future", ["Control"]);
-    await modified.waitForFunction(() => window.checked);
-    assert(await modified.evaluate(() => !window.wasArmed && !sessionStorage.getItem("fixtureGateCalls")), "Modified click enabled auto-entry");
+    const count = lookups.length;
+    await source.locator("#locked_row span").click();
+    assert(await source.evaluate(() => window.nativeClicks === 1), "Site's locked-row handler was bypassed");
+    const [modified] = await Promise.all([
+      context.waitForEvent("page"), source.locator("#future span").click({ modifiers: ["Control"] }),
+    ]);
+    await modified.waitForURL(origin + detailPath("future") + "?course_id=" + course);
+    assert(lookups.length === count, "Locked or modified click made eligibility queries");
     await modified.close();
-    const direct = await context.newPage();
-    await direct.goto(origin + detailPath("future"));
-    await direct.waitForFunction(() => window.checked);
-    assert(await direct.evaluate(() => !window.wasArmed && !sessionStorage.getItem("fixtureGateCalls")), "Direct detail unexpectedly auto-entered");
-    await direct.getByRole("button", { name: "Enter manually" }).click();
-    assert(await direct.evaluate(() => window.manualJump === true), "Manual button no longer works");
-    await direct.close();
+    testCase = "slow";
+    await source.locator("#slow span").click();
+    await source.waitForFunction(() => document.querySelector("#slow").hasAttribute("data-xet-live-entry-pending"));
+    await source.locator("#stay").click();
+    await source.waitForFunction(() => !document.querySelector("#slow").hasAttribute("data-xet-live-entry-pending"));
+    slowRelease?.();
+    assert(source.url() === origin + coursePath, "Cancelled click navigated away");
     await worker.evaluate(origin => chrome.storage.local.set({ disabledSites: [origin] }), origin);
     await source.waitForFunction(() => !window.__xetLiveEntry);
-    const disabled = await open("future");
-    await disabled.waitForFunction(() => window.checked);
-    assert(await disabled.evaluate(() => !window.wasArmed && !sessionStorage.getItem("fixtureGateCalls")), "Disabled site still auto-enters");
+    const [disabled] = await Promise.all([context.waitForEvent("page"), source.locator("#future span").click()]);
+    await disabled.waitForURL(origin + detailPath("future") + "?course_id=" + course);
     await disabled.close();
-    await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
-    await source.waitForFunction(() => Boolean(window.__xetLiveEntry));
-    assert(arrived.join(",") === ["future", "current", "replay"].map(id => roomPath + "l_" + id).join(","), "Extra room navigation");
+    const queried = lookups.length;
+    await source.goto(origin + detailPath("replay") + "?course_id=" + course);
+    assert(await source.evaluate(() => !window.__xetLiveEntry) && lookups.length === queried,
+      "Directly visited detail triggered auto-navigation or eligibility checks");
     assert(errors.length === 0, errors.join("; "));
-    return { passed: true, cases: cases.length, joined: arrived.length, nativeChecksAndFallbacks: true };
+    return { passed: true, noIntermediateDocument: successes, nativeFallbacks: failures.length, sameTabBack: true };
   } finally {
+    slowRelease?.();
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
-    for (const tab of context.pages()) {
-      if (tab === source || tab.url().startsWith(origin + "/")) await tab.close();
-    }
+    await source.close();
     await context.unroute(origin + "/**");
   }
 }
