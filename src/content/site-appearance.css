@@ -34,6 +34,11 @@
   html[data-xet-night-page] #common_template_mounted_el_container > #app {
     background-color: var(--xet-night-page) !important;
   }
+  /* The answer page's v-loading directive draws its own opaque white mask. */
+  html[data-xet-night-page="evaluation"] :is(.practice-answer-page, .exam-answer-page) .ss-loading-mask {
+    background-color: var(--xet-night-page) !important;
+    color: var(--xet-night-text) !important;
+  }
 
   html[data-xet-night-page] :is(
     .base-layout__header, .analysis-base-layout__header, .analysis-base-layout__title,
@@ -421,11 +426,13 @@
 
   html[data-xet-night-video="soft"] { --xet-video-brightness: .85; }
   html[data-xet-night-video="extra"] { --xet-video-brightness: .70; }
-  /* A pixel-only filter (equivalent to black at 15%/30%). Do not filter
-     the player wrapper, posters rendered separately, or native controls/cues. */
+  /* Be consistent before and after Play. Only filter picture layers, not
+     the player wrapper, sibling controls, or the browser's native controls/cues. */
   html[data-xet-night-video]:is(:not([data-xet-night-frame]), [data-xet-analysis-embed])
     :is(xg-player, .xgplayer, .xgplayer-skin-default, .pc-live-player)
-    video:not([controls], :has(track:is([kind="captions" i], [kind="subtitles" i], :not([kind])))) {
+    video:not([controls], :has(track:is([kind="captions" i], [kind="subtitles" i], :not([kind])))),
+  html[data-xet-night-video]:is(:not([data-xet-night-frame]), [data-xet-analysis-embed])
+    :is(xg-player, .xgplayer, .xgplayer-skin-default):has(video) .xgplayer-poster {
     filter: brightness(var(--xet-video-brightness)) !important;
   }
 }

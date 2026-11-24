@@ -12,8 +12,10 @@ async (page) => {
   const makePlayer = (root = "xgplayer") => `
     <div class="${root}" style="background:#000;color:#fff">
       <video id="picture" width="200" height="110" muted playsinline></video>
+      <xg-poster id="poster" class="xgplayer-poster" style="background:white;display:block;width:80px;height:40px"></xg-poster>
       <div id="captions">Player caption</div><button id="controls" type="button">Play</button>
     </div>`;
+  const answerLoader = '<div class="practice-answer-page no-theme"><div class="ss-loading-mask" style="background-color:#fff"><div class="ss-loading-spinner">•••</div></div></div>';
   const card = `
     <aside class="all-questions-card analysis-card">
       <div class="collapsible-card">
@@ -151,11 +153,20 @@ async (page) => {
     document.documentElement.hasAttribute("data-xet-night-page") === value, expected);
   const pageKind = (expected) => test.waitForFunction(value =>
     document.documentElement.getAttribute("data-xet-night-page") === value, expected);
-  const brightness = (target, expected) => target.waitForFunction(value =>
-    getComputedStyle(document.querySelector("#picture")).filter === value, expected);
+  const brightness = async (target, expected, id = "picture") => {
+    try {
+      await target.waitForFunction(({ expected, id }) =>
+        getComputedStyle(document.getElementById(id)).filter === expected, { expected, id }, { polling: 50 });
+    } catch (error) {
+      const actual = await target.locator("#" + id).evaluate(el => getComputedStyle(el).filter);
+      throw new Error(`${target.url()} #${id} expected ${expected}, got ${actual}: ${error.message}`);
+    }
+  };
   const color = (locator, property = "backgroundColor") =>
     locator.evaluate((el, name) => getComputedStyle(el)[name], property);
 
+  let finishParser;
+  const parserGate = new Promise(resolve => { finishParser = resolve; });
   try {
     await test.route(merchantWordmark, route => route.fulfill({ contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="23" cy="20" r="13" fill="#ac7bea"/><rect x="51" y="14" width="70" height="12" fill="#000"/></svg>',
@@ -163,6 +174,10 @@ async (page) => {
     await test.route(`${origin}/**`, async route => {
       if (route.request().method() !== "GET") return route.fulfill({ json: { code: 0, data: {} } });
       const path = new URL(route.request().url()).pathname;
+      if (path === "/parser-gate.js") {
+        await parserGate;
+        return route.fulfill({ contentType: "application/javascript", body: "" });
+      }
       let body = '<div id="untouched">Original page</div>';
       if (path.includes("/practice_record")) body = `
         <div class="base-layout"><header class="base-layout__header">Records</header>
@@ -179,6 +194,8 @@ async (page) => {
           <div class="question-card"><span class="xet-wrong-count">1 wrong</span>Question</div>
         </main></div>`);
       else if (/\/question_collect\/[^/]+$/.test(path)) body = '<main class="collect-catalog-page"><section class="collect-catalog-card">Favorites</section></main>';
+      else if (path.includes("/errbook/practice/")) body = app(answerLoader + question + makePlayer() +
+        (path.endsWith("/slow") ? '<script src="/parser-gate.js"></script>' : ""));
       else if (path.includes("/practice_result/")) body = '<div class="practice-result">Result</div>';
       else if (path.includes("/practice_analysis/")) body = question + makePlayer() + `
         <img id="illustration" alt="Illustration" width="48" height="30"
@@ -210,6 +227,25 @@ async (page) => {
     await pageMode(true);
     assert(await color(test.locator(".resource-card")) === "rgb(36, 42, 52)", "Record card was not recolored");
     assert(await color(test.locator(".resource-card__title"), "color") === "rgb(232, 237, 244)", "Record title contrast");
+    await test.goto(origin + evalPath + "errbook/practice/slow?readonly=1", { waitUntil: "commit" });
+    await test.bringToFront();
+    await pageKind("evaluation");
+    const loadingMask = test.locator(".ss-loading-mask");
+    const maskColor = () => color(loadingMask);
+    assert(await test.evaluate(() => document.readyState) === "loading", "Parser gate did not delay document_idle");
+    assert(await maskColor() === "rgb(20, 23, 28)" && await color(test.locator("html")) === "rgb(20, 23, 28)", "Initial errbook loader flashed white");
+    await brightness(test, "brightness(0.7)", "poster");
+    await settings({ disabledSites: [origin] });
+    await pageMode(false);
+    assert(await maskColor() === "rgb(255, 255, 255)", "Early theme ignored site disable");
+    await settings({ disabledSites: [], siteAppearance: "light" });
+    await test.emulateMedia({ colorScheme: "dark" });
+    assert(await maskColor() === "rgb(255, 255, 255)", "Early theme ignored explicit light");
+    await settings({ siteAppearance: "dark" });
+    await pageMode(true);
+    finishParser();
+    await test.waitForLoadState("load");
+    assert(await maskColor() === "rgb(20, 23, 28)", "Theme handoff cleared the loader color");
     for (const [path, selector] of [
       ["practice_record?tab=0", ".practice-record-page"],
       ["practice_record?tab=2&subTab=1", ".practice-record-page"],
@@ -281,13 +317,14 @@ async (page) => {
     const media = test.frames().find(frame => frame.url() === embed + "/player");
     const unrelated = test.frames().find(frame => frame.url() === embed + "/unrelated");
     await brightness(media, "brightness(0.7)");
+    await brightness(media, "brightness(0.7)", "poster");
     assert(await color(unrelated.locator("#picture"), "filter") === "none", "Unrelated frame was filtered");
+    assert(await color(unrelated.locator("#poster"), "filter") === "none", "Unrelated poster was filtered");
     for (const id of ["controls", "captions", "native", "with-track", "illustration"]) {
       assert(await color(test.locator("#" + id), "filter") === "none", `Unintended filter on ${id}`);
     }
-    await test.evaluate(() => window.startPicture());
-    const renderedPixel = async () => {
-      const png = (await test.locator("#picture").screenshot()).toString("base64");
+    const renderedPixel = async (id = "picture") => {
+      const png = (await test.locator("#" + id).screenshot()).toString("base64");
       return test.evaluate(async data => {
         const raster = await createImageBitmap(await (await fetch("data:image/png;base64," + data)).blob());
         const canvas = document.createElement("canvas");
@@ -298,11 +335,15 @@ async (page) => {
         return Array.from(context.getImageData(raster.width >> 1, raster.height >> 1, 1, 1).data);
       }, png);
     };
+    const posterPixel = await renderedPixel("poster");
+    assert(posterPixel.slice(0, 3).every(value => Math.abs(value - 179) <= 2), "The paused poster was not dimmed to 70%");
+    await test.evaluate(() => window.startPicture());
     const extraPixel = await renderedPixel();
     assert(extraPixel.slice(0, 3).every(value => Math.abs(value - 179) <= 2), "Default on-screen white was not dimmed to 70%");
     await dim.selectOption("soft");
     await brightness(test, "brightness(0.85)");
     await brightness(media, "brightness(0.85)");
+    await brightness(media, "brightness(0.85)", "poster");
     const softPixel = await renderedPixel();
     assert(softPixel.slice(0, 3).every(value => Math.abs(value - 217) <= 2), "On-screen white was not softened to 85%");
     const pixel = await test.locator("#picture").evaluate(video => {
@@ -318,11 +359,13 @@ async (page) => {
     await dim.selectOption("off");
     await brightness(test, "none");
     await brightness(media, "none");
+    await brightness(media, "none", "poster");
     await dim.selectOption("soft");
     await brightness(test, "brightness(0.85)");
     await theme.selectOption("light");
     await pageMode(false);
     await brightness(test, "none");
+    await brightness(test, "none", "poster");
     assert(await test.evaluate(() => controlsClicked) === 1, "Changing appearance reloaded the document");
     assert((await toolbarIcons.evaluateAll(nodes => nodes.every(el => getComputedStyle(el).filter === "none"))), "Light mode still brightens native toolbar icons");
     await test.emulateMedia({ colorScheme: "dark" });
@@ -406,7 +449,7 @@ async (page) => {
     await popup.reload();
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
     return { recordTabs: true, errbookAndCollection: true, practiceAndAnalysis: true, cardGeometry,
-      originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel },
+      originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel, poster: posterPixel }, earlyErrbookLoader: true,
       crossOriginEmbed: true, liveAndCourseVideo: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
@@ -414,6 +457,7 @@ async (page) => {
   } catch (error) {
     throw new Error(`Appearance regression at ${test.url()}: ${error.message}`);
   } finally {
+    finishParser();
     await settings({ siteAppearance: "system", disabledSites: [] });
     await worker.evaluate(() => chrome.storage.local.remove("nightVideoBrightness"));
     await popup.close();

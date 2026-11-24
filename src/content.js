@@ -3,7 +3,6 @@
   const INSTANCE_KEY = "__xetUltraQualityInstance";
   const modules = globalThis.__xetPlayerHelperModules;
   const siteAccess = globalThis.XetSiteAccess;
-
   if (
     !siteAccess ||
     !modules?.playerDom ||
@@ -100,8 +99,9 @@
   const textSelection = modules.textSelection.createTextSelectionController();
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
+  const siteAppearance = modules.siteAppearance.createSiteAppearanceController();
   const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
-    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), modules.siteAppearance.createSiteAppearanceController()];
+    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), siteAppearance];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -143,7 +143,7 @@
     }
   }
   function stopFeatures() {
-    if (!featuresStarted) return;
+    if (!featuresStarted) return siteAppearance.stop(); // The theme can start before the other features.
     featuresStarted = false;
 
     const player = modules.playerDom.findActivePlayer();

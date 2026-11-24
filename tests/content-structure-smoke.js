@@ -47,7 +47,14 @@ const expectedScripts = [
 assert.deepEqual(registration.js, expectedScripts);
 assert.deepEqual(registration.css, ["src/content/fullscreen.css", "src/content/download.css", "src/content/analysis-actions.css", "src/content/analysis-scroll.css", "src/content/answer-card.css", "src/content/practice-undo.css", "src/content/practice-history.css", "src/content/live-chat.css", "src/content/site-appearance.css"]);
 
-for (const path of [...registration.js, ...registration.css]) {
+const themeStartup = manifest.content_scripts[1];
+assert.equal(registration.run_at, "document_idle");
+assert.equal(themeStartup.run_at, "document_start");
+assert.notEqual(themeStartup.all_frames, true);
+assert.deepEqual(themeStartup.matches, registration.matches.map(match => match.replace(/\*$/, "p/t_pc/pc_evaluation/*")));
+assert.deepEqual(themeStartup.js, ["src/site-access.js", "src/content/site-appearance.js", "src/content/site-appearance-start.js"]);
+
+for (const path of [...registration.js, ...registration.css, ...themeStartup.js]) {
   assert.ok(fs.existsSync(path), `${path} should exist`);
 }
 

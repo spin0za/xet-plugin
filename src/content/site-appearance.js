@@ -12,11 +12,14 @@
   const normalizeAppearance = (value) => value === "light" || value === "dark" ? value : "system";
   const normalizeBrightness = (value) => value === "off" || value === "soft" ? value : defaults.nightVideoBrightness;
 
-  function createSiteAppearanceController() {
+  let earlyController;
+
+  function makeController(useLocalSitePolicy = false) {
     const root = document.documentElement;
     const system = matchMedia("(prefers-color-scheme: dark)");
     const top = window.top === window;
-    let settings = defaults;
+    const keys = useLocalSitePolicy ? { ...defaults, disabledSites: null, disabledHosts: [] } : defaults;
+    let settings = keys;
     let active = false;
     let loaded = false;
     let revision = 0;
@@ -28,38 +31,41 @@
     }
 
     function apply() {
-      const dark = active && loaded && (settings.siteAppearance === "dark" ||
-        (settings.siteAppearance === "system" && system.matches));
+      const allowed = !useLocalSitePolicy || !globalThis.XetSiteAccess.normalizeDisabledSites(
+        settings.disabledSites, settings.disabledHosts,
+      ).includes(location.origin);
+      const appearance = normalizeAppearance(settings.siteAppearance);
+      const brightness = normalizeBrightness(settings.nightVideoBrightness);
+      const dark = active && loaded && allowed && (appearance === "dark" ||
+        (appearance === "system" && system.matches));
       const route = top && dark ? routeType(location.pathname) : "";
       setAttribute(PAGE, route);
       // Embedded pages paint only when the existing analysis handshake marks
       // them as explanation players. The CSS also requires a real video.
-      const dim = dark && (!top || route === "evaluation" || VIDEO.test(location.pathname)) &&
-        settings.nightVideoBrightness !== "off";
+      const dim = dark && (!top || route === "evaluation" || VIDEO.test(location.pathname)) && brightness !== "off";
       setAttribute("data-xet-night-frame", dim && !top ? "true" : "");
-      setAttribute(DIM, dim ? settings.nightVideoBrightness : "");
+      setAttribute(DIM, dim ? brightness : "");
     }
 
     function storageChanged(changes, area) {
       if (!active || area !== "local") return;
-      if (!changes.siteAppearance && !changes.nightVideoBrightness) return;
-      if (!loaded && changes.siteAppearance) pendingChanges.add("siteAppearance");
-      if (!loaded && changes.nightVideoBrightness) pendingChanges.add("nightVideoBrightness");
-      settings = {
-        siteAppearance: changes.siteAppearance ? normalizeAppearance(changes.siteAppearance.newValue) : settings.siteAppearance,
-        nightVideoBrightness: changes.nightVideoBrightness ? normalizeBrightness(changes.nightVideoBrightness.newValue) : settings.nightVideoBrightness,
-      };
+      const changed = Object.keys(keys).filter(key => Object.hasOwn(changes, key));
+      if (!changed.length) return;
+      const next = { ...settings };
+      for (const key of changed) {
+        if (!loaded) pendingChanges.add(key);
+        next[key] = changes[key].newValue;
+      }
+      settings = next;
       apply();
     }
 
     async function readSettings(currentRevision) {
       try {
-        const stored = await chrome.storage.local.get(defaults);
+        const stored = await chrome.storage.local.get(keys);
         if (!active || revision !== currentRevision) return;
-        settings = {
-          siteAppearance: pendingChanges.has("siteAppearance") ? settings.siteAppearance : normalizeAppearance(stored.siteAppearance),
-          nightVideoBrightness: pendingChanges.has("nightVideoBrightness") ? settings.nightVideoBrightness : normalizeBrightness(stored.nightVideoBrightness),
-        };
+        for (const key of pendingChanges) stored[key] = settings[key];
+        settings = stored;
         loaded = true;
         apply();
       } catch {
@@ -71,7 +77,7 @@
       if (active) return;
       active = true;
       loaded = false;
-      settings = defaults;
+      settings = keys;
       pendingChanges.clear();
       system.addEventListener("change", apply);
       window.navigation?.addEventListener("currententrychange", apply);
@@ -95,5 +101,15 @@
     return Object.freeze({ start, stop });
   }
 
-  modules.siteAppearance = Object.freeze({ defaults, normalizeAppearance, normalizeBrightness, routeType, createSiteAppearanceController });
+  function startEarly() {
+    if (window.top !== window || !document.documentElement || !globalThis.XetSiteAccess) return;
+    earlyController ??= makeController(true);
+    earlyController.start();
+  }
+
+  function createSiteAppearanceController() {
+    return earlyController || makeController();
+  }
+
+  modules.siteAppearance = Object.freeze({ defaults, normalizeAppearance, normalizeBrightness, routeType, createSiteAppearanceController, startEarly });
 })();
