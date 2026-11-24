@@ -11,7 +11,7 @@
     !modules.analysisActions ||
     !modules.practiceMarks ||
     !modules.practiceHistory ||
-    !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation || !modules.liveCountdown || !modules.liveChat || !modules.liveLine ||
+    !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation || !modules.liveCountdown || !modules.liveEntry || !modules.liveChat || !modules.liveLine ||
     !modules.pageTitle ||
     !modules.textSelection ||
     !modules.questionTypography ||
@@ -101,7 +101,7 @@
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const siteAppearance = modules.siteAppearance.createSiteAppearanceController();
   const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
-    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), siteAppearance];
+    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveEntry.createLiveEntryController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), siteAppearance];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,

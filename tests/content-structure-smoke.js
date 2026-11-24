@@ -25,6 +25,7 @@ const expectedScripts = [
   "src/content/practice-undo.js",
   "src/content/course-progress.js",
   "src/content/live-countdown.js",
+  "src/content/live-entry.js",
   "src/content/live-line.js",
   "src/content/live-chat.js",
   "src/content/video-navigation.js",

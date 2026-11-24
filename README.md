@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.14**
+Current version: **1.32.15**
+
+1.32.15：已登录时，从课程目录点击可进入的直播或回看，会在原站打开的标签页自动进入。未开播也可进入原站允许的等候区；权限、绑定及回看期限仍由原站检查。
 
 1.32.14：补齐直播详情页的夜间配色，包括直播信息、详情和课堂互动、店铺卡片及相关频道，保留原有直播与回看入口。
 
