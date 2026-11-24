@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "119",
   "name": "小鹅通播放助手",
-  "version": "1.32.6",
+  "version": "1.32.7",
   "description": "默认选择小鹅通视频可用的最高画质，可设默认最大音量与直播线路，提供播放快捷键、原始帧截图，并可无界面保持登录。",
   "icons": {
     "16": "icons/icon-16.png",
@@ -110,11 +110,11 @@
     },
     {
       "matches": [
-        "https://*.xiaoe-tech.com/p/t_pc/pc_evaluation/*",
-        "https://*.xiaoeknow.com/p/t_pc/pc_evaluation/*",
-        "https://*.eapps.cn/p/t_pc/pc_evaluation/*",
-        "https://*.xet-pc.citv.cn/p/t_pc/pc_evaluation/*",
-        "https://*.xet.pomoho.com/p/t_pc/pc_evaluation/*"
+        "https://*.xiaoe-tech.com/*",
+        "https://*.xiaoeknow.com/*",
+        "https://*.eapps.cn/*",
+        "https://*.xet-pc.citv.cn/*",
+        "https://*.xet.pomoho.com/*"
       ],
       "js": ["src/site-access.js", "src/content/site-appearance.js", "src/content/site-appearance-start.js"],
       "run_at": "document_start"

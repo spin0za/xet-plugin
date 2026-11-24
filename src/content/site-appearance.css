@@ -34,10 +34,25 @@
   html[data-xet-night-page] #common_template_mounted_el_container > #app {
     background-color: var(--xet-night-page) !important;
   }
-  /* The answer page's v-loading directive draws its own opaque white mask. */
-  html[data-xet-night-page="evaluation"] :is(.practice-answer-page, .exam-answer-page) .ss-loading-mask {
+  /* The shared widgets can paint either a local panel or a full viewport,
+     sometimes attaching directly to body, outside the current route's markup. */
+  html[data-xet-night-page] :is(.ss-loading-mask, .global-widget-loading) {
     background-color: var(--xet-night-page) !important;
     color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] :is(.catalog_box .ss-loading-mask:not(.is-fullscreen), .global-widget-loading.part-loading) {
+    background-color: var(--xet-night-panel) !important;
+  }
+  html[data-xet-night-page] .el-loading-mask {
+    background-color: color-mix(in srgb, var(--xet-night-page) 90%, transparent) !important;
+  }
+  /* Both three-dot GIFs have an opaque white canvas. Invert only these
+     assets, then screen out their black canvas against the dark mask.
+     Hue rotation keeps the dots cool-toned and preserves the native timing. */
+  html[data-xet-night-page] :is(.ss-loading-mask, .global-widget-loading, .el-loading-mask)
+    img:is([src$="/l00v4o2p0xx4.gif"], [src$="/lods3xen0exo.gif"]) {
+    filter: invert(1) hue-rotate(180deg);
+    mix-blend-mode: screen;
   }
 
   html[data-xet-night-page] :is(

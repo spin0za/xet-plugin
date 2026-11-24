@@ -165,8 +165,19 @@ async (page) => {
   const color = (locator, property = "backgroundColor") =>
     locator.evaluate((el, name) => getComputedStyle(el)[name], property);
 
-  let finishParser;
-  const parserGate = new Promise(resolve => { finishParser = resolve; });
+  const gates = new Map();
+  const holdParser = (name) => {
+    let finish;
+    const waiting = new Promise(resolve => { finish = resolve; });
+    gates.set(`/parser-gate-${name}.js`, { waiting, finish });
+    return `<script src="/parser-gate-${name}.js"></script>`;
+  };
+  const answerGate = holdParser("answer");
+  const courseGate = holdParser("course");
+  const storeGate = holdParser("store");
+  const studioGif = "/l00v4o2p0xx4.gif";
+  const courseGif = "/lods3xen0exo.gif";
+  const loadGraphic = `<img class="fixture-spinner" src="${studioGif}" width="64" height="32" alt="">`;
   try {
     await test.route(merchantWordmark, route => route.fulfill({ contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="23" cy="20" r="13" fill="#ac7bea"/><rect x="51" y="14" width="70" height="12" fill="#000"/></svg>',
@@ -174,12 +185,20 @@ async (page) => {
     await test.route(`${origin}/**`, async route => {
       if (route.request().method() !== "GET") return route.fulfill({ json: { code: 0, data: {} } });
       const path = new URL(route.request().url()).pathname;
-      if (path === "/parser-gate.js") {
-        await parserGate;
+      if (gates.has(path)) {
+        await gates.get(path).waiting;
         return route.fulfill({ contentType: "application/javascript", body: "" });
       }
+      if (path === studioGif || path === courseGif) return route.fulfill({ contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 32"><rect width="64" height="32" fill="white"/><circle cx="32" cy="16" r="4" fill="#1472ff"/></svg>',
+      });
       let body = '<div id="untouched">Original page</div>';
-      if (path.includes("/practice_record")) body = `
+      if (path === "/store-loading") body = `
+        <div class="global-widget-loading full-loading" style="background:white">${loadGraphic}</div>
+        <div class="global-widget-loading part-loading" style="background:white"></div>
+        <div class="el-loading-mask" style="background:white"></div>
+        <div id="unrelated-background" style="background:white">Site content outside the load overlay</div>${storeGate}`;
+      else if (path.includes("/practice_record")) body = `
         <div class="base-layout"><header class="base-layout__header">Records</header>
           <section class="practice-record-page">
             <button class="sub-tab-item active">Practice</button>
@@ -195,7 +214,7 @@ async (page) => {
         </main></div>`);
       else if (/\/question_collect\/[^/]+$/.test(path)) body = '<main class="collect-catalog-page"><section class="collect-catalog-card">Favorites</section></main>';
       else if (path.includes("/errbook/practice/")) body = app(answerLoader + question + makePlayer() +
-        (path.endsWith("/slow") ? '<script src="/parser-gate.js"></script>' : ""));
+        (path.endsWith("/slow") ? answerGate : ""));
       else if (path.includes("/practice_result/")) body = '<div class="practice-result">Result</div>';
       else if (path.includes("/practice_analysis/")) body = question + makePlayer() + `
         <img id="illustration" alt="Illustration" width="48" height="30"
@@ -205,6 +224,10 @@ async (page) => {
         <iframe class="xiaoe-iframe-video" src="${embed}/player"></iframe>
         <iframe id="unrelated" src="${embed}/unrelated"></iframe>`;
       else if (path.startsWith(evalPath)) body = question;
+      else if (path === "/p/t_pc/course_pc_detail/camp_pro/slow") body = app(course.replace('<div class="catalog_box">', `
+        <div class="catalog_box"><div class="ss-loading-mask s391" style="background:white">
+          <div class="ss-loading-spinner s391">${loadGraphic}</div></div>`)) +
+        `<style>.ss-loading-spinner img.fixture-spinner{content:url('${courseGif}')}</style>${courseGate}`;
       else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? makePlayer() : ""));
       else if (path.includes("/live_pc/pc/")) body = makePlayer("pc-live-player");
       else if (["/", "/bought", "/search"].includes(path)) body = store;
@@ -243,9 +266,32 @@ async (page) => {
     assert(await maskColor() === "rgb(255, 255, 255)", "Early theme ignored explicit light");
     await settings({ siteAppearance: "dark" });
     await pageMode(true);
-    finishParser();
+    gates.get("/parser-gate-answer.js").finish();
     await test.waitForLoadState("load");
     assert(await maskColor() === "rgb(20, 23, 28)", "Theme handoff cleared the loader color");
+    for (const { name, path, kind, selector, surface } of [
+      { name: "course", path: "/p/t_pc/course_pc_detail/camp_pro/slow", kind: "course", selector: ".catalog_box .ss-loading-mask", surface: "rgb(28, 33, 41)" },
+      { name: "store", path: "/store-loading", kind: "site", selector: ".global-widget-loading.full-loading", surface: "rgb(20, 23, 28)" },
+    ]) {
+      await test.goto(origin + path, { waitUntil: "commit" });
+      await pageKind(kind);
+      const mask = test.locator(selector), graphic = mask.locator(".fixture-spinner");
+      assert(await test.evaluate(() => document.readyState) === "loading", `Parser gate inactive for ${name}`);
+      assert(await color(mask) === surface && await color(graphic, "mixBlendMode") === "screen", `${name} overlay or GIF still has a white background`);
+      if (name === "store") {
+        assert(await color(test.locator(".global-widget-loading.part-loading")) === "rgb(28, 33, 41)", "Inline shared loader is not dark");
+        assert(await color(test.locator(".el-loading-mask")) !== "rgb(255, 255, 255)", "Element loading mask is not dark");
+        assert(await color(test.locator("#unrelated-background")) === "rgb(255, 255, 255)", "Unrelated content was recolored");
+      }
+      await settings({ siteAppearance: "light" });
+      await pageMode(false);
+      assert(await color(mask) === "rgb(255, 255, 255)" && await color(graphic, "filter") === "none", "Light loading appearance was not preserved");
+      await settings({ siteAppearance: "dark" });
+      await pageMode(true);
+      gates.get(`/parser-gate-${name}.js`).finish();
+      await test.waitForLoadState("load");
+      assert(await color(mask) === surface, `Theme handoff changed the ${name} loader`);
+    }
     for (const [path, selector] of [
       ["practice_record?tab=0", ".practice-record-page"],
       ["practice_record?tab=2&subTab=1", ".practice-record-page"],
@@ -449,7 +495,7 @@ async (page) => {
     await popup.reload();
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
     return { recordTabs: true, errbookAndCollection: true, practiceAndAnalysis: true, cardGeometry,
-      originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel, poster: posterPixel }, earlyErrbookLoader: true,
+      originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel, poster: posterPixel }, earlyErrbookLoader: true, sharedAndCatalogLoaders: true,
       crossOriginEmbed: true, liveAndCourseVideo: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
@@ -457,7 +503,7 @@ async (page) => {
   } catch (error) {
     throw new Error(`Appearance regression at ${test.url()}: ${error.message}`);
   } finally {
-    finishParser();
+    for (const gate of gates.values()) gate.finish();
     await settings({ siteAppearance: "system", disabledSites: [] });
     await worker.evaluate(() => chrome.storage.local.remove("nightVideoBrightness"));
     await popup.close();

@@ -51,7 +51,7 @@ const themeStartup = manifest.content_scripts[1];
 assert.equal(registration.run_at, "document_idle");
 assert.equal(themeStartup.run_at, "document_start");
 assert.notEqual(themeStartup.all_frames, true);
-assert.deepEqual(themeStartup.matches, registration.matches.map(match => match.replace(/\*$/, "p/t_pc/pc_evaluation/*")));
+assert.deepEqual(themeStartup.matches, registration.matches);
 assert.deepEqual(themeStartup.js, ["src/site-access.js", "src/content/site-appearance.js", "src/content/site-appearance-start.js"]);
 
 for (const path of [...registration.js, ...registration.css, ...themeStartup.js]) {
