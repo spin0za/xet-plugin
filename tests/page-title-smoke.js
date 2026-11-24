@@ -1,18 +1,33 @@
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const vm = require("node:vm");
+const merchant = "https://app5qnhc4gj6683.pc.xiaoe-tech.com";
+const chapterSearch = "?tab=1&source_id=wb_course_6a004ffa16264_oKS46nO3";
 
 function fixture({ title = "", header = null, embedded = false,
-  pathname = "/p/t_pc/pc_evaluation/errbook/detail/42", search = "?tab=1", recordReady = false } = {}) {
+  pathname = "/p/t_pc/pc_evaluation/errbook/detail/42", search = "?tab=1", origin = merchant, recordReady = false } = {}) {
   const listeners = new Map(), navigationListeners = new Map();
   let observer, interval, disconnected = false;
+  const makeHeader = () => ({
+    nextElementSibling: null,
+    after(node) { node.remove(); this.nextElementSibling = node; node.parent = this; },
+  });
+  let headerElement = makeHeader();
   const document = { title, documentElement: {},
+    createElement(tag) {
+      assert.equal(tag, "h1");
+      return { textContent: "", remove() {
+        if (this.parent?.nextElementSibling === this) this.parent.nextElementSibling = null;
+        this.parent = null;
+      } };
+    },
     querySelector(selector) {
       if (selector === ".practice-record-page") return recordReady ? {} : null;
+      if (selector === ".errbook-detail-page .page-header") return header === null ? null : headerElement;
       assert.equal(selector, ".errbook-detail-page .page-header .back-btn span");
       return header === null ? null : { textContent: header };
     } };
-  const location = { pathname, search };
+  const location = { pathname, search, origin };
   const window = { addEventListener: (name, callback) => listeners.set(name, callback),
     removeEventListener: name => listeners.delete(name),
     navigation: { addEventListener: (name, callback) => navigationListeners.set(name, callback),
@@ -25,11 +40,15 @@ function fixture({ title = "", header = null, embedded = false,
     },
     setInterval(callback) { interval = callback; return 1; }, clearInterval() { interval = null; },
   };
-  vm.runInNewContext(fs.readFileSync("src/content/page-title.js", "utf8"), context);
+  for (const file of ["practice-record-titles.js", "page-title.js"]) {
+    vm.runInNewContext(fs.readFileSync(`src/content/${file}`, "utf8"), context);
+  }
   const controller = context.__xetPlayerHelperModules.pageTitle.createPageTitleController();
   const mutate = () => observer?.([{ target: { closest: () => true }, addedNodes: [], removedNodes: [] }]);
   return { controller, document, location, listeners, navigationListeners,
     setHeader(text) { header = text; mutate(); }, mutate, tick: () => interval?.(),
+    replaceHeader() { headerElement = makeHeader(); mutate(); },
+    chapter: () => headerElement.nextElementSibling,
     setRecordReady(value) { recordReady = value; mutate(); },
     disconnected: () => disconnected };
 }
@@ -110,6 +129,28 @@ async function main() {
     const f = fixture({ pathname: reviewPath, search: reviewSearch, ...options });
     f.controller.start(); assert.equal(f.document.title, ""); f.controller.stop();
   }
-  console.log("page titles: DOM extraction, read-only error review, navigation, site resets and cleanup passed");
+  // Scope chapter labels by the real exercise ID and merchant, not generic exercise text.
+  { const f = fixture({ search: chapterSearch });
+    f.controller.start(); assert.equal(f.chapter(), null);
+    f.setHeader("我的错题"); await flush();
+    const heading = f.chapter();
+    assert.equal(heading.textContent, "语法基础-第4讲 自动词和他动词");
+    assert.equal(f.document.title, "我的错题", "The browser tab title is unchanged");
+    f.replaceHeader(); await flush(); assert.equal(f.chapter(), heading);
+    f.location.search = "?tab=1&source_id=wb_course_6a662b901118b_XSoH4DU2";
+    f.navigationListeners.get("currententrychange")(); await flush();
+    assert.equal(f.chapter().textContent, "语法专项5");
+    f.location.search = "?tab=1&source_id=unknown";
+    f.navigationListeners.get("currententrychange")(); await flush(); assert.equal(f.chapter(), null);
+    f.location.search = chapterSearch;
+    f.listeners.get("popstate")(); await flush(); assert.ok(f.chapter());
+    f.location.pathname = reviewPath;
+    f.navigationListeners.get("currententrychange")(); await flush(); assert.equal(f.chapter(), null);
+    f.location.pathname = "/p/t_pc/pc_evaluation/errbook/detail/42";
+    f.listeners.get("popstate")(); await flush(); assert.ok(f.chapter());
+    f.controller.stop(); assert.equal(f.chapter(), null); }
+  { const f = fixture({ header: "我的错题", search: chapterSearch, origin: "https://other.pc.xiaoe-tech.com" });
+    f.controller.start(); assert.equal(f.chapter(), null); f.controller.stop(); }
+  console.log("page titles: DOM extraction, read-only review, exact chapter headings, navigation and cleanup passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.7**
+Current version: **1.32.8**
+
+1.32.8：在「我的错题」下方显示已核对的课程章节名，与练习记录使用同一套标题，未知章节不猜测。
 
 1.32.7：小鹅通主页面从加载阶段就应用夜间配色。课程目录、错题本等使用的共用整页和局部加载遮罩适配深色，并去除两款原站三点动画自带的白底；浅色模式保持原样。
 

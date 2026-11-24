@@ -1,3 +1,12 @@
+.errbook-detail-page .xet-errbook-chapter-title {
+  margin: 0 0 14px;
+  color: inherit;
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 /* Opt-in colors only. Never invert the document or touch its layout. Use
    named component surfaces so images, PDFs and playback controls stay intact. */
 @media (forced-colors: none) {
