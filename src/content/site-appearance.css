@@ -254,6 +254,30 @@
     background-color: var(--xet-night-control-border) !important;
     border-radius: 4px;
   }
+  /* This exact transparent wordmark has a gap at 30% between the avatar
+     and lettering. Compose its dark variant from two clipped copies so
+     the avatar pixels and text outlines stay identical to the original. */
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty[style*="/lqdwwom4sim5pa.png"] {
+    --xet-original-wordmark: url("https://wechatapppro-1252524126.cdn.xiaoeknow.com/app5qnhc4gj6683/image/b_u_ctbq1iq3g3b370c2nrl0/lqdwwom4sim5pa.png");
+    position: relative;
+    background-color: transparent !important;
+    background-image: none !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty[style*="/lqdwwom4sim5pa.png"]::before,
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty[style*="/lqdwwom4sim5pa.png"]::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--xet-original-wordmark) center / contain no-repeat;
+    pointer-events: none;
+  }
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty[style*="/lqdwwom4sim5pa.png"]::before {
+    clip-path: inset(0 70% 0 0);
+  }
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty[style*="/lqdwwom4sim5pa.png"]::after {
+    clip-path: inset(0 0 0 30%);
+    filter: brightness(0) invert(.92);
+  }
   html[data-xet-night-page] .navbar-wrapper .navbar-right,
   html[data-xet-night-page] .navbar-wrapper .navbar-right :is(a, .iconfont, .search-wrapper, .icon-wrapper) {
     color: var(--xet-night-muted) !important;
@@ -267,6 +291,18 @@
   /* The native search label sets its own color, unlike the icon next to it. */
   html[data-xet-night-page] .navbar-wrapper .navbar-right .search-wrapper > div {
     color: inherit !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper .know-navbar-search input {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper .know-navbar-search input:focus {
+    border-color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper .know-navbar-search input::placeholder,
+  html[data-xet-night-page] .navbar-wrapper .know-navbar-search .search-input {
+    color: var(--xet-night-muted) !important;
   }
   html[data-xet-night-page] :is(
     .footer, .layout_footer

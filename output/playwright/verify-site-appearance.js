@@ -52,6 +52,7 @@ async (page) => {
   }
   const cover = '<img class="brand-art" alt="Cover or avatar" width="32" height="24" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'24\'%3E%3Crect width=\'32\' height=\'24\' fill=\'%23ac7bea\'/%3E%3C/svg%3E">';
   const wordmark = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="15" cy="20" r="13" fill="#ac7bea"/><text x="33" y="24" fill="#000">Shop</text></svg>')}`;
+  const merchantWordmark = "https://wechatapppro-1252524126.cdn.xiaoeknow.com/app5qnhc4gj6683/image/b_u_ctbq1iq3g3b370c2nrl0/lqdwwom4sim5pa.png";
   const nav = `<nav class="navbar-wrapper"><div class="nav-main__wrapper">
     <div class="navbar-logo-common" style="background-image:url('${wordmark}')"></div>
     <div class="navbar-left">${cover}<div class="nav-item know-nav"><a class="active" href="/">Home</a></div></div>
@@ -136,6 +137,8 @@ async (page) => {
     .nav-main__wrapper .navbar-right,.nav-main__wrapper .navbar-right .opretor{color:#666}
     .nav-main__wrapper .navbar-logo-common{width:140px;height:40px;background-repeat:no-repeat}
     .nav-main__wrapper .navbar-right .search-wrapper > div{color:#666}
+    .know-navbar-search input{background:#fff;color:#333;border:1px solid #ccc}
+    .know-navbar-search input::placeholder{color:#666}
     .course_intro_right .phone-watch,.course_intro_right .phone-text,.course_intro_right .complaint-enter{color:#666}
     .tab-files-wrapper .content_switch_tab,.shop_msg .shop-information{background:#fff}
     .shop-information .shop-name,.shop-information .into-shop-btn{color:#353535}
@@ -154,6 +157,9 @@ async (page) => {
     locator.evaluate((el, name) => getComputedStyle(el)[name], property);
 
   try {
+    await test.route(merchantWordmark, route => route.fulfill({ contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="23" cy="20" r="13" fill="#ac7bea"/><rect x="51" y="14" width="70" height="12" fill="#000"/></svg>',
+    }));
     await test.route(`${origin}/**`, async route => {
       if (route.request().method() !== "GET") return route.fulfill({ json: { code: 0, data: {} } });
       const path = new URL(route.request().url()).pathname;
@@ -166,7 +172,9 @@ async (page) => {
           </section>
         </div>`;
       else if (path.includes("/errbook/detail/")) body = app(`
-        <div class="base-layout">${nav}
+        <div class="base-layout">${nav.replace(wordmark, merchantWordmark).replace(
+          '<div class="nav-item know-nav"><a class="active" href="/">Home</a></div>',
+          '<div class="know-navbar-search"><div><input type="text" placeholder="请输入" aria-label="Site search"><i class="search-input">⌕</i></div></div>')}
         <main class="errbook-detail-page"><div class="action-bar"><input class="ss-input-inner"></div>
           <div class="question-card"><span class="xet-wrong-count">1 wrong</span>Question</div>
         </main></div>`);
@@ -220,8 +228,31 @@ async (page) => {
         assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Errbook inner header remains white");
         assert(await color(test.locator(".navbar-right .search-wrapper > div"), "color") === "rgb(174, 185, 201)", "Actual search label not readable");
         const logo = test.locator(".navbar-logo-common");
-        assert(await color(logo) === "rgb(112, 128, 149)", "Raster wordmark has no backdrop");
-        assert((await color(logo, "backgroundImage")).includes(wordmark) && await color(logo, "filter") === "none", "Theme changed the logo artwork");
+        const readLogo = () => logo.evaluate(el => {
+          const base = getComputedStyle(el);
+          return { background: base.backgroundImage, backdrop: base.backgroundColor,
+            avatar: getComputedStyle(el, "::before").filter,
+            letters: getComputedStyle(el, "::after").filter,
+            source: getComputedStyle(el, "::after").backgroundImage,
+            hitTarget: getComputedStyle(el, "::after").pointerEvents };
+        });
+        const darkLogo = await readLogo();
+        assert(darkLogo.background === "none" && darkLogo.backdrop === "rgba(0, 0, 0, 0)" &&
+          darkLogo.avatar === "none" && darkLogo.letters === "brightness(0) invert(0.92)" &&
+          darkLogo.source.includes(merchantWordmark) && darkLogo.hitTarget === "none", "Merchant wordmark did not switch only the letters");
+        const search = test.locator(".know-navbar-search input");
+        await search.fill("preview");
+        assert(await color(search) === "rgb(36, 42, 52)" &&
+          await color(search, "color") === "rgb(232, 237, 244)" &&
+          await color(search, "borderColor") === "rgb(145, 197, 255)" &&
+          await search.evaluate(el => getComputedStyle(el, "::placeholder").color) === "rgb(174, 185, 201)", "Expanded navbar search not fully themed");
+        await theme.selectOption("light");
+        await pageMode(false);
+        const lightLogo = await readLogo();
+        assert(lightLogo.background.includes(merchantWordmark) && lightLogo.letters === "none" &&
+          await color(search) === "rgb(255, 255, 255)" && await search.inputValue() === "preview", "Light mode did not restore original search and wordmark");
+        await theme.selectOption("dark");
+        await pageMode(true);
       }
     }
     await test.goto(origin + evalPath + "practice_analysis/fixture");
@@ -339,6 +370,8 @@ async (page) => {
       assert(await color(test.locator(".shop_msg")) === "rgb(28, 33, 41)", "Course sidebar not dark: " + entry);
       assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Course inner navigation is still pale");
       assert(await color(test.locator(".navbar-right .search-wrapper > div"), "color") === "rgb(174, 185, 201)", "Course search label is still dark");
+      const foreignLogo = test.locator(".navbar-logo-common");
+      assert(await color(foreignLogo) === "rgb(112, 128, 149)" && (await color(foreignLogo, "backgroundImage")).includes(wordmark), "Unknown logo was modified");
       assert(await color(test.locator("#app")) === "rgb(20, 23, 28)", "Pale background remains below course summary");
       assert(await color(test.locator(".content_switch_tab")) === "rgb(28, 33, 41)", "White strip remains under tabs");
       assert(await color(test.locator(".current-tabs"), "color") === "rgb(145, 197, 255)", "Active course tab not readable");
