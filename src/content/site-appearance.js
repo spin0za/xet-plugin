@@ -14,7 +14,7 @@
 
   let earlyController;
 
-  function makeController(useLocalSitePolicy = false) {
+  function makeController(useLocalSitePolicy = false, videoParent = "") {
     const root = document.documentElement;
     const system = matchMedia("(prefers-color-scheme: dark)");
     const top = window.top === window;
@@ -31,19 +31,21 @@
     }
 
     function apply() {
-      const allowed = !useLocalSitePolicy || !globalThis.XetSiteAccess.normalizeDisabledSites(
+      const disabled = useLocalSitePolicy ? globalThis.XetSiteAccess.normalizeDisabledSites(
         settings.disabledSites, settings.disabledHosts,
-      ).includes(location.origin);
+      ) : [];
+      const allowed = !disabled.includes(location.origin) && !disabled.includes(videoParent);
       const appearance = normalizeAppearance(settings.siteAppearance);
       const brightness = normalizeBrightness(settings.nightVideoBrightness);
       const dark = active && loaded && allowed && (appearance === "dark" ||
         (appearance === "system" && system.matches));
       const route = top && dark ? routeType(location.pathname) : "";
       setAttribute(PAGE, route);
-      // Embedded pages paint only when the existing analysis handshake marks
-      // them as explanation players. The CSS also requires a real video.
+      // Surface color is independent of media brightness. Player filters
+      // still require the analysis handshake and actual picture elements.
+      setAttribute("data-xet-night-frame", dark && !top ? "true" : "");
+      setAttribute("data-xet-night-embed-surface", dark && videoParent ? "true" : "");
       const dim = dark && (!top || route === "evaluation" || VIDEO.test(location.pathname)) && brightness !== "off";
-      setAttribute("data-xet-night-frame", dim && !top ? "true" : "");
       setAttribute(DIM, dim ? brightness : "");
     }
 
@@ -102,8 +104,19 @@
   }
 
   function startEarly() {
-    if (window.top !== window || !document.documentElement || !globalThis.XetSiteAccess) return;
-    earlyController ??= makeController(true);
+    const access = globalThis.XetSiteAccess;
+    if (!document.documentElement || !access) return;
+    let videoParent = "";
+    if (window.top !== window) {
+      // The shared embed route also serves audio. Only bootstrap its confirmed
+      // video variant when framed directly by an already supported top site.
+      if (window.parent !== window.top || location.origin !== "https://iframe.xiaoeknow.com" ||
+          !/^\/page\/?$/.test(location.pathname) || new URLSearchParams(location.search).get("type") !== "3") return;
+      const parent = access.siteInfo(location.ancestorOrigins?.[0]);
+      if (!parent?.isDefault) return;
+      videoParent = parent.origin;
+    }
+    earlyController ??= makeController(true, videoParent);
     earlyController.start();
   }
 

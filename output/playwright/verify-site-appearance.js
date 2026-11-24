@@ -4,6 +4,7 @@ async (page) => {
   if (!worker) throw new Error("Load the extension in a fresh persistent Chromium profile");
   const origin = "https://night-fixture.pc.xiaoe-tech.com";
   const embed = "https://night-video.xiaoeknow.com";
+  const nativeEmbed = "https://iframe.xiaoeknow.com";
   const evalPath = "/p/t_pc/pc_evaluation/";
   const test = await ctx.newPage();
   const popup = await ctx.newPage();
@@ -98,6 +99,16 @@ async (page) => {
   const store = `${nav}
     <main class="mygoods-wrapper"><div class="has-goods"><table class="goods-table"><tbody><tr class="table-header">
       <th>My courses</th></tr><tr><td class="table-content">Lesson</td></tr></tbody></table></div></main>`;
+  const studyHistory = `${nav}<main class="record-cover" style="background-color:#f5f6f9">
+    <h1 class="record-header">Study history</h1><div class="record-list"><div class="record-item">
+      <div class="record-item" style="background:#fff">${cover}
+        <div class="course-info"><span class="course-title" style="color:#353535">Lesson</span>
+          <div class="progress-stick"><div class="done-stick" style="width:66%"></div></div>
+          <span class="progress-info">66%</span><button class="item-button keep-button" style="background:#fff">Continue</button>
+        </div></div></div></div><nav class="pagination-wrap"><input class="ss-input-inner" style="background:#fff"></nav></main>`;
+  const playerSurround = `<div class="course-player-box"><div class="video-content-header" style="background:#333">
+    <div class="video-player">${makePlayer()}</div><div class="video-title__font">Lesson</div>
+  </div></div>`;
   const videoScript = `<script>
     window.controlsClicked = 0;
     document.querySelector('#controls')?.addEventListener('click', () => window.controlsClicked++);
@@ -175,6 +186,7 @@ async (page) => {
   const answerGate = holdParser("answer");
   const courseGate = holdParser("course");
   const storeGate = holdParser("store");
+  const videoGate = holdParser("embed");
   const studioGif = "/l00v4o2p0xx4.gif";
   const courseGif = "/lods3xen0exo.gif";
   const loadGraphic = `<img class="fixture-spinner" src="${studioGif}" width="64" height="32" alt="">`;
@@ -213,6 +225,9 @@ async (page) => {
           <div class="question-card"><span class="xet-wrong-count">1 wrong</span>Question</div>
         </main></div>`);
       else if (/\/question_collect\/[^/]+$/.test(path)) body = '<main class="collect-catalog-page"><section class="collect-catalog-card">Favorites</section></main>';
+      else if (path.endsWith("/errbook/practice/embed-startup")) body = app(question + `
+        <iframe id="waiting-video" class="xiaoe-iframe-video" src="${nativeEmbed}/page/?type=3"></iframe>
+        <iframe id="waiting-audio" src="${nativeEmbed}/page/?type=2"></iframe>`);
       else if (path.includes("/errbook/practice/")) body = app(answerLoader + question + makePlayer() +
         (path.endsWith("/slow") ? answerGate : ""));
       else if (path.includes("/practice_result/")) body = '<div class="practice-result">Result</div>';
@@ -228,14 +243,25 @@ async (page) => {
         <div class="catalog_box"><div class="ss-loading-mask s391" style="background:white">
           <div class="ss-loading-spinner s391">${loadGraphic}</div></div>`)) +
         `<style>.ss-loading-spinner img.fixture-spinner{content:url('${courseGif}')}</style>${courseGate}`;
-      else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? makePlayer() : ""));
+      else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? playerSurround : ""));
       else if (path.includes("/live_pc/pc/")) body = makePlayer("pc-live-player");
+      else if (path === "/record") body = app(studyHistory);
       else if (["/", "/bought", "/search"].includes(path)) body = store;
       return route.fulfill({ contentType: "text/html", body: documentFor(body) });
     });
     await test.route(`${embed}/**`, route => route.fulfill({ contentType: "text/html",
       body: documentFor(route.request().url().endsWith("/document") ? '<p id="pdf-page" style="background:white;color:black">Fixture document</p>' : makePlayer()),
     }));
+    await test.route(`${nativeEmbed}/**`, async route => {
+      const url = new URL(route.request().url());
+      if (gates.has(url.pathname)) {
+        await gates.get(url.pathname).waiting;
+        return route.fulfill({ contentType: "application/javascript", body: "" });
+      }
+      return route.fulfill({ contentType: "text/html", body: documentFor(
+        url.searchParams.get("type") === "3" ? `<div class="xiaoe-iframe">Loading player</div>${videoGate}` : '<p>Audio widget</p>',
+      ) });
+    });
     await settings({ siteAppearance: "system", disabledSites: [], keepAliveEnabled: false });
     await worker.evaluate(() => chrome.storage.local.remove("nightVideoBrightness"));
     await test.emulateMedia({ colorScheme: "light" });
@@ -292,6 +318,27 @@ async (page) => {
       await test.waitForLoadState("load");
       assert(await color(mask) === surface, `Theme handoff changed the ${name} loader`);
     }
+    await test.goto(origin + evalPath + "errbook/practice/embed-startup?readonly=1", { waitUntil: "domcontentloaded" });
+    await pageKind("evaluation");
+    const waitingVideo = test.frameLocator("#waiting-video");
+    const waitingAudio = test.frameLocator("#waiting-audio");
+    const waitingBody = waitingVideo.locator("body");
+    await waitingVideo.locator("html[data-xet-night-embed-surface]").waitFor({ state: "attached" });
+    assert(await waitingBody.evaluate(() => document.readyState) === "loading", "Player was not held before document_idle");
+    assert(await color(waitingBody) === "rgb(20, 23, 28)" &&
+      await color(test.locator("#waiting-video")) === "rgb(20, 23, 28)", "Video startup still has a pale viewport");
+    assert(await color(waitingAudio.locator("body")) === "rgb(255, 255, 255)", "Non-video embed was recolored");
+    await settings({ nightVideoBrightness: "off" });
+    await waitingVideo.locator("html:not([data-xet-night-video])").waitFor({ state: "attached" });
+    assert(await color(waitingBody) === "rgb(20, 23, 28)", "Off brightness disabled the loading canvas");
+    await settings({ disabledSites: [origin] });
+    await waitingVideo.locator("html:not([data-xet-night-embed-surface])").waitFor({ state: "attached" });
+    assert(await color(waitingBody) === "rgb(255, 255, 255)", "Early video theme ignored the outer-site policy");
+    await settings({ disabledSites: [], nightVideoBrightness: "extra" });
+    await waitingVideo.locator("html[data-xet-night-embed-surface]").waitFor({ state: "attached" });
+    gates.get("/parser-gate-embed.js").finish();
+    await test.waitForLoadState("load");
+    assert(await color(waitingBody) === "rgb(20, 23, 28)", "Video handoff restored the white canvas");
     for (const [path, selector] of [
       ["practice_record?tab=0", ".practice-record-page"],
       ["practice_record?tab=2&subTab=1", ".practice-record-page"],
@@ -443,6 +490,18 @@ async (page) => {
     await brightness(media, "brightness(0.85)");
 
     await theme.selectOption("dark");
+    await test.goto(origin + "/record");
+    await pageKind("site");
+    const studyCard = test.locator(".record-item > .record-item");
+    assert(await color(test.locator(".record-cover")) === "rgb(20, 23, 28)" &&
+      await color(studyCard) === "rgb(28, 33, 41)" && await color(studyCard.locator(".course-title"), "color") === "rgb(232, 237, 244)" &&
+      await color(studyCard.locator(".item-button")) === "rgb(36, 42, 52)" &&
+      await color(studyCard.locator(".progress-info"), "color") === "rgb(145, 197, 255)" &&
+      await color(studyCard.locator(".brand-art"), "filter") === "none", "Study-history surfaces or artwork mismatch");
+    await theme.selectOption("light");
+    await pageMode(false);
+    assert(await color(studyCard) === "rgb(255, 255, 255)", "Study history did not restore light colors");
+    await theme.selectOption("dark");
     for (const route of ["/", "/bought", "/search?q=course"]) {
       await test.goto(origin + route);
       await pageKind("site");
@@ -491,6 +550,14 @@ async (page) => {
       await brightness(test, "brightness(0.85)");
       assert(await color(test.locator("body")) === "rgb(20, 23, 28)", "Player page did not follow site-wide appearance");
       assert(await color(test.locator("#picture").locator("..")) === "rgb(0, 0, 0)", "Player wrapper color was altered");
+      if (route.includes("/video/")) {
+        const surround = test.locator(".video-content-header");
+        assert(await color(surround) === "rgb(20, 23, 28)", "Course video surround did not match the page");
+        await theme.selectOption("light");
+        await pageMode(false);
+        assert(await color(surround) === "rgb(51, 51, 51)", "Original light player surround was not restored");
+        await theme.selectOption("dark");
+      }
     }
     await popup.reload();
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
@@ -499,7 +566,7 @@ async (page) => {
       crossOriginEmbed: true, liveAndCourseVideo: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
-      siteShellAndCatalog: true, navigationStatePreserved: true };
+      siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true };
   } catch (error) {
     throw new Error(`Appearance regression at ${test.url()}: ${error.message}`);
   } finally {

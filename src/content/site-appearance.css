@@ -344,6 +344,35 @@
     color: var(--xet-night-text) !important;
     border-color: var(--xet-night-border) !important;
   }
+  /* /record is the storefront's study history, not the evaluation record. */
+  html[data-xet-night-page] .record-cover {
+    background-color: var(--xet-night-page) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .record-cover :is(.record-header, .record-item .course-title) {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .record-cover .record-item:has(> .course-info) {
+    background-color: var(--xet-night-panel) !important;
+    box-shadow: 0 0 0 1px var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] .record-cover .record-item :is(.progress-stick, .item-button:not(.start-button)),
+  html[data-xet-night-page] .record-cover .pagination-wrap :is(.ss-pagination-item, .ss-pagination-item-link, .ss-input-inner) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .record-cover .record-item :is(.progress-info, .item-button:not(.start-button)) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .record-cover .record-item :is(.done-stick, .start-button) {
+    background-color: var(--xet-night-blue) !important;
+    color: var(--xet-night-page) !important;
+  }
+  html[data-xet-night-page] .record-cover .pagination-wrap .ss-pagination-item-active {
+    border-color: var(--xet-night-blue) !important;
+    color: var(--xet-night-blue) !important;
+  }
   html[data-xet-night-page] :is(
     .el-input__inner, .el-textarea__inner, .ss-textarea-inner, .el-button--default:not(.is-plain),
     .ss-button.ss-button__plain, .verify-code-input
@@ -372,8 +401,12 @@
     background-color: var(--xet-night-border) !important;
   }
 
-  /* Course layout shared by course home, lessons, documents and chapters.
-     Player/cover hero areas are siblings of main_content; leave them alone. */
+  /* Only the solid course video surround shares the page color. Don't
+     recolor other hero artwork, the letterbox, or player controls. */
+  html[data-xet-night-page="course"] .course-player-box .video-content-header {
+    background-color: var(--xet-night-page) !important;
+  }
+  /* Course layout shared by course home, lessons, documents and chapters. */
   html[data-xet-night-page="course"] .course_base_layout :is(.main_content, .main_content_box, .main_content_box > .content_left, .main_content_box > .content_right) {
     background-color: var(--xet-night-page) !important;
   }
@@ -450,6 +483,14 @@
 
   html[data-xet-night-video="soft"] { --xet-video-brightness: .85; }
   html[data-xet-night-video="extra"] { --xet-video-brightness: .70; }
+  /* Paint both the outer slot and the child document before the player exists.
+     Keep this separate from the optional filter on video pixels. */
+  html[data-xet-night-page="evaluation"] iframe.xiaoe-iframe-video,
+  html:is([data-xet-night-embed-surface], [data-xet-night-frame][data-xet-analysis-embed]),
+  html:is([data-xet-night-embed-surface], [data-xet-night-frame][data-xet-analysis-embed]) body {
+    color-scheme: dark;
+    background-color: #14171c !important;
+  }
   /* Be consistent before and after Play. Only filter picture layers, not
      the player wrapper, sibling controls, or the browser's native controls/cues. */
   html[data-xet-night-video]:is(:not([data-xet-night-frame]), [data-xet-analysis-embed])

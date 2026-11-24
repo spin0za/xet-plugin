@@ -53,6 +53,11 @@ assert.equal(themeStartup.run_at, "document_start");
 assert.notEqual(themeStartup.all_frames, true);
 assert.deepEqual(themeStartup.matches, registration.matches);
 assert.deepEqual(themeStartup.js, ["src/site-access.js", "src/content/site-appearance.js", "src/content/site-appearance-start.js"]);
+const videoThemeStartup = manifest.content_scripts[2];
+assert.equal(videoThemeStartup.run_at, "document_start");
+assert.equal(videoThemeStartup.all_frames, true);
+assert.deepEqual(videoThemeStartup.matches, ["https://iframe.xiaoeknow.com/page/*", "https://iframe.xiaoeknow.com/page?*"]);
+assert.deepEqual(videoThemeStartup.js, themeStartup.js);
 
 for (const path of [...registration.js, ...registration.css, ...themeStartup.js]) {
   assert.ok(fs.existsSync(path), `${path} should exist`);
