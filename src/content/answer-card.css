@@ -130,7 +130,7 @@ html[data-xet-analysis-layout] .answer-card__content__info .info-item__block {
    without adding DOM children to the site's Vue-owned legend. */
 html[data-xet-analysis-layout] .answer-card__content__info:has(.success, .error):not(:has(.default, .unanswered, .essay))::after {
   content: "— 未答";
-  color: #4d5762;
+  color: var(--xet-answer-legend-unanswered, #4d5762);
   white-space: nowrap;
 }
 

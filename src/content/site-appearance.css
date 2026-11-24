@@ -1,5 +1,5 @@
-/* Opt-in colors only. Never invert the document or touch its layout. The
-   evaluation selectors target the site's component surfaces, not lesson media. */
+/* Opt-in colors only. Never invert the document or touch its layout. Use
+   named component surfaces so images, PDFs and playback controls stay intact. */
 @media (forced-colors: none) {
   html[data-xet-night-page] {
     color-scheme: dark;
@@ -17,6 +17,7 @@
     --xet-night-orange: #ffc097;
     --xet-night-orange-bg: #472f24;
     --xet-night-orange-border: #d48b5f;
+    --xet-answer-legend-unanswered: var(--xet-night-muted);
     accent-color: var(--xet-night-blue);
   }
 
@@ -179,6 +180,15 @@
     outline-color: var(--xet-night-blue);
   }
 
+  /* The native toolbar uses dark PNGs, not glyphs inheriting text color. */
+  html[data-xet-night-page="evaluation"] .exam-top-bar
+    :is(.exam-top-bar__back-icon, .exam-top-bar__timer-icon, .exam-top-bar__font-icon) {
+    filter: brightness(0) invert(.88);
+  }
+  html[data-xet-night-page="evaluation"] .collapsible-card__toggle {
+    color: var(--xet-night-text) !important;
+  }
+
   /* Keep the existing V2 grid, icons, and 4px current-question outline. */
   html[data-xet-night-page][data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block) {
     --xet-answer-background: #2a313c;
@@ -201,8 +211,127 @@
   html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__card__item.current {
     outline-color: #dce7f6 !important;
   }
-  html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__info::after {
-    color: var(--xet-night-muted);
+  html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__info .info-item .item {
+    color: var(--xet-night-muted) !important;
+  }
+
+  /* Shared storefront shell and components. Keep these selectors independent
+     of URL so navigation/search/cards are also themed on other site pages. */
+  html[data-xet-night-page] :is(
+    .navbar-wrapper, .layout_nav_header, .header-wrapper:has(.navbar-wrapper),
+    .goods-card-container, .goods-recommend-container, .alive-card-container,
+    .mygoods-wrapper .has-goods, .goods-table .table-content, .ss-modal-main, .ss-message-box,
+    .el-autocomplete-suggestion, .el-select-dropdown, .el-popper, .ss-popover, .basic-account__popper
+  ) {
+    background-color: var(--xet-night-panel) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] :is(
+    .navbar-wrapper :is(.navbar-left a, .navbar-right a, .navbar-right .iconfont),
+    .goods-card-container-info :is(.name-box, .title-box, .goods-title, .item-name),
+    .goods-recommend-container .goods-name, .alive-card-container-info .title-box,
+    .mygoods-wrapper .title, .table-item .table-content, .el-dialog__body
+  ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page] .navbar-wrapper .navbar-left a:is(.active, :hover) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] :is(
+    .footer, .layout_footer
+  ) { background-color: var(--xet-night-panel) !important; }
+  html[data-xet-night-page] :is(.footer, .layout_footer) :is(a, .technical-support .name, .sub_title) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] :is(.mygoods-wrapper .table-item, .goods-table .table-header, .table-item .item-header) {
+    background-color: var(--xet-night-inset) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] :is(
+    .el-input__inner, .el-textarea__inner, .ss-textarea-inner, .el-button--default:not(.is-plain),
+    .ss-button.ss-button__plain, .verify-code-input
+  ) {
+    background-color: var(--xet-night-inset) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-control-border) !important;
+  }
+  html[data-xet-night-page] :is(.el-input__inner, .el-textarea__inner, .ss-textarea-inner)::placeholder {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] :is(.el-autocomplete-suggestion li, .el-select-dropdown__item, .el-dropdown-menu__item) {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] :is(.el-autocomplete-suggestion li, .el-select-dropdown__item, .el-dropdown-menu__item):is(:hover, .hover, .highlighted, .selected) {
+    background-color: var(--xet-night-hover) !important;
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] :is(.tabs .tabs-item__wrapper > .tabs-item, .el-tabs__item) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] :is(.tabs .tabs-item__wrapper > .tabs-item, .el-tabs__item):is(.current-tabs, .is-active, :hover) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .tabs .tabs-item__wrapper .tabs-idx-line__wrapper {
+    background-color: var(--xet-night-border) !important;
+  }
+
+  /* Course layout shared by course home, lessons, documents and chapters.
+     Player/cover hero areas are siblings of main_content; leave them alone. */
+  html[data-xet-night-page="course"] .course_base_layout :is(.main_content, .main_content_box, .main_content_box > .content_left, .main_content_box > .content_right) {
+    background-color: var(--xet-night-page) !important;
+  }
+  html[data-xet-night-page="course"] :is(
+    .course_base_layout .main_content_box > :is(.content_left, .content_right) > div,
+    .catalog_box, .camp_pro_content_catalog, .camp_catalog, .column_catalog, .big_column_catalog,
+    .member_catalog, .course_content_catalog, .document_container, .document_header, .image-text-content-header,
+    .course_common_header, .camp_pro_content_header, .no_search_tips, .detail-login-limit,
+    .ss-course-file-dialog, .ss-complaint-dialog, .tab-files-wrapper, .shop_msg, .related_channel,
+    .chapter_left_study_status, .el-collapse-item__wrap
+  ) {
+    background-color: var(--xet-night-panel) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page="course"] :is(
+    .catalog_search_bar .search_title, .chapter_title:not(.chapter_selection_num), .section_item_box .sections_title_info,
+    .content_item .content_title_text, .catalogue_item .item-title, .course_row_name,
+    .catalog_title, .column_catalog .header_title, .current-subcourse-title, .subcourse-card__title,
+    .course_title, .curriculum_time, .study_progress, .progerss_label, .el-progress__text,
+    .image-body-title__font, .loop_nav_title, .course_shop_name, .shop_name, .channel_name
+  ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page="course"] :is(
+    .chapter_selection_num, .chapter-status, .section_item_box .learnedStyle, .section_item_box .secitons_type,
+    .section_item_box .optional_tag, .catalog_search_bar :is(.sort_box, .sort_text), .el-collapse-item__arrow,
+    .empty_catalog, .empty_tips, .no_search_tips, .course_describe, .course_period, .camp_info, .column_info,
+    .course_time_box, .study_history, .info__count, .current-subcourse-desc, .subcourse-card__desc,
+    .image-body-info div, .document_download_container .down_text, .loop_nav_label
+  ) { color: var(--xet-night-muted) !important; }
+  html[data-xet-night-page="course"] :is(
+    .el-collapse-item__header, .load_more_btn, .loop_nav_btn, .content_type_tag,
+    .catalogue_item .item-tag, .chapter-status, .section_item_box .optional_tag,
+    .shop_msg button:not(.ss-button__primary), .shop_msg .enter_shop
+  ) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page="course"] :is(
+    .el-collapse-item__header:hover, .section_item_box:hover, .section_item_box:hover .chapter_left_study_status,
+    .catalogue_item:hover, .camp_catalog .content_item:hover, .big_column_catalog .content_item:hover,
+    .member_catalog .content_item:hover, .course_row:hover, .loop_nav_btn:hover
+  ) { background-color: var(--xet-night-hover) !important; }
+  html[data-xet-night-page="course"] :is(.section_item_box.last_study_bg, .section_item_box.last_study_bg .chapter_left_study_status) {
+    background-color: var(--xet-night-blue-bg) !important;
+  }
+  html[data-xet-night-page="course"] :is(.scroll_height_light, .camp_pro_content_catalog .load_more, .loop_nav_btn:hover .loop_nav_title) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page="course"] :is(.section_item_box .try_tag, .catalogue_item .item-try-tag) {
+    color: var(--xet-night-orange) !important;
+    border-color: var(--xet-night-orange-border) !important;
+  }
+  html[data-xet-night-page="course"] :is(.chapter_box_line:not(.chapter_box_blue_line), .progerss .progress_bar) {
+    background-color: var(--xet-night-border) !important;
   }
 
   html[data-xet-night-video="soft"] { --xet-video-brightness: .85; }

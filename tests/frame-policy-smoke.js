@@ -42,7 +42,7 @@ async function main() {
       stop() { calls.stop++; volumeCalls.stop++; },
     }) },
     toast: { show() {}, hide() {} },
-    siteAppearance: { defaults: { siteAppearance: "system", nightVideoBrightness: "soft" }, createSiteAppearanceController: controller },
+    siteAppearance: { defaults: { siteAppearance: "system", nightVideoBrightness: "extra" }, createSiteAppearanceController: controller },
   };
   const window = { top: {} };
   const context = {

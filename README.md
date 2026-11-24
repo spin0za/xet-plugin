@@ -33,7 +33,7 @@ A local Chrome and Edge extension that defaults to the highest available Xiaoe T
 - 在线练习（含背题模式）、错题本练习及只读解析与考试解析中的视频预览统一为 16:9 横屏，最大 960 × 540，随可用宽度缩放；仅预览轻微裁切边缘，去除细黑边。加深预览顶部、底部的局部渐变，让白色标题与播放控件更清晰。
 - 练习解析页使用一个页面滚动区域，右侧滚动条、滚轮和 Page Up / Page Down 直接滚动题目；答题卡跳题保留。“仅看错题”置于答题卡下方的等宽独立方框内，不覆盖题目。左侧整体能放入窗口时保持可见，放不下时随页面展开，不增加独立滚动条。
 - 练习、背题、解析和错题练习的答题卡使用色弱友好的蓝／橙配色，并以勾、叉和横线区分正确、错误和未答；已答但未公布结果时显示圆点，其他未知状态不猜作对错。采用 32×44px 格子、12px 间距、16px 两侧留白和 4px 当前题外框，保留原有跳题与标记图钉；高对比度模式仍保留形状提示。
-- 扩展弹窗的「网页外观」可选择跟随系统（默认）、浅色或深色，覆盖练习记录各页签、错题与收藏详情、做题、结果与解析。切换即时生效，保留答题卡尺寸、阅读位置和原有交互。深色模式可单独将支持的讲解、课程和直播／回放视频设为「原始」「柔和 85%」（默认）或「更暗 70%」；只调整视频显示，不改变播放器控件、独立字幕、图片、PDF、下载或原始帧截图。带浏览器原生控件或声明了字幕轨道的视频不调暗。偏好仅存本机。
+- 扩展弹窗的「网页外观」可选择跟随系统（默认）、浅色或深色。深色模式应用于已启用的小鹅通主页面，并为课程目录、课程资料、店铺、学习记录、练习与解析等页面的原生组件适配颜色；商家自定义模块可能需要单独适配。切换即时生效，保留答题卡尺寸、阅读位置和原有交互。夜间视频可选「原始」「柔和 85%」或「更暗 70%」（未设置时的默认值）；只调整视频显示，不改变播放器控件、独立字幕、图片、PDF、下载或原始帧截图。带浏览器原生控件或声明了字幕轨道的视频不调暗。已有亮度选择保留，偏好仅存本机。
 - 在线练习解析页每题右上角提供标记、收藏按钮，沿用网站原有保存接口。标记关联本次练习记录，收藏与网站原有题目收藏互通；支持鼠标、空格和回车操作，重新打开页面会读取已保存状态。
 - 更新／重新加载扩展后，未刷新的旧解析页会停止失效脚本的监听与重试，保留上次确认的标记并停用不可用的按钮，只提示一次刷新页面；不将扩展通信异常误报成登录或网络问题。切回页面时后台核对失败会保留当前显示并静默重试，遵守失败后的重试间隔；主动保存失败仍明确提示，并在状态重新核实前阻止再次写入。
 - 练习记录页使用完整标题列表。“练习”分类仅显示已经取得有效结果入口的作答记录，隐藏原来导向新练习的旧条目，不删除网站后台数据；同一份练习的多次作答分别保留，按已记录的交卷时间从新到旧排列，不受网站原列表分页影响。交卷成功后、跳转前保存对应结果入口和本机收到成功响应的时间，显示为“交卷时间（插件记录）”；失败、结果不明确、恢复标记重试及刷新旧结果页不会新记或覆盖时间。可从已打开的结果／解析页补回旧入口，但不能补造旧交卷时间。不保存答案，也不新开标签或自动创建、提交练习。考试、作业、刷题本分类保留原有入口交互。
@@ -234,7 +234,7 @@ To update, pull or download the latest files, click **Reload** on the extension 
 - Page fullscreen activated with `T` uses an extension-managed layout instead of the player's unstable page-fullscreen CSS. The player enters the page's top layer, hiding and blocking accidental interaction with site navigation and surrounding content. The video scales proportionally and any unused space stays black.
 - Player UI or DOM updates may require corresponding selector updates.
 - The automatic quality setting does not affect course permissions, purchases, or clock-in requirements.
-- The popup offers independent settings for quality, volume, live line, site appearance, night video brightness, and session keep-alive. Site appearance follows the system by default and can be pinned to light or dark for practice records, wrong-answer and favorite lists, practice, results, and analysis. Night video brightness can be set to original, 85%, or 70% on supported players. The site-level action under Developer mode controls every extension feature on that site.
+- The popup offers independent settings for quality, volume, live line, site appearance, night video brightness, and session keep-alive. Site appearance follows the system by default and can be pinned to light or dark across enabled Xiaoe Tech pages. Night video brightness can be set to original, 85%, or 70% (the default if unset) on supported players. The site-level action under Developer mode controls every extension feature on that site.
 - Disabling a custom domain revokes its Chrome host permission and unregisters its automatically loaded content scripts. Built-in Xiaoe Tech domains are disabled through the extension's internal site state instead.
 - Session keep-alive is off by default and requests only the merchant desktop homepage inferred from a supported course site.
 - Background requests use the browser's existing login state without requesting cookie-reading permission; renewal is handled by the site's normal response.
@@ -378,7 +378,7 @@ tests/
 
 `verify-mv3-integration.js` 额外验证真实后台与双层跨域 iframe；`verify-analysis-actions.js` 验证解析页按钮与模拟保存接口、刷新恢复、键盘操作和异常处理；`verify-analysis-frame-loading.js` 验证嵌入视频延迟加载、重定向、更换地址、路由切换和停用时的通信，并检查是否出现域名不匹配报错。这些测试需要使用全新的持久 Chromium 测试配置，并通过 `--disable-extensions-except` 和 `--load-extension` 加载本仓库；不要使用个人浏览器配置。
 
-`verify-site-appearance.js` 使用同样的独立 MV3 配置，验证各练习入口的深色界面、答题卡尺寸、系统外观与强制色彩变化、设置即时生效和站点停用清理，并核对课程／跨域讲解／直播播放器的亮度以及原始帧像素。夹具不登入课程账号。
+`verify-site-appearance.js` 使用同样的独立 MV3 配置，验证店铺、已购课程、课程目录和练习各入口的深色界面、目录展开状态、答题卡尺寸和图例、原生工具栏图标、系统与高对比度模式、站点停用清理，并核对 70% 默认亮度和课程／跨域讲解／直播播放器的原始帧像素。夹具不登入课程账号。
 
 `verify-mv3-integration.js` additionally checks the real service worker and two nested cross-origin frames. `verify-analysis-actions.js` checks analysis buttons against fixture save endpoints, reload persistence, keyboard access and error handling. `verify-analysis-frame-loading.js` checks delayed iframe loads, redirects, source changes, route transitions and site disable, including origin-mismatch console errors. These tests require a fresh persistent Chromium test profile with this repository loaded through `--disable-extensions-except` and `--load-extension`, never your personal browser profile.
 
@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.31.0**
+Current version: **1.32.0**
+
+1.32.0：深色外观扩展至整个小鹅通站点的页面底色及课程目录、店铺等常用组件。提高错题解析顶部返回、计时和字号图标，以及答题卡「未答」的对比度。夜间视频默认亮度改为 70%，保留已选档位。无新增权限或请求。
 
 1.31.0：练习记录、错题本、做题、结果及解析支持深色外观；支持的讲解、课程及直播／回放视频在深色模式下可选柔和亮度。不新增权限、不传输外观偏好。
 
