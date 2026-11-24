@@ -183,6 +183,7 @@ async (page) => {
     .analysis-only-content,.answer-analysis,.all-questions-card,.question-card,.action-bar,
     .collect-catalog-card,.practice-result{background:white;color:#333}
     .resource-card__title,.question-header,.question-option-item__content{color:#333}
+    .resource-card__cover{width:269px;height:152px}
     .question-analysis{background:#f5f7fa}
     .question-option-item__marker{border:1px solid #e5e5e5;background:white}
     .collapsible-card__collapsed{background:#fff}
@@ -269,7 +270,7 @@ async (page) => {
     }));
     await test.route(`${origin}/**`, async route => {
       if (route.request().method() !== "GET") return route.fulfill({ json: { code: 0, data: {} } });
-      const path = new URL(route.request().url()).pathname;
+      const { pathname: path, searchParams } = new URL(route.request().url());
       if (gates.has(path)) {
         await gates.get(path).waiting;
         return route.fulfill({ contentType: "application/javascript", body: "" });
@@ -283,13 +284,23 @@ async (page) => {
         <div class="global-widget-loading part-loading" style="background:white"></div>
         <div class="el-loading-mask" style="background:white"></div>
         <div id="unrelated-background" style="background:white">Site content outside the load overlay</div>${storeGate}`;
-      else if (path.includes("/practice_record")) body = `
+      else if (path.includes("/practice_record")) {
+        const tab = Number(searchParams.get("tab"));
+        const list = tab === 1 ? "errbook-tab" : tab === 2 ? "question-collect-tab" : "practice-history-tab";
+        body = `
         <div class="base-layout"><header class="base-layout__header">Records</header>
           <section class="practice-record-page">
-            <button class="sub-tab-item active">Practice</button>
-            <article class="resource-card"><div class="resource-card__title">Practice record</div></article>
+            <div class="${list}">
+              <button class="sub-tab-item active">Practice</button>
+              <div class="list-grid"><a class="resource-card" href="#record">
+                <div class="resource-card__cover">${cover}</div>
+                <div class="resource-card__info"><div class="resource-card__title">Practice record</div>
+                  <div class="card-line">2&#39064;</div></div>
+              </a></div>
+            </div>
           </section>
         </div>`;
+      }
       else if (path.includes("/errbook/detail/")) body = app(`
         <div class="base-layout">${nav.replace(wordmark, merchantWordmark).replace(
           '<div class="nav-item know-nav"><a class="active" href="/">Home</a></div>',
@@ -419,6 +430,7 @@ async (page) => {
     assert(await color(waitingBody) === "rgb(20, 23, 28)", "Video handoff restored the white canvas");
     for (const [path, selector] of [
       ["practice_record?tab=0", ".practice-record-page"],
+      ["practice_record?tab=1", ".practice-record-page"],
       ["practice_record?tab=2&subTab=1", ".practice-record-page"],
       ["errbook/detail/1?tab=1", ".question-card"],
       ["question_collect/1", ".collect-catalog-card"],
@@ -431,6 +443,25 @@ async (page) => {
       await test.goto(origin + evalPath + path);
       await pageMode(true);
       assert(await color(test.locator(selector)) === "rgb(28, 33, 41)", `Wrong surface for ${path}`);
+      if (selector === ".practice-record-page") {
+        await test.locator(".practice-record-page[data-xet-history-list]").waitFor({ state: "attached" });
+        const thumbnail = test.locator(".resource-card__cover");
+        if (path.endsWith("tab=0")) {
+          assert(await thumbnail.isVisible(), "Cover rule leaked to native practice history");
+        } else {
+          assert(await thumbnail.isHidden(), `Thumbnail still visible in ${path}`);
+          assert(await test.locator(".resource-card").evaluate(card =>
+            card.querySelector(".resource-card__info").getBoundingClientRect().left === card.getBoundingClientRect().left),
+          `Hidden thumbnail still takes space in ${path}`);
+          await theme.selectOption("light");
+          await pageMode(false);
+          assert(await thumbnail.isHidden(), `Light mode brought the thumbnail back in ${path}`);
+          await test.locator(".resource-card").getByText("2题").click();
+          assert(test.url().endsWith("#record"), `Original card link stopped working in ${path}`);
+          await theme.selectOption("dark");
+          await pageMode(true);
+        }
+      }
       if (selector === ".all-questions-card") await checkNativeActionIcons(true, path);
       if (path.startsWith("errbook/detail")) {
         assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Errbook outer header remains white");

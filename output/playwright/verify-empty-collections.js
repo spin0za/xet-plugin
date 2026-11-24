@@ -18,6 +18,7 @@ async page => {
         <title>收藏列表测试</title><style>
           body{font:16px sans-serif}main{max-width:900px;margin:auto}.list-grid{display:flex;flex-wrap:wrap}
           .resource-card{width:250px;background:#f5f7fa;margin:4px}.resource-card__info{padding:16px}
+          .resource-card__cover{height:60px;background:#1472ff}
         </style><main class="practice-record-page"><nav>
           <button id="practice">练习</button><button id="exam">考试</button><button id="drill">刷题本</button>
         </nav><section id="outlet"></section></main><script>
@@ -44,7 +45,7 @@ async page => {
             const grid=document.querySelector('.list-grid');
             for(const item of v.list){let card=[...grid.children].find(c=>c.__vue__?.item===item);
               if(!card){card=document.createElement('a');card.href='#'+item.resource_id;card.className='resource-card';
-                card.__vue__={item};card.innerHTML='<div class="resource-card__info"><div class="resource-card__title"></div><div class="card-line"></div></div>';
+                card.__vue__={item};card.innerHTML='<div class="resource-card__cover"></div><div class="resource-card__info"><div class="resource-card__title"></div><div class="card-line"></div></div>';
                 card.onclick=e=>{e.preventDefault();nativeClicks++};grid.append(card)}
               card.dataset.id=item.resource_id;card.querySelector('.resource-card__title').textContent=item.collection_name;
               card.querySelector('.card-line').textContent=(item.qs_count||0)+'题'}
@@ -61,6 +62,7 @@ async page => {
     await fixture.locator('.xet-history-more').click();
     await fixture.waitForFunction(() => document.querySelectorAll('.resource-card').length === 4 && !document.querySelector('.xet-history-status'));
     assert(await fixture.locator('.resource-card:visible').count() === 2, 'Valid or unknown row was removed');
+    assert(await fixture.locator('.resource-card:visible .resource-card__cover:visible').count() === 0, 'Pagination brought back collection covers');
     await fixture.locator('.xet-history-more').click();
     await fixture.waitForFunction(() => document.querySelectorAll('[data-xet-empty-collection]').length === 3 && !document.querySelector('.xet-history-more'));
     assert(await fixture.evaluate(() => v.list.length === 5 && v.noMore && v.pagination.page === 3 && loadCalls === 2), 'Raw pagination counts changed');
@@ -87,6 +89,7 @@ async page => {
     await worker.evaluate(origin => chrome.storage.local.set({ disabledSites: [origin] }), origin);
     await fixture.waitForFunction(() => !document.querySelector('[data-xet-history-list]'));
     assert(await fixture.locator('[data-xet-empty-collection]').count() === 0 && await fixture.locator('.resource-card:visible').count() === 2, 'Disable did not restore original UI');
+    assert(await fixture.locator('.resource-card__cover:visible').count() === 2, 'Disable did not restore covers');
     assert(await fixture.locator('.xet-history-status,.xet-history-more').count() === 0, 'Disable leaked controls');
     await worker.evaluate(() => chrome.storage.local.set({ disabledSites: [] }));
     await fixture.waitForFunction(() => document.querySelectorAll('[data-xet-empty-collection]').length === 2);
