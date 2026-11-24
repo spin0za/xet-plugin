@@ -109,6 +109,39 @@ async (page) => {
   const playerSurround = `<div class="course-player-box"><div class="video-content-header" style="background:#333">
     <div class="video-player">${makePlayer()}</div><div class="video-title__font">Lesson</div>
   </div></div>`;
+  const empty = (description) => `<div class="empty-wrapper" style="background:white">
+    ${cover.replace('class="brand-art"', 'class="brand-art empty-img"')}
+    <div class="empty-text">${description}</div></div>`;
+  const coursePanels = `<button id="show-comments">Comments</button><button id="show-interaction">Interaction</button>
+    <button id="show-files">Files</button>
+    <div class="comments-wrap">
+      <div class="box"><textarea class="box-input" placeholder="Write a comment"></textarea>
+        <button class="box-btn box-btn__gray" disabled>Post</button></div>
+      ${empty("No comments")}
+      <div class="comment-list" hidden><span class="item-content" style="color:#666">Comment</span>
+        <div class="item-src" style="background:#f8f8f8">Replied to</div>
+        <div class="comment-message" style="background:white"><button class="btn__cancel">Cancel</button></div></div>
+    </div>
+    <div class="class-interact" hidden>${empty("No activities")}
+      <div class="interaction" hidden><button class="interaction-tab active" style="background:white">Practice</button>
+        <div class="interaction-item__name">Quiz</div><a class="interaction-item__trigger" href="#">View</a></div></div>
+    <div class="ss-dialog course-files-dialog" style="background:white" hidden>
+      <div class="ss-dialog__title" style="color:#333">Materials</div>
+      <div class="fileListItem"><div class="item"><span class="item-title" style="color:#333">Course notes</span>
+      <a class="link_text" href="#">Preview</a></div></div></div>
+    <div class="basic-account__popup" hidden><div class="popup-content" style="background:white">
+      <div class="popup-header" style="color:#333">Sign in</div>
+      <div class="login-dialog"><p class="login-notice" style="background:#fff6eb">Sign-in notice</p>
+        <div class="switch-login-tab"><button class="switch-tab active">QR code</button></div>
+        <div class="login-xiaoe-wechat-img" style="background:white">${cover}</div></div></div></div>
+    <style>.box-input{background:white;border:1px solid #eee;color:#333}.box-btn__gray{opacity:.3}
+      .comments-wrap .item-src{background:#f8f8f8}</style>
+    <script>
+      const comments = document.querySelector('.comments-wrap'), interaction = document.querySelector('.class-interact');
+      document.querySelector('#show-comments').onclick = () => {comments.hidden=false;interaction.hidden=true;};
+      document.querySelector('#show-interaction').onclick = () => {comments.hidden=true;interaction.hidden=false;};
+      document.querySelector('#show-files').onclick = () => document.querySelector('.course-files-dialog').hidden=false;
+    </script>`;
   const videoScript = `<script>
     window.controlsClicked = 0;
     document.querySelector('#controls')?.addEventListener('click', () => window.controlsClicked++);
@@ -243,9 +276,14 @@ async (page) => {
         <div class="catalog_box"><div class="ss-loading-mask s391" style="background:white">
           <div class="ss-loading-spinner s391">${loadGraphic}</div></div>`)) +
         `<style>.ss-loading-spinner img.fixture-spinner{content:url('${courseGif}')}</style>${courseGate}`;
+      else if (path.endsWith("/video/panels") || path === "/p/t_pc/goods_pc_detail/goods_detail/panels") body = app(coursePanels);
       else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? playerSurround : ""));
       else if (path.includes("/live_pc/pc/")) body = makePlayer("pc-live-player");
       else if (path === "/record") body = app(studyHistory);
+      else if (path === "/audit-fallbacks") body = `<div class="login-page" style="background:#f5f6f9">
+        <div class="category-nav-default" style="background:#f1f3f7">Select a category</div>
+        <div class="no-permission-wrap"><span class="permission-text" style="color:#333">Unavailable</span></div>
+        <div class="unsupport-wrapper"><button class="homeBtn" style="background:white">Home</button></div></div>`;
       else if (["/", "/bought", "/search"].includes(path)) body = store;
       return route.fulfill({ contentType: "text/html", body: documentFor(body) });
     });
@@ -559,6 +597,44 @@ async (page) => {
         await theme.selectOption("dark");
       }
     }
+    for (const path of ["/p/t_pc/course_pc_detail/video/panels", "/p/t_pc/goods_pc_detail/goods_detail/panels"]) {
+      await test.goto(origin + path);
+      await pageMode(true);
+      const comment = test.locator(".comments-wrap"), editor = comment.locator(".box-input");
+      assert(await color(comment.locator(".empty-wrapper")) === "rgb(28, 33, 41)", "Empty comments are white");
+      assert(await color(editor) === "rgb(36, 42, 52)" && await color(editor, "color") === "rgb(232, 237, 244)", "Editor contrast");
+      await editor.fill("An unsent draft");
+      assert(await color(editor, "borderColor") === "rgb(145, 197, 255)" && await comment.locator(".box-btn").isDisabled(), "Editor focus or disabled state changed");
+      await comment.evaluate(el => { el.querySelector(".empty-wrapper").hidden = true; el.querySelector(".comment-list").hidden = false; });
+      assert(await color(comment.locator(".item-src")) === "rgb(36, 42, 52)" &&
+        await color(comment.locator(".item-content"), "color") === "rgb(232, 237, 244)" &&
+        await color(comment.locator(".comment-message")) === "rgb(28, 33, 41)", "Populated comment/reply/confirmation contrast");
+      await test.locator("#show-interaction").click();
+      const interaction = test.locator(".class-interact");
+      assert(await color(interaction.locator(".empty-wrapper")) === "rgb(28, 33, 41)" &&
+        await color(interaction.locator(".empty-img"), "filter") === "none", "Empty interaction is white or image was recolored");
+      await interaction.evaluate(el => { el.querySelector(".empty-wrapper").hidden = true; el.querySelector(".interaction").hidden = false; });
+      assert(await color(interaction.locator(".interaction-tab.active")) === "rgb(36, 42, 52)" &&
+        await color(interaction.locator(".interaction-item__trigger"), "color") === "rgb(145, 197, 255)", "Interaction states lost contrast");
+      await test.locator("#show-files").click();
+      assert(await color(test.locator(".course-files-dialog")) === "rgb(28, 33, 41)" &&
+        await color(test.locator(".course-files-dialog .item-title"), "color") === "rgb(232, 237, 244)", "Materials dialog contrast");
+      assert(await color(test.locator(".basic-account__popup .popup-content")) === "rgb(28, 33, 41)", "Account popup shell is white");
+      assert(await color(test.locator(".login-notice")) === "rgb(71, 47, 36)" &&
+        await color(test.locator(".switch-tab.active"), "color") === "rgb(145, 197, 255)" &&
+        await color(test.locator(".login-xiaoe-wechat-img")) === "rgb(255, 255, 255)", "Sign-in contrast or QR surface changed");
+      await theme.selectOption("light");
+      await pageMode(false);
+      assert(await color(editor) === "rgb(255, 255, 255)" && await editor.inputValue() === "An unsent draft" &&
+        await color(interaction.locator(".empty-wrapper")) === "rgb(255, 255, 255)" && !await comment.isVisible(), "Light mode or tab/draft state was not preserved");
+      await theme.selectOption("dark");
+    }
+    await test.goto(origin + "/audit-fallbacks");
+    await pageKind("site");
+    assert(await color(test.locator(".login-page")) === "rgb(20, 23, 28)" &&
+      await color(test.locator(".category-nav-default")) === "rgb(36, 42, 52)" &&
+      await color(test.locator(".unsupport-wrapper .homeBtn")) === "rgb(36, 42, 52)" &&
+      await color(test.locator(".permission-text"), "color") === "rgb(174, 185, 201)", "Store or fallback surface mismatch");
     await popup.reload();
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
     return { recordTabs: true, errbookAndCollection: true, practiceAndAnalysis: true, cardGeometry,
@@ -566,7 +642,8 @@ async (page) => {
       crossOriginEmbed: true, liveAndCourseVideo: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
-      siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true };
+      siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true,
+      courseAndProductComments: true, emptyAndPopulatedInteraction: true, materialsAndAccountDialogs: true };
   } catch (error) {
     throw new Error(`Appearance regression at ${test.url()}: ${error.message}`);
   } finally {

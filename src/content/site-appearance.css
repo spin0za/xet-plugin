@@ -255,11 +255,51 @@
   html[data-xet-night-page] :is(
     .goods-card-container, .goods-recommend-container, .alive-card-container,
     .mygoods-wrapper .has-goods, .goods-table .table-content, .ss-modal-main, .ss-message-box,
-    .el-autocomplete-suggestion, .el-select-dropdown, .el-popper, .ss-popover, .basic-account__popper
+    .el-autocomplete-suggestion, .el-select-dropdown, .el-popper, .ss-popover, .basic-account__popper,
+    .basic-account__popup .popup-content, .empty-wrapper:has(> .empty-img)
   ) {
     background-color: var(--xet-night-panel) !important;
     color: var(--xet-night-text) !important;
     border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] :is(
+    .empty-wrapper .emphasize, .ss-dialog__title, .ss-dialog__close, .ss-message-box__title,
+    .basic-account__popup .popup-header, .login-dialog__result .login-dialog__result-title
+  ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page] :is(.empty-wrapper :is(.weaken, .empty-sub-text), .login-dialog__result .login-dialog__result-msg) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] .login-page { background-color: var(--xet-night-page) !important; }
+  html[data-xet-night-page] :is(.category-nav-default, .image-ad-content .swiper-empty,
+    .category-goods-tabs .el-tabs__nav-wrap :is(.el-tabs__nav-next, .el-tabs__nav-prev) > i,
+    .unsupport-wrapper .homeBtn) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] :is(
+    .login-page .logo-img, .login-dialog .switch-login-tab .switch-tab, .login-xiaoe-wechat p,
+    .login-xiaoe-wechat .tips, .login-xiaoe-quick h4, .login-others .login-others-text
+  ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page] :is(
+    .login-xiaoe-verify p, .login-xiaoe-desc, .login-xiaoe-quick .login-xiaoe-quick-phone,
+    .login-others .login-others-header, .no-permission-wrap .permission-text
+  ) { color: var(--xet-night-muted) !important; }
+  html[data-xet-night-page] .login-dialog .login-notice {
+    background-color: var(--xet-night-orange-bg) !important;
+    border-color: var(--xet-night-orange-border) !important;
+    color: var(--xet-night-orange) !important;
+  }
+  html[data-xet-night-page] .login-dialog .switch-login-name {
+    background-color: var(--xet-night-blue-bg) !important;
+    border-color: var(--xet-night-blue-border) !important;
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .login-dialog .switch-login-name::before { border-right-color: var(--xet-night-blue-bg) !important; }
+  html[data-xet-night-page] .login-dialog .switch-login-name::after { border-right-color: var(--xet-night-blue-border) !important; }
+  html[data-xet-night-page] :is(.login-dialog .switch-login-tab .switch-tab.active,
+    .login-xiaoe-quick .login-xiaoe-quick-changePhone, .login-xiaoe-password .forgot-text) {
+    color: var(--xet-night-blue) !important;
   }
   /* The shared header has a separately styled inner nav in both applications. */
   html[data-xet-night-page] :is(.layout_nav_header, .header-wrapper:has(.navbar-wrapper)),
@@ -405,6 +445,54 @@
      recolor other hero artwork, the letterbox, or player controls. */
   html[data-xet-night-page="course"] .course-player-box .video-content-header {
     background-color: var(--xet-night-page) !important;
+  }
+  /* Course and storefront product tabs share these native components. Their
+     more specific names avoid recoloring arbitrary rich text or feedback UI. */
+  html[data-xet-night-page] :is(.comments-wrap, .class-interact, .course_interaction_box, .comments-wrap .comment-message) {
+    background-color: var(--xet-night-panel) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] .comments-wrap :is(textarea.box-input, .comment-message .btn__cancel, .comment-list .item-src),
+  html[data-xet-night-page] .interaction .interaction-tab:is(.active, :hover),
+  html[data-xet-night-page] .course_interaction_box .enter_row {
+    background-color: var(--xet-night-inset) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-control-border) !important;
+  }
+  html[data-xet-night-page] .comments-wrap textarea.box-input::placeholder {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] .comments-wrap textarea.box-input:focus {
+    border-color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .comments-wrap :is(.box-btn, .comment-message .btn__confirm) {
+    background-color: var(--xet-night-blue) !important;
+    color: var(--xet-night-page) !important;
+  }
+  html[data-xet-night-page] .comments-wrap .box-btn:is(.box-btn__gray, :disabled, [aria-disabled="true"]) {
+    background-color: var(--xet-night-inset) !important;
+    color: var(--xet-night-muted) !important;
+    opacity: 1 !important;
+  }
+  html[data-xet-night-page] .comments-wrap .comment-list :is(.item-name, .item-content, .item-src-name, .admin_reply),
+  html[data-xet-night-page] .interaction :is(.interaction-tab, .interaction-item__name),
+  html[data-xet-night-page] .course_interaction_box :is(.clock-title, .container-content-lasttext),
+  html[data-xet-night-page] .course-files-dialog .item-title {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .comments-wrap .comment-list :is(.item-time, .item-ip, .item-src-content, .item-icon-wrap),
+  html[data-xet-night-page] .interaction .interaction-item__content,
+  html[data-xet-night-page] .course_interaction_box :is(.clock-type, .container-content-firsttext),
+  html[data-xet-night-page] .course-files-dialog :is(.item-footer, .fileNum, .courseware-text-wrapper) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] .interaction :is(.interaction-tab.active, .interaction-item__trigger),
+  html[data-xet-night-page] .course-files-dialog .link_text:not(.disabled_text) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .course-files-dialog .fileListItem .item:hover {
+    background-color: var(--xet-night-hover) !important;
   }
   /* Course layout shared by course home, lessons, documents and chapters. */
   html[data-xet-night-page="course"] .course_base_layout :is(.main_content, .main_content_box, .main_content_box > .content_left, .main_content_box > .content_right) {
