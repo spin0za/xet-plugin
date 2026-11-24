@@ -51,7 +51,9 @@ async (page) => {
       src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13'%3E%3Crect width='13' height='13' fill='%23333333'/%3E%3C/svg%3E">`;
   }
   const cover = '<img class="brand-art" alt="Cover or avatar" width="32" height="24" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'24\'%3E%3Crect width=\'32\' height=\'24\' fill=\'%23ac7bea\'/%3E%3C/svg%3E">';
+  const wordmark = `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="15" cy="20" r="13" fill="#ac7bea"/><text x="33" y="24" fill="#000">Shop</text></svg>')}`;
   const nav = `<nav class="navbar-wrapper"><div class="nav-main__wrapper">
+    <div class="navbar-logo-common" style="background-image:url('${wordmark}')"></div>
     <div class="navbar-left">${cover}<div class="nav-item know-nav"><a class="active" href="/">Home</a></div></div>
     <div class="navbar-right"><div class="search-wrapper opretor"><i class="iconfont">⌕</i><div>Search</div></div>
       <div class="icon-wrapper leaning-icon opretor"><div>Study history</div></div></div>
@@ -132,6 +134,8 @@ async (page) => {
     .navbar-wrapper .nav-main__wrapper{background:#f5f5f5}
     .nav-main__wrapper .know-nav{color:#333}
     .nav-main__wrapper .navbar-right,.nav-main__wrapper .navbar-right .opretor{color:#666}
+    .nav-main__wrapper .navbar-logo-common{width:140px;height:40px;background-repeat:no-repeat}
+    .nav-main__wrapper .navbar-right .search-wrapper > div{color:#666}
     .course_intro_right .phone-watch,.course_intro_right .phone-text,.course_intro_right .complaint-enter{color:#666}
     .tab-files-wrapper .content_switch_tab,.shop_msg .shop-information{background:#fff}
     .shop-information .shop-name,.shop-information .into-shop-btn{color:#353535}
@@ -214,7 +218,10 @@ async (page) => {
       if (path.startsWith("errbook/detail")) {
         assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Errbook outer header remains white");
         assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Errbook inner header remains white");
-        assert(await color(test.locator(".navbar-right .search-wrapper"), "color") === "rgb(174, 185, 201)", "Errbook header labels not readable");
+        assert(await color(test.locator(".navbar-right .search-wrapper > div"), "color") === "rgb(174, 185, 201)", "Actual search label not readable");
+        const logo = test.locator(".navbar-logo-common");
+        assert(await color(logo) === "rgb(112, 128, 149)", "Raster wordmark has no backdrop");
+        assert((await color(logo, "backgroundImage")).includes(wordmark) && await color(logo, "filter") === "none", "Theme changed the logo artwork");
       }
     }
     await test.goto(origin + evalPath + "practice_analysis/fixture");
@@ -331,6 +338,7 @@ async (page) => {
       assert(await color(test.locator(".chapter_title"), "color") === "rgb(232, 237, 244)", "Chapter title not readable: " + entry);
       assert(await color(test.locator(".shop_msg")) === "rgb(28, 33, 41)", "Course sidebar not dark: " + entry);
       assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Course inner navigation is still pale");
+      assert(await color(test.locator(".navbar-right .search-wrapper > div"), "color") === "rgb(174, 185, 201)", "Course search label is still dark");
       assert(await color(test.locator("#app")) === "rgb(20, 23, 28)", "Pale background remains below course summary");
       assert(await color(test.locator(".content_switch_tab")) === "rgb(28, 33, 41)", "White strip remains under tabs");
       assert(await color(test.locator(".current-tabs"), "color") === "rgb(145, 197, 255)", "Active course tab not readable");
@@ -352,6 +360,9 @@ async (page) => {
     assert(await color(test.locator("#app")) === "rgb(242, 245, 249)" &&
       await color(test.locator(".nav-main__wrapper")) === "rgb(245, 245, 245)" &&
       await color(test.locator(".shop-information")) === "rgb(255, 255, 255)", "Light mode surfaces were not restored");
+    const logo = test.locator(".navbar-logo-common");
+    assert(await color(logo) === "rgba(0, 0, 0, 0)" && (await color(logo, "backgroundImage")).includes(wordmark)
+      && await color(test.locator(".search-wrapper > div"), "color") === "rgb(102, 102, 102)", "Light navigation was not restored");
     await theme.selectOption("dark");
     for (const route of ["/p/t_pc/course_pc_detail/video/fixture", "/p/t_pc/live_pc/pc/fixture"]) {
       await test.goto(origin + route);

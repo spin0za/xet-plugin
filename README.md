@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.1**
+Current version: **1.32.2**
+
+1.32.2：修复顶部共用导航的「搜索」文字和深色背景上的店铺标志不易辨认。店铺标志保留原图，深色模式使用低亮衬底。
 
 1.32.1：补齐课程与错题列表共用导航，以及课程简介外围、目录标签和店铺卡片的深色配色；提高「手机观看」「投诉建议」和导航文字的对比度。图片、播放和浅色模式保持原样。
 

@@ -248,6 +248,12 @@
   html[data-xet-night-page] .navbar-wrapper :is(.navbar-left a, .nav-item, .shop-name, .shop_name) {
     color: var(--xet-night-text) !important;
   }
+  /* The light-header wordmark and shop avatar are a single background image.
+     Back it with a muted surface instead of filtering the original artwork. */
+  html[data-xet-night-page] .navbar-wrapper .navbar-logo-common:empty {
+    background-color: var(--xet-night-control-border) !important;
+    border-radius: 4px;
+  }
   html[data-xet-night-page] .navbar-wrapper .navbar-right,
   html[data-xet-night-page] .navbar-wrapper .navbar-right :is(a, .iconfont, .search-wrapper, .icon-wrapper) {
     color: var(--xet-night-muted) !important;
@@ -257,6 +263,10 @@
     .navbar-right :is(.search-wrapper, .icon-wrapper):hover
   ) {
     color: var(--xet-night-blue) !important;
+  }
+  /* The native search label sets its own color, unlike the icon next to it. */
+  html[data-xet-night-page] .navbar-wrapper .navbar-right .search-wrapper > div {
+    color: inherit !important;
   }
   html[data-xet-night-page] :is(
     .footer, .layout_footer
