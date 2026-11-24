@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.10**
+Current version: **1.32.11**
+
+1.32.11：提亮错题详情、做题和解析页的空心收藏、未激活标记、答题卡展开/收起及顶部草稿图标；保留原站激活图标的强调色。
 
 1.32.10：补齐课程和商品详情的评论、互动、空状态、资料弹窗，以及店铺和登录的共用组件。见[夜间模式回归范围](docs/night-mode-coverage.md)。
 

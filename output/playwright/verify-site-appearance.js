@@ -17,10 +17,20 @@ async (page) => {
       <div id="captions">Player caption</div><button id="controls" type="button">Play</button>
     </div>`;
   const answerLoader = '<div class="practice-answer-page no-theme"><div class="ss-loading-mask" style="background-color:#fff"><div class="ss-loading-spinner">•••</div></div></div>';
+  const iconCdn = "https://commonresource-1252524126.cdn.xiaoeknow.com/image/";
+  const actionIcons = {
+    "collect-off": "mfgqfj620r35.svg", "collect-on": "mfgqfj610rj9.svg",
+    "mark-off": "mfgqfj5p0gkz.svg", "mark-on": "mfgqfl4u0jcf.svg",
+  };
+  const cardArrow = (state) => `<img class="collapsible-card__${state}-icon"
+    src="${iconCdn}mov7ngur01pc.png" alt="" width="20" height="20">`;
   const card = `
     <aside class="all-questions-card analysis-card">
       <div class="collapsible-card">
-        <div class="collapsible-card__header">Answer card</div>
+        <div class="collapsible-card__header">Answer card
+          <button class="collapsible-card__toggle" aria-label="Collapse">${cardArrow("toggle")}</button>
+        </div>
+        <button class="collapsible-card__collapsed">${cardArrow("collapsed")}<span>Expand</span></button>
         <div class="answer-card__content__card">
           <button class="answer-card__content__card__item success">8</button>
           <button class="answer-card__content__card__item current error">9</button>
@@ -34,12 +44,18 @@ async (page) => {
       <header class="exam-top-bar">
         <button class="exam-top-bar__back">${icon("back")}</button>
         <div class="exam-top-bar__status-box">${icon("timer")} 00:00:00</div>
+        <button class="exam-top-bar__draft-trigger"><i class="exam-top-bar__draft-icon"></i></button>
+        <button class="exam-top-bar__draft-trigger is-active"><i class="exam-top-bar__draft-icon"></i></button>
         <button class="exam-top-bar__font-trigger">${icon("font")}</button>
       </header>
       <header class="analysis-base-layout__header">Course navigation</header>
       <section class="analysis-base-layout__content">${card}
         <div class="analysis-only-content">
           <h2 class="question-header">9. Question</h2>
+          <section class="header-icon-group">${Object.entries(actionIcons).map(([state, filename]) => `
+            <button class="header-icon-item"><img class="collect-icon" data-fixture-action="${state}"
+               src="${iconCdn}${filename}" alt="${state}" width="20" height="20"></button>`).join("")}
+          </section>
           <div class="question-option-item is-correct"><b class="question-option-item__marker">C</b>
             <span class="question-option-item__content">Correct option</span></div>
           <div class="question-option-item is-wrong"><b class="question-option-item__marker">D</b>
@@ -169,6 +185,9 @@ async (page) => {
     .resource-card__title,.question-header,.question-option-item__content{color:#333}
     .question-analysis{background:#f5f7fa}
     .question-option-item__marker{border:1px solid #e5e5e5;background:white}
+    .collapsible-card__collapsed{background:#fff}
+    .exam-top-bar__draft-icon{display:block;width:16px;height:16px;background-color:#333}
+    .exam-top-bar__draft-trigger.is-active .exam-top-bar__draft-icon{background-color:#1472ff}
     .course_base_layout .main_content .main_content_box,.course_base_layout .main_content .main_content_box .content_left{background:#f0f3f8}
     .course_base_layout .main_content .main_content_box .content_right div,.camp_pro_content_catalog,.catalog_box,.el-collapse-item__wrap,
     .document_container,.navbar-wrapper,.goods-table .table-content{background:#fff;color:#333}
@@ -208,6 +227,24 @@ async (page) => {
   };
   const color = (locator, property = "backgroundColor") =>
     locator.evaluate((el, name) => getComputedStyle(el)[name], property);
+  const checkNativeActionIcons = async (dark, context) => {
+    for (const state of Object.keys(actionIcons)) {
+      const expected = dark && state.endsWith("-off") ? "brightness(0) invert(0.88)" : "none";
+      assert(await color(test.locator(`[data-fixture-action="${state}"]`), "filter") === expected,
+        `${context}: wrong filter for ${state}`);
+    }
+    const arrows = test.locator(".collapsible-card__toggle-icon, .collapsible-card__collapsed-icon");
+    assert(await arrows.count() === 2 && (await arrows.evaluateAll((nodes, expected) =>
+      nodes.every(el => getComputedStyle(el).filter === expected),
+    dark ? "brightness(0) invert(0.88)" : "none")), `${context}: wrong answer card arrow contrast`);
+    if (dark) {
+      assert(await color(test.locator(".collapsible-card__collapsed")) === "rgb(36, 42, 52)",
+        `${context}: collapsed answer card still has a white background`);
+      assert(await color(test.locator(".exam-top-bar__draft-trigger:not(.is-active) i")) === "rgb(232, 237, 244)" &&
+        await color(test.locator(".exam-top-bar__draft-trigger.is-active i")) === "rgb(20, 114, 255)",
+        `${context}: inactive draft icon not brightened, or active color altered`);
+    }
+  };
 
   const gates = new Map();
   const holdParser = (name) => {
@@ -224,6 +261,9 @@ async (page) => {
   const courseGif = "/lods3xen0exo.gif";
   const loadGraphic = `<img class="fixture-spinner" src="${studioGif}" width="64" height="32" alt="">`;
   try {
+    await test.route(`${iconCdn}*`, route => route.fulfill({ contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="none" stroke="#333" stroke-width="2" d="M3 10h14M9 4l-6 6 6 6"/></svg>',
+    }));
     await test.route(merchantWordmark, route => route.fulfill({ contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="23" cy="20" r="13" fill="#ac7bea"/><rect x="51" y="14" width="70" height="12" fill="#000"/></svg>',
     }));
@@ -384,12 +424,14 @@ async (page) => {
       ["question_collect/1", ".collect-catalog-card"],
       ["question_collect/answer/1", ".all-questions-card"],
       ["practice_sheet/fixture", ".all-questions-card"],
+      ["exam_sheet/fixture", ".all-questions-card"],
       ["errbook/practice/1?readonly=1", ".all-questions-card"],
       ["practice_result/fixture", ".practice-result"],
     ]) {
       await test.goto(origin + evalPath + path);
       await pageMode(true);
       assert(await color(test.locator(selector)) === "rgb(28, 33, 41)", `Wrong surface for ${path}`);
+      if (selector === ".all-questions-card") await checkNativeActionIcons(true, path);
       if (path.startsWith("errbook/detail")) {
         assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Errbook outer header remains white");
         assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Errbook inner header remains white");
@@ -437,6 +479,7 @@ async (page) => {
     assert(await color(test.locator(".is-correct .question-option-item__marker")) === "rgb(37, 58, 81)", "Correct option color");
     assert(await color(test.locator(".is-wrong .question-option-item__marker")) === "rgb(71, 47, 36)", "Wrong option color");
     const toolbarIcons = test.locator(".exam-top-bar img");
+    await checkNativeActionIcons(true, "practice analysis");
     assert(await toolbarIcons.count() === 3 && (await toolbarIcons.evaluateAll(nodes =>
       nodes.every(el => getComputedStyle(el).filter === "brightness(0) invert(0.88)"))), "Native toolbar icons remain dark");
     const legend = await test.locator(".answer-card__content__info").evaluate(el => {
@@ -499,6 +542,7 @@ async (page) => {
     await brightness(test, "none", "poster");
     assert(await test.evaluate(() => controlsClicked) === 1, "Changing appearance reloaded the document");
     assert((await toolbarIcons.evaluateAll(nodes => nodes.every(el => getComputedStyle(el).filter === "none"))), "Light mode still brightens native toolbar icons");
+    await checkNativeActionIcons(false, "light");
     await test.emulateMedia({ colorScheme: "dark" });
     assert(await color(test.locator(".analysis-only-content")) === "rgb(255, 255, 255)", "Explicit light did not override system");
     await theme.selectOption("system");
@@ -509,6 +553,7 @@ async (page) => {
     await pageMode(true);
     await test.emulateMedia({ forcedColors: "active" });
     await brightness(test, "none");
+    await checkNativeActionIcons(false, "forced colors");
     await test.emulateMedia({ forcedColors: "none" });
     await brightness(test, "brightness(0.85)");
 

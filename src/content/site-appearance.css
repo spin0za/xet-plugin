@@ -151,7 +151,7 @@
     .header-icon-item, .draft-btn, .xet-analysis-action, .xet-practice-undo,
     .xet-history-more, .xet-duplicate-favorites-button, .xet-history-status button,
     .ss-button__default, .question-option-item__marker, .judge-option__icon,
-    .exam-top-bar__font-trigger, .exam-top-bar__draft-trigger, .exam-result .button-plain,
+    .exam-top-bar__font-trigger, .exam-top-bar__draft-trigger, .collapsible-card__collapsed, .exam-result .button-plain,
     .ss-input, .ss-input-inner,
     .question-textarea_content textarea, .search-bar .ss-input-inner
   ) {
@@ -166,7 +166,8 @@
     .xet-analysis-action, .xet-practice-undo, .ss-button__default, .question-draft__btn, .question-draft__width):hover:not(:disabled) {
     background-color: var(--xet-night-hover) !important;
   }
-  html[data-xet-night-page] :is(.draft-pen-icon, .question-draft__icon, .question-draft__width-line) {
+  html[data-xet-night-page] :is(.draft-pen-icon, .question-draft__icon, .question-draft__width-line,
+    .exam-top-bar__draft-trigger:not(.is-active) > .exam-top-bar__draft-icon) {
     background-color: var(--xet-night-text) !important;
   }
   /* Only the monochrome action artwork needs brightening; active icons keep
@@ -215,9 +216,13 @@
     outline-color: var(--xet-night-blue);
   }
 
-  /* The native toolbar uses dark PNGs, not glyphs inheriting text color. */
-  html[data-xet-night-page="evaluation"] .exam-top-bar
-    :is(.exam-top-bar__back-icon, .exam-top-bar__timer-icon, .exam-top-bar__font-icon) {
+  /* Native images do not inherit text color. Collect and mark share a class,
+     so match the unselected assets only and leave the colored variants intact. */
+  html[data-xet-night-page="evaluation"] :is(
+    .exam-top-bar :is(.exam-top-bar__back-icon, .exam-top-bar__timer-icon, .exam-top-bar__font-icon),
+    .collapsible-card :is(.collapsible-card__toggle-icon, .collapsible-card__collapsed-icon),
+    .header-icon-item > img.collect-icon:is([src*="/mfgqfj620r35.svg"], [src*="/mfgqfj5p0gkz.svg"])
+  ) {
     filter: brightness(0) invert(.88);
   }
   html[data-xet-night-page="evaluation"] .collapsible-card__toggle {
