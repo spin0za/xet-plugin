@@ -44,6 +44,26 @@
   line-height: 1.6 !important;
   -webkit-line-clamp: unset !important;
 }
+.practice-record-page[data-xet-history-list] :is(.errbook-tab, .question-collect-tab) .resource-card > .resource-card__info {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  column-gap: 1em;
+  padding: 12px 16px !important;
+  font-size: 16px;
+  line-height: 1.6;
+}
+.practice-record-page[data-xet-history-list] :is(.errbook-tab, .question-collect-tab) .resource-card__info > :is(.resource-card__title, .card-line) {
+  font-size: inherit;
+  min-inline-size: 0;
+}
+.practice-record-page[data-xet-history-list] :is(.errbook-tab, .question-collect-tab) .resource-card__info > .card-line {
+  flex: none;
+  white-space: nowrap;
+  line-height: inherit;
+  font-weight: 600;
+  color: var(--xet-night-blue, #1c56aa) !important;
+}
 .practice-record-page[data-xet-history-results] .practice-history-tab .list-grid,
 .practice-record-page[data-xet-history-results] .practice-history-tab .list-empty,
 .practice-record-page[data-xet-history-results] .practice-history-tab .list-loading,

@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.12**
+Current version: **1.32.13**
+
+1.32.13：「我的错题」和「题目收藏」的题数紧跟标题，使用相同字号和醒目的颜色，减少列表滚动。
 
 1.32.12：「我的错题」和「题目收藏」的记录列表隐藏缩略图，标题和题数靠左显示。
 

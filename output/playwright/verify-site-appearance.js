@@ -184,6 +184,9 @@ async (page) => {
     .collect-catalog-card,.practice-result{background:white;color:#333}
     .resource-card__title,.question-header,.question-option-item__content{color:#333}
     .resource-card__cover{width:269px;height:152px}
+    .resource-card__info{display:flex;flex-direction:column;gap:4px}
+    .resource-card__title{font-size:16px;line-height:24px}
+    .resource-card .card-line{font-size:12px;line-height:16px;color:#999;white-space:nowrap}
     .question-analysis{background:#f5f7fa}
     .question-option-item__marker{border:1px solid #e5e5e5;background:white}
     .collapsible-card__collapsed{background:#fff}
@@ -228,6 +231,20 @@ async (page) => {
   };
   const color = (locator, property = "backgroundColor") =>
     locator.evaluate((el, name) => getComputedStyle(el)[name], property);
+  const checkCompactRecord = async (record, dark, path) => {
+    const layout = await record.evaluate(card => {
+      const title = card.querySelector(".resource-card__title"), count = card.querySelector(".card-line");
+      const t = title.getBoundingClientRect(), c = count.getBoundingClientRect();
+      const titleStyle = getComputedStyle(title), countStyle = getComputedStyle(count);
+      return { height: card.offsetHeight, titleSize: parseFloat(titleStyle.fontSize), countSize: parseFloat(countStyle.fontSize),
+        countColor: countStyle.color, gap: c.left - t.right, topDifference: Math.abs(c.top - t.top) };
+    });
+    assert(layout.countSize === layout.titleSize && Math.abs(layout.gap - layout.titleSize) < 1,
+      `${path}: title and count do not have matching sizes and a one-em gap`);
+    assert(layout.topDifference < 1 && layout.height <= 52, `${path}: count still takes an extra line`);
+    assert(layout.countColor === (dark ? "rgb(145, 197, 255)" : "rgb(28, 86, 170)"),
+      `${path}: count has the wrong emphasis color`);
+  };
   const checkNativeActionIcons = async (dark, context) => {
     for (const state of Object.keys(actionIcons)) {
       const expected = dark && state.endsWith("-off") ? "brightness(0) invert(0.88)" : "none";
@@ -448,15 +465,33 @@ async (page) => {
         const thumbnail = test.locator(".resource-card__cover");
         if (path.endsWith("tab=0")) {
           assert(await thumbnail.isVisible(), "Cover rule leaked to native practice history");
+          assert(await color(test.locator(".resource-card__info"), "flexDirection") === "column",
+            "Compact count rule leaked to native practice history");
         } else {
           assert(await thumbnail.isHidden(), `Thumbnail still visible in ${path}`);
-          assert(await test.locator(".resource-card").evaluate(card =>
+          const card = test.locator(".resource-card");
+          assert(await card.evaluate(card =>
             card.querySelector(".resource-card__info").getBoundingClientRect().left === card.getBoundingClientRect().left),
           `Hidden thumbnail still takes space in ${path}`);
+          await checkCompactRecord(card, true, path);
+          assert(await card.evaluate(card => {
+            const title = card.querySelector(".resource-card__title"), count = card.querySelector(".card-line");
+            const original = title.firstChild.data;
+            try {
+              card.style.maxInlineSize = "240px";
+              title.firstChild.data = "很长的章节标题".repeat(8);
+              return title.offsetHeight > count.offsetHeight && count.scrollWidth <= count.clientWidth &&
+                count.getBoundingClientRect().right < card.getBoundingClientRect().right;
+            } finally {
+              title.firstChild.data = original;
+              card.style.removeProperty("max-inline-size");
+            }
+          }), `Long title clipped itself or the count in ${path}`);
           await theme.selectOption("light");
           await pageMode(false);
           assert(await thumbnail.isHidden(), `Light mode brought the thumbnail back in ${path}`);
-          await test.locator(".resource-card").getByText("2题").click();
+          await checkCompactRecord(card, false, path);
+          await card.getByText("2题").click();
           assert(test.url().endsWith("#record"), `Original card link stopped working in ${path}`);
           await theme.selectOption("dark");
           await pageMode(true);
