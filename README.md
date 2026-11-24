@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.5**
+Current version: **1.32.6**
+
+1.32.6：从错题本打开只读解析时，浏览器标签页显示「错题详情」。
 
 1.32.5：答题与错题解析从加载阶段就应用夜间配色，独立加载遮罩不再使用白底；播放器在播放前的封面也使用所选夜间视频亮度。
 

@@ -3,7 +3,7 @@ const fs = require("node:fs");
 const vm = require("node:vm");
 
 function fixture({ title = "", header = null, embedded = false,
-  pathname = "/p/t_pc/pc_evaluation/errbook/detail/42", recordReady = false } = {}) {
+  pathname = "/p/t_pc/pc_evaluation/errbook/detail/42", search = "?tab=1", recordReady = false } = {}) {
   const listeners = new Map(), navigationListeners = new Map();
   let observer, interval, disconnected = false;
   const document = { title, documentElement: {},
@@ -12,13 +12,13 @@ function fixture({ title = "", header = null, embedded = false,
       assert.equal(selector, ".errbook-detail-page .page-header .back-btn span");
       return header === null ? null : { textContent: header };
     } };
-  const location = { pathname, search: "?tab=1" };
+  const location = { pathname, search };
   const window = { addEventListener: (name, callback) => listeners.set(name, callback),
     removeEventListener: name => listeners.delete(name),
     navigation: { addEventListener: (name, callback) => navigationListeners.set(name, callback),
       removeEventListener: name => navigationListeners.delete(name) } };
   window.top = embedded ? {} : window;
-  const context = { document, location, window, queueMicrotask,
+  const context = { document, location, window, queueMicrotask, URLSearchParams,
     MutationObserver: class {
       constructor(callback) { observer = callback; }
       observe() {} disconnect() { disconnected = true; }
@@ -90,6 +90,26 @@ async function main() {
   }
   { const f = fixture({ pathname: "/p/t_pc/pc_evaluation/practice_record_extra", recordReady: true });
     f.controller.start(); assert.equal(f.document.title, ""); f.controller.stop(); }
-  console.log("page title DOM extraction, delayed loading, navigation, site resets and cleanup smoke test passed");
+  // The read-only error review has no heading to extract. A query-only
+  // transition to active practice must restore the site's title.
+  const reviewPath = "/p/t_pc/pc_evaluation/errbook/practice/42";
+  const reviewSearch = "?question_id=qs_fixture&tab=1&source_id=wb_fixture&readonly=1";
+  { const f = fixture({ pathname: reviewPath, search: reviewSearch });
+    f.controller.start(); assert.equal(f.document.title, "错题详情");
+    f.document.title = "站点标题"; f.mutate(); await flush();
+    assert.equal(f.document.title, "错题详情");
+    f.location.search = "?tab=1&readonly=0";
+    f.navigationListeners.get("currententrychange")(); await flush();
+    assert.equal(f.document.title, "站点标题");
+    f.location.search = reviewSearch;
+    f.listeners.get("popstate")(); await flush(); assert.equal(f.document.title, "错题详情");
+    f.location.pathname = "/p/t_pc/pc_evaluation/errbook/detail/42";
+    f.setHeader("我的错题"); await flush(); assert.equal(f.document.title, "我的错题");
+    f.controller.stop(); assert.equal(f.document.title, "站点标题"); }
+  for (const options of [{ search: "?tab=1" }, { embedded: true }, { pathname: `${reviewPath}/extra` }]) {
+    const f = fixture({ pathname: reviewPath, search: reviewSearch, ...options });
+    f.controller.start(); assert.equal(f.document.title, ""); f.controller.stop();
+  }
+  console.log("page titles: DOM extraction, read-only error review, navigation, site resets and cleanup passed");
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });
