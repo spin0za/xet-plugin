@@ -79,6 +79,40 @@ async (page) => {
       <div class="icon-wrapper leaning-icon opretor"><div>Study history</div></div></div>
   </div></nav>`;
   const app = (contents) => `<div id="common_template_mounted_el_container"><div id="app">${contents}</div></div>`;
+  const liveDetail = `${nav}<main class="detail">
+    <header class="detail-header__wrapper"><div class="detail-header-main">
+      ${cover}<div class="detail-header-right">
+        <div class="detail-header-right-title-main">Live course</div>
+        <button class="phone-watch">Watch on phone</button>
+        <div class="updates">Start time</div><div class="limit-time-look">Limited viewing</div>
+        <div class="detail-header-right-subr">
+          <button id="enter-replay" style="background:#105cfb;color:white">Enter replay</button>
+          <div class="status-wrapper"><div class="play-back-limit">Replay expiry</div></div>
+        </div>
+      </div>
+    </div></header>
+    <div class="content" id="main_content_box"><div class="content-left">
+      <div class="tabs"><div class="tabs-item__wrapper">
+        <button class="tabs-item current-tabs">Details</button><button id="live-interaction" class="tabs-item">Class interaction</button>
+      </div></div>
+      <div class="text-img-wrapper no-content"><div class="abnormal-situation">${cover}
+        <div class="abnormal-situation-main-title">No description</div>
+      </div></div>
+      <div hidden class="class-interact"><div class="abnormal-situation-main-title">No interaction</div></div>
+    </div><aside class="content-right">
+      <div class="shop-information">${cover}<div class="shop-title">Shop</div><button class="into-shop-btn">Visit shop</button></div>
+      <div class="related_channel_box"><div class="related_title">Related channels</div>
+        <div class="related_item">${cover}<div class="course_title">Related course</div></div>
+      </div>
+    </aside></div>
+    </main><script>
+      window.replayClicks = 0;
+      document.getElementById("enter-replay").addEventListener("click", () => ++window.replayClicks);
+      document.getElementById("live-interaction").addEventListener("click", () => {
+        document.querySelector(".text-img-wrapper").hidden = true;
+        document.querySelector(".class-interact").hidden = false;
+      });
+    </script>`;
   const course = `
     <div class="course_base_layout">
       ${nav}
@@ -213,6 +247,10 @@ async (page) => {
     .shop-information .shop-name,.shop-information .into-shop-btn{color:#353535}
     .shop-information .into-shop-btn{background:#eee}
     .tabs-item{background:transparent;border:0;color:#333}
+    .detail :is(.detail-header__wrapper,.phone-watch,.content .content-left,.tabs,.class-interact,.shop-information,.related_channel_box){
+      background:#fff;color:#353535
+    }
+    .detail :is(.updates,.play-back-limit,.abnormal-situation-main-title,.shop-title,.related_title,.course_title){color:#353535}
     #picture{display:block} .xgplayer,.pc-live-player{width:400px}</style>
     ${body}${videoScript}`;
   const settings = (values) => worker.evaluate(values => chrome.storage.local.set(values), values);
@@ -347,6 +385,7 @@ async (page) => {
       else if (path.endsWith("/video/panels") || path === "/p/t_pc/goods_pc_detail/goods_detail/panels") body = app(coursePanels);
       else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? playerSurround : ""));
       else if (path.includes("/live_pc/pc/")) body = makePlayer("pc-live-player");
+      else if (path.startsWith("/detail/l_fixture/")) body = app(liveDetail);
       else if (path === "/record") body = app(studyHistory);
       else if (path === "/audit-fallbacks") body = `<div class="login-page" style="background:#f5f6f9">
         <div class="category-nav-default" style="background:#f1f3f7">Select a category</div>
@@ -694,6 +733,41 @@ async (page) => {
     assert(await color(logo) === "rgba(0, 0, 0, 0)" && (await color(logo, "backgroundImage")).includes(wordmark)
       && await color(test.locator(".search-wrapper > div"), "color") === "rgb(102, 102, 102)", "Light navigation was not restored");
     await theme.selectOption("dark");
+    await test.goto(origin + "/detail/l_fixture/4?course_id=course_fixture");
+    await pageKind("live-detail");
+    for (const selector of [".detail-header__wrapper", ".content-left", ".tabs", ".text-img-wrapper",
+      ".shop-information", ".related_channel_box"]) {
+      assert(await color(test.locator(selector)) === "rgb(28, 33, 41)", "Live detail is still white: " + selector);
+    }
+    for (const selector of [".detail-header-right-title-main", ".text-img-wrapper .abnormal-situation-main-title",
+      ".shop-title", ".related_title", ".course_title"]) {
+      assert(await color(test.locator(selector), "color") === "rgb(232, 237, 244)", "Live detail text is still dark: " + selector);
+    }
+    assert(await color(test.locator(".play-back-limit"), "color") === "rgb(174, 185, 201)" &&
+      await color(test.locator(".limit-time-look"), "color") === "rgb(145, 197, 255)" &&
+      await color(test.locator(".detail .phone-watch")) === "rgba(0, 0, 0, 0)" &&
+      await color(test.locator(".into-shop-btn")) === "rgb(36, 42, 52)", "Live detail controls are mismatched");
+    assert(await test.locator(".detail .brand-art").evaluateAll(images => images.every(img => getComputedStyle(img).filter === "none")),
+      "Theme altered live detail artwork");
+    const replay = test.locator("#enter-replay");
+    assert(await color(replay) === "rgb(16, 92, 251)" && await test.evaluate(() => replayClicks) === 0,
+      "Theme changed or triggered the original replay button");
+    await test.locator("#live-interaction").click();
+    assert(await color(test.locator(".class-interact")) === "rgb(28, 33, 41)" &&
+      await test.locator(".class-interact").isVisible(), "Live interaction not themed");
+    await replay.click();
+    assert(await test.evaluate(() => replayClicks) === 1, "Replay button handler was changed");
+    await theme.selectOption("light");
+    await pageMode(false);
+    assert(await color(test.locator(".detail-header__wrapper")) === "rgb(255, 255, 255)" &&
+      await color(test.locator(".related_channel_box")) === "rgb(255, 255, 255)" &&
+      await color(test.locator(".class-interact")) === "rgb(255, 255, 255)" &&
+      await test.locator(".class-interact").isVisible(), "Live detail light colors or selected tab were not restored");
+    await theme.selectOption("dark");
+    await test.goto(origin + "/detail/l_fixture/3");
+    await pageKind("site");
+    assert(await color(test.locator(".detail-header__wrapper")) === "rgb(255, 255, 255)",
+      "Live detail rules leaked onto a non-live path");
     for (const route of ["/p/t_pc/course_pc_detail/video/fixture", "/p/t_pc/live_pc/pc/fixture"]) {
       await test.goto(origin + route);
       await brightness(test, "brightness(0.85)");
@@ -750,7 +824,7 @@ async (page) => {
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
     return { recordTabs: true, errbookAndCollection: true, practiceAndAnalysis: true, cardGeometry,
       originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel, poster: posterPixel }, earlyErrbookLoader: true, sharedAndCatalogLoaders: true,
-      crossOriginEmbed: true, liveAndCourseVideo: true,
+      crossOriginEmbed: true, liveAndCourseVideo: true, legacyLiveDetail: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
       siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true,

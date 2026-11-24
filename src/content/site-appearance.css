@@ -499,6 +499,47 @@
   html[data-xet-night-page] .course-files-dialog .fileListItem .item:hover {
     background-color: var(--xet-night-hover) !important;
   }
+  /* Legacy storefront live detail uses different components from course home. */
+  html[data-xet-night-page="live-detail"] .detail :is(
+    .detail-header__wrapper, .course-detail-fixed-header, .content .content-left,
+    .content-left :is(.tabs, .text-img-wrapper.no-content, .teacher-part),
+    .content-right :is(.shop-information, .related_channel_box),
+    .phone-watch .share-model, .password-wrapper .password-content
+  ) {
+    background-color: var(--xet-night-panel) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page="live-detail"] .detail :is(
+    .detail-header-right-title-main, .abnormal-situation-main-title, .shop-information .shop-title,
+    .related_channel_box :is(.related_title, .course_title)
+  ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page="live-detail"] .detail :is(
+    .detail-header-right :is(.detail-header-right-desc, .updates, .phone-watch),
+    .status-wrapper :is(.before-broadcast, .broadcasting .desc, .after-broadcast, .broadcast-countdown, .play-back-limit),
+    .abnormal-situation-subtitle, .related_channel_box .update_msg
+  ) { color: var(--xet-night-muted) !important; }
+  html[data-xet-night-page="live-detail"] .detail :is(.limit-time-look, .related_channel_box .related_item:hover .course_title) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page="live-detail"] .detail .detail-header-right .phone-watch {
+    background-color: transparent !important;
+  }
+  html[data-xet-night-page="live-detail"] .detail :is(
+    .shop-information .into-shop-btn, .phone-watch .share-model .fake-input,
+    .password-wrapper :is(.password-input, .btn.cancel-btn)
+  ) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page="live-detail"] .detail .shop-information .into-shop-btn:hover {
+    background-color: var(--xet-night-hover) !important;
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page="live-detail"] .detail .phone-watch .share-model::after {
+    border-bottom-color: var(--xet-night-panel);
+  }
   /* Course layout shared by course home, lessons, documents and chapters. */
   html[data-xet-night-page="course"] .course_base_layout :is(.main_content, .main_content_box, .main_content_box > .content_left, .main_content_box > .content_right) {
     background-color: var(--xet-night-page) !important;
