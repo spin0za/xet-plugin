@@ -50,12 +50,26 @@ async (page) => {
     return `<img class="exam-top-bar__${type}-icon" width="13" height="13" alt="${type}"
       src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='13'%3E%3Crect width='13' height='13' fill='%23333333'/%3E%3C/svg%3E">`;
   }
+  const cover = '<img class="brand-art" alt="Cover or avatar" width="32" height="24" src="data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'32\' height=\'24\'%3E%3Crect width=\'32\' height=\'24\' fill=\'%23ac7bea\'/%3E%3C/svg%3E">';
+  const nav = `<nav class="navbar-wrapper"><div class="nav-main__wrapper">
+    <div class="navbar-left">${cover}<div class="nav-item know-nav"><a class="active" href="/">Home</a></div></div>
+    <div class="navbar-right"><div class="search-wrapper opretor"><i class="iconfont">⌕</i><div>Search</div></div>
+      <div class="icon-wrapper leaning-icon opretor"><div>Study history</div></div></div>
+  </div></nav>`;
+  const app = (contents) => `<div id="common_template_mounted_el_container"><div id="app">${contents}</div></div>`;
   const course = `
     <div class="course_base_layout">
-      <div class="layout_nav_header"><nav class="navbar-wrapper">Course navigation</nav></div>
-      <div class="content_header" style="background:#303030">Lesson header</div>
+      ${nav}
+      <div class="content_header"><div class="camp_pro_content_header">${cover}<div class="course_intro_right">
+        <div class="phone-watch"><div class="phone-text">Watch on phone</div></div>
+        <div class="complaint-enter">Feedback</div>
+      </div></div></div>
       <div class="main_content"><div class="main_content_box">
         <div class="content_left">
+          <div class="tab-files-wrapper"><div class="content_switch_tab">
+          <div class="tabs"><div class="tabs-item__wrapper">
+            <button class="tabs-item">Details</button><button class="tabs-item current-tabs">Catalog</button>
+          </div></div>
           <div class="camp_pro_content_catalog">
             <div class="catalog_search_bar"><span class="search_title">Course catalog</span><input class="el-input__inner" placeholder="Course search"></div>
             <div class="catalog_box">
@@ -66,14 +80,17 @@ async (page) => {
               </div>
             </div>
           </div>
+          </div></div>
           <div class="document_container"><div class="document_header">PDF</div>
             <iframe class="document-frame" title="Fixture viewer" src="${embed}/document"></iframe></div>
         </div>
-        <div class="content_right"><div class="shop_msg"><b class="shop_name">Shop</b></div></div>
+        <div class="content_right"><div class="shop_msg"><div class="shop-information">
+          ${cover}<div class="shop-name">Shop</div><div class="into-shop-btn">Visit shop</div>
+        </div></div></div>
       </div></div>
       <footer class="layout_footer"><a href="/bought">Footer</a></footer>
     </div>`;
-  const store = `<nav class="navbar-wrapper"><div class="navbar-left"><a class="active" href="/">Store</a></div></nav>
+  const store = `${nav}
     <main class="mygoods-wrapper"><div class="has-goods"><table class="goods-table"><tbody><tr class="table-header">
       <th>My courses</th></tr><tr><td class="table-content">Lesson</td></tr></tbody></table></div></main>`;
   const videoScript = `<script>
@@ -110,6 +127,16 @@ async (page) => {
     .catalog_box .chapter_title,.catalog_search_bar .search_title{color:#333}
     .section_item_box.last_study_bg{background:#f5f9ff}
     .navbar-wrapper .navbar-left a.active{color:#105cfb!important}
+    #common_template_mounted_el_container > #app{background:#f2f5f9}
+    #app .base-layout .navbar-wrapper{background:#fff!important}
+    .navbar-wrapper .nav-main__wrapper{background:#f5f5f5}
+    .nav-main__wrapper .know-nav{color:#333}
+    .nav-main__wrapper .navbar-right,.nav-main__wrapper .navbar-right .opretor{color:#666}
+    .course_intro_right .phone-watch,.course_intro_right .phone-text,.course_intro_right .complaint-enter{color:#666}
+    .tab-files-wrapper .content_switch_tab,.shop_msg .shop-information{background:#fff}
+    .shop-information .shop-name,.shop-information .into-shop-btn{color:#353535}
+    .shop-information .into-shop-btn{background:#eee}
+    .tabs-item{background:transparent;border:0;color:#333}
     #picture{display:block} .xgplayer,.pc-live-player{width:400px}</style>
     ${body}${videoScript}`;
   const settings = (values) => worker.evaluate(values => chrome.storage.local.set(values), values);
@@ -134,10 +161,11 @@ async (page) => {
             <article class="resource-card"><div class="resource-card__title">Practice record</div></article>
           </section>
         </div>`;
-      else if (path.includes("/errbook/detail/")) body = `
+      else if (path.includes("/errbook/detail/")) body = app(`
+        <div class="base-layout">${nav}
         <main class="errbook-detail-page"><div class="action-bar"><input class="ss-input-inner"></div>
           <div class="question-card"><span class="xet-wrong-count">1 wrong</span>Question</div>
-        </main>`;
+        </main></div>`);
       else if (/\/question_collect\/[^/]+$/.test(path)) body = '<main class="collect-catalog-page"><section class="collect-catalog-card">Favorites</section></main>';
       else if (path.includes("/practice_result/")) body = '<div class="practice-result">Result</div>';
       else if (path.includes("/practice_analysis/")) body = question + makePlayer() + `
@@ -148,7 +176,7 @@ async (page) => {
         <iframe class="xiaoe-iframe-video" src="${embed}/player"></iframe>
         <iframe id="unrelated" src="${embed}/unrelated"></iframe>`;
       else if (path.startsWith(evalPath)) body = question;
-      else if (path.includes("/course_pc_detail/")) body = course + (path.includes("/video/") ? makePlayer() : "");
+      else if (path.includes("/course_pc_detail/")) body = app(course + (path.includes("/video/") ? makePlayer() : ""));
       else if (path.includes("/live_pc/pc/")) body = makePlayer("pc-live-player");
       else if (["/", "/bought", "/search"].includes(path)) body = store;
       return route.fulfill({ contentType: "text/html", body: documentFor(body) });
@@ -183,6 +211,11 @@ async (page) => {
       await test.goto(origin + evalPath + path);
       await pageMode(true);
       assert(await color(test.locator(selector)) === "rgb(28, 33, 41)", `Wrong surface for ${path}`);
+      if (path.startsWith("errbook/detail")) {
+        assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Errbook outer header remains white");
+        assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Errbook inner header remains white");
+        assert(await color(test.locator(".navbar-right .search-wrapper"), "color") === "rgb(174, 185, 201)", "Errbook header labels not readable");
+      }
     }
     await test.goto(origin + evalPath + "practice_analysis/fixture");
     await test.bringToFront();
@@ -286,7 +319,7 @@ async (page) => {
     for (const route of ["/", "/bought", "/search?q=course"]) {
       await test.goto(origin + route);
       await pageKind("site");
-      assert(await color(test.locator(".navbar-wrapper")) === "rgb(28, 33, 41)", "Store navigation not dark");
+      assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Store navigation not dark");
       assert(await color(test.locator(".navbar-left a"), "color") === "rgb(145, 197, 255)", "Active navigation has insufficient contrast");
       assert(await color(test.locator(".goods-table .table-content")) === "rgb(28, 33, 41)", "Store table not dark");
     }
@@ -297,6 +330,15 @@ async (page) => {
       assert(await color(test.locator(".el-collapse-item__header")) === "rgb(36, 42, 52)", "Chapter header not dark: " + entry);
       assert(await color(test.locator(".chapter_title"), "color") === "rgb(232, 237, 244)", "Chapter title not readable: " + entry);
       assert(await color(test.locator(".shop_msg")) === "rgb(28, 33, 41)", "Course sidebar not dark: " + entry);
+      assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Course inner navigation is still pale");
+      assert(await color(test.locator("#app")) === "rgb(20, 23, 28)", "Pale background remains below course summary");
+      assert(await color(test.locator(".content_switch_tab")) === "rgb(28, 33, 41)", "White strip remains under tabs");
+      assert(await color(test.locator(".current-tabs"), "color") === "rgb(145, 197, 255)", "Active course tab not readable");
+      assert(await color(test.locator(".shop-information")) === "rgb(28, 33, 41)", "Inner shop card remains white");
+      assert(await color(test.locator(".into-shop-btn")) === "rgb(36, 42, 52)", "Visit Shop control remains white");
+      assert(await color(test.locator(".course_intro_right .phone-text"), "color") === "rgb(174, 185, 201)" &&
+        await color(test.locator(".course_intro_right .complaint-enter"), "color") === "rgb(174, 185, 201)", "Course header actions too dim");
+      assert(await test.locator(".brand-art").evaluateAll(images => images.every(img => getComputedStyle(img).filter === "none")), "Theme filtered brand artwork");
       const documentFrame = test.frameLocator(".document-frame");
       assert(await color(documentFrame.locator("#pdf-page")) === "rgb(255, 255, 255)", "Embedded document was restyled");
     }
@@ -307,6 +349,9 @@ async (page) => {
     await pageMode(false);
     assert(await chapter.getAttribute("aria-expanded") === "true", "Switching theme changed course navigation state");
     assert(await color(test.locator(".catalog_box")) === "rgb(255, 255, 255)", "Catalog did not restore light mode");
+    assert(await color(test.locator("#app")) === "rgb(242, 245, 249)" &&
+      await color(test.locator(".nav-main__wrapper")) === "rgb(245, 245, 245)" &&
+      await color(test.locator(".shop-information")) === "rgb(255, 255, 255)", "Light mode surfaces were not restored");
     await theme.selectOption("dark");
     for (const route of ["/p/t_pc/course_pc_detail/video/fixture", "/p/t_pc/live_pc/pc/fixture"]) {
       await test.goto(origin + route);

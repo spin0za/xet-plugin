@@ -5,6 +5,7 @@
     color-scheme: dark;
     --xet-night-page: #14171c;
     --xet-night-panel: #1c2129;
+    --xet-night-nav: #191e25;
     --xet-night-inset: #242a34;
     --xet-night-hover: #2a3543;
     --xet-night-border: #384353;
@@ -27,6 +28,11 @@
     .errbook-practice, .errbook-detail-page, .errbook-drillbook-page, .collect-catalog-page) {
     background-color: var(--xet-night-page) !important;
     color: var(--xet-night-text) !important;
+  }
+  /* This mount point paints behind the course intro and above the catalog.
+     Changing body alone leaves its original pale background visible. */
+  html[data-xet-night-page] #common_template_mounted_el_container > #app {
+    background-color: var(--xet-night-page) !important;
   }
 
   html[data-xet-night-page] :is(
@@ -218,7 +224,6 @@
   /* Shared storefront shell and components. Keep these selectors independent
      of URL so navigation/search/cards are also themed on other site pages. */
   html[data-xet-night-page] :is(
-    .navbar-wrapper, .layout_nav_header, .header-wrapper:has(.navbar-wrapper),
     .goods-card-container, .goods-recommend-container, .alive-card-container,
     .mygoods-wrapper .has-goods, .goods-table .table-content, .ss-modal-main, .ss-message-box,
     .el-autocomplete-suggestion, .el-select-dropdown, .el-popper, .ss-popover, .basic-account__popper
@@ -227,13 +232,30 @@
     color: var(--xet-night-text) !important;
     border-color: var(--xet-night-border) !important;
   }
+  /* The shared header has a separately styled inner nav in both applications. */
+  html[data-xet-night-page] :is(.layout_nav_header, .header-wrapper:has(.navbar-wrapper)),
+  html[data-xet-night-page] :is(.navbar-wrapper, .navbar-wrapper .nav-main__wrapper),
+  html[data-xet-night-page] #common_template_mounted_el_container .navbar-wrapper {
+    background-color: var(--xet-night-nav) !important;
+    color: var(--xet-night-text) !important;
+    border-color: var(--xet-night-border) !important;
+  }
   html[data-xet-night-page] :is(
-    .navbar-wrapper :is(.navbar-left a, .navbar-right a, .navbar-right .iconfont),
     .goods-card-container-info :is(.name-box, .title-box, .goods-title, .item-name),
     .goods-recommend-container .goods-name, .alive-card-container-info .title-box,
     .mygoods-wrapper .title, .table-item .table-content, .el-dialog__body
   ) { color: var(--xet-night-text) !important; }
-  html[data-xet-night-page] .navbar-wrapper .navbar-left a:is(.active, :hover) {
+  html[data-xet-night-page] .navbar-wrapper :is(.navbar-left a, .nav-item, .shop-name, .shop_name) {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper .navbar-right,
+  html[data-xet-night-page] .navbar-wrapper .navbar-right :is(a, .iconfont, .search-wrapper, .icon-wrapper) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] .navbar-wrapper :is(
+    .navbar-left a.active, .navbar-left a:hover, .nav-item:is(.active, :hover),
+    .navbar-right :is(.search-wrapper, .icon-wrapper):hover
+  ) {
     color: var(--xet-night-blue) !important;
   }
   html[data-xet-night-page] :is(
@@ -286,6 +308,8 @@
     .member_catalog, .course_content_catalog, .document_container, .document_header, .image-text-content-header,
     .course_common_header, .camp_pro_content_header, .no_search_tips, .detail-login-limit,
     .ss-course-file-dialog, .ss-complaint-dialog, .tab-files-wrapper, .shop_msg, .related_channel,
+    .content_switch_tab, .content_switch_tab .tabs-item__wrapper,
+    .shop-information, .course_intro_right .qr-code,
     .chapter_left_study_status, .el-collapse-item__wrap
   ) {
     background-color: var(--xet-night-panel) !important;
@@ -299,6 +323,9 @@
     .course_title, .curriculum_time, .study_progress, .progerss_label, .el-progress__text,
     .image-body-title__font, .loop_nav_title, .course_shop_name, .shop_name, .channel_name
   ) { color: var(--xet-night-text) !important; }
+  html[data-xet-night-page="course"] .shop-information :is(.name, .shop_name, .shop-name, .shop-title) {
+    color: var(--xet-night-text) !important;
+  }
   html[data-xet-night-page="course"] :is(
     .chapter_selection_num, .chapter-status, .section_item_box .learnedStyle, .section_item_box .secitons_type,
     .section_item_box .optional_tag, .catalog_search_bar :is(.sort_box, .sort_text), .el-collapse-item__arrow,
@@ -306,14 +333,26 @@
     .course_time_box, .study_history, .info__count, .current-subcourse-desc, .subcourse-card__desc,
     .image-body-info div, .document_download_container .down_text, .loop_nav_label
   ) { color: var(--xet-night-muted) !important; }
+  html[data-xet-night-page="course"] .course_intro_right :is(.phone-watch, .phone-text, .complaint-enter) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page="course"] .course_intro_right :is(.phone-watch:hover, .complaint-enter:hover),
+  html[data-xet-night-page="course"] .course_intro_right .phone-watch:hover .phone-text {
+    color: var(--xet-night-blue) !important;
+  }
   html[data-xet-night-page="course"] :is(
     .el-collapse-item__header, .load_more_btn, .loop_nav_btn, .content_type_tag,
     .catalogue_item .item-tag, .chapter-status, .section_item_box .optional_tag,
-    .shop_msg button:not(.ss-button__primary), .shop_msg .enter_shop
+    .shop_msg button:not(.ss-button__primary), .shop_msg .enter_shop,
+    .shop-information .into-shop-btn
   ) {
     background-color: var(--xet-night-inset) !important;
     border-color: var(--xet-night-control-border) !important;
     color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page="course"] .shop-information .into-shop-btn:hover {
+    background-color: var(--xet-night-hover) !important;
+    color: var(--xet-night-blue) !important;
   }
   html[data-xet-night-page="course"] :is(
     .el-collapse-item__header:hover, .section_item_box:hover, .section_item_box:hover .chapter_left_study_status,
