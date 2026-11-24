@@ -25,7 +25,7 @@
     !modules.quality ||
     !modules.volume ||
     !modules.downloadStream || !modules.download || !modules.screenshot ||
-    !modules.toast
+    !modules.toast || !modules.siteAppearance
   ) {
     window[INSTANCE_KEY]?.wake?.();
     chrome.runtime
@@ -101,7 +101,7 @@
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
-    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine })];
+    textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), modules.siteAppearance.createSiteAppearanceController()];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,
     playerDom: modules.playerDom,
@@ -165,7 +165,7 @@
     else stopFeatures();
   }
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== "local") return;
+    if (area !== "local" || Object.keys(changes).every((key) => key in modules.siteAppearance.defaults)) return;
     if (changes.enabled) settings.enabled = changes.enabled.newValue !== false;
     if (changes.volumeEnabled) settings.volumeEnabled = changes.volumeEnabled.newValue !== false;
     if (changes.defaultLiveLine) settings.defaultLiveLine = modules.liveLine.normalize(changes.defaultLiveLine.newValue);

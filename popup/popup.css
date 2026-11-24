@@ -132,10 +132,10 @@ summary:focus-visible {
   outline-offset: 3px;
 }
 
-.live-line-setting { margin-top: 10px; }
-.live-line-setting > span { min-width: 0; }
-.live-line-setting small { white-space: normal; line-height: 1.5; }
-.live-line-setting select {
+.select-setting { margin-top: 10px; }
+.select-setting > span { min-width: 0; }
+.select-setting small { white-space: normal; line-height: 1.5; }
+.select-setting select {
   flex: 0 0 auto;
   max-width: 110px;
   min-height: 34px;
@@ -147,8 +147,8 @@ summary:focus-visible {
   font: inherit;
   font-size: 12px;
 }
-.live-line-setting select:focus-visible { outline: 3px solid #4338ca; outline-offset: 3px; }
-.live-line-setting select:disabled { opacity: .55; cursor: wait; }
+.select-setting select:focus-visible { outline: 3px solid #4338ca; outline-offset: 3px; }
+.select-setting select:disabled { opacity: .55; cursor: wait; }
 
 .setting input:disabled + .switch {
   opacity: 0.45;

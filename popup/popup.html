@@ -34,7 +34,7 @@
         <span class="switch" aria-hidden="true"></span>
       </label>
 
-      <label class="setting live-line-setting" for="default-live-line">
+      <label class="setting select-setting live-line-setting" for="default-live-line">
         <span>
           <strong id="live-line-label">默认直播线路</strong>
           <small id="live-line-description">直播与回放；进入后手动切线优先</small>
@@ -44,6 +44,30 @@
           <option value="1">线路 1</option>
           <option value="2">线路 2</option>
           <option value="3">线路 3</option>
+        </select>
+      </label>
+
+      <label class="setting select-setting" for="site-appearance">
+        <span>
+          <strong id="appearance-label">网页外观</strong>
+          <small id="appearance-description">练习记录、错题本、做题和解析</small>
+        </span>
+        <select id="site-appearance" aria-labelledby="appearance-label" aria-describedby="appearance-description">
+          <option value="system">跟随系统</option>
+          <option value="light">浅色</option>
+          <option value="dark">深色</option>
+        </select>
+      </label>
+
+      <label class="setting select-setting" for="night-video-brightness">
+        <span>
+          <strong id="night-video-label">夜间视频亮度</strong>
+          <small id="night-video-description">仅深色模式；不改变原始视频</small>
+        </span>
+        <select id="night-video-brightness" aria-labelledby="night-video-label" aria-describedby="night-video-description">
+          <option value="off">原始</option>
+          <option value="soft">柔和 85%</option>
+          <option value="extra">更暗 70%</option>
         </select>
       </label>
 
@@ -81,6 +105,7 @@
       </details>
     </main>
     <script src="../src/site-access.js"></script>
+    <script src="../src/content/site-appearance.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

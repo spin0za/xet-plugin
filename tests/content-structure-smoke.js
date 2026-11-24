@@ -40,11 +40,12 @@ const expectedScripts = [
   "src/content/quality-preference.js",
   "src/content/quality.js",
   "src/content/toast.js",
+  "src/content/site-appearance.js",
   "src/content.js",
 ];
 
 assert.deepEqual(registration.js, expectedScripts);
-assert.deepEqual(registration.css, ["src/content/fullscreen.css", "src/content/download.css", "src/content/analysis-actions.css", "src/content/analysis-scroll.css", "src/content/answer-card.css", "src/content/practice-undo.css", "src/content/practice-history.css", "src/content/live-chat.css"]);
+assert.deepEqual(registration.css, ["src/content/fullscreen.css", "src/content/download.css", "src/content/analysis-actions.css", "src/content/analysis-scroll.css", "src/content/answer-card.css", "src/content/practice-undo.css", "src/content/practice-history.css", "src/content/live-chat.css", "src/content/site-appearance.css"]);
 
 for (const path of [...registration.js, ...registration.css]) {
   assert.ok(fs.existsSync(path), `${path} should exist`);
@@ -64,6 +65,7 @@ assert.match(entry, /createQuestionOrderController/);
 assert.match(entry, /createPageTitleController/);
 assert.match(entry, /createAnalysisScrollController/);
 assert.match(entry, /createErrbookScrollController/);
+assert.match(entry, /createSiteAppearanceController/);
 assert.match(entry, /stopFeatures/);
 assert.match(entry, /disabledSites/);
 

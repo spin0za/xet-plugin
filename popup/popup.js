@@ -1,7 +1,10 @@
 const siteAccess = globalThis.XetSiteAccess;
+const appearance = globalThis.__xetPlayerHelperModules.siteAppearance;
 const globalToggle = document.querySelector("#global-toggle");
 const volumeToggle = document.querySelector("#volume-toggle");
 const defaultLiveLine = document.querySelector("#default-live-line");
+const siteAppearance = document.querySelector("#site-appearance");
+const nightVideoBrightness = document.querySelector("#night-video-brightness");
 const summary = document.querySelector("#summary");
 const siteSection = document.querySelector("#site-section");
 const hostnameLabel = document.querySelector("#hostname");
@@ -14,6 +17,7 @@ const keepAliveToggle = document.querySelector("#keep-alive-toggle");
 let activeTab = null;
 let activeUrl = null;
 let settings = {
+  ...appearance.defaults,
   enabled: true,
   volumeEnabled: true,
   defaultLiveLine: 0,
@@ -79,6 +83,9 @@ function render() {
   volumeToggle.disabled = !ready || saving;
   defaultLiveLine.value = String([0, 1, 2, 3].includes(settings.defaultLiveLine) ? settings.defaultLiveLine : 0);
   defaultLiveLine.disabled = !ready || saving;
+  siteAppearance.value = appearance.normalizeAppearance(settings.siteAppearance);
+  nightVideoBrightness.value = appearance.normalizeBrightness(settings.nightVideoBrightness);
+  siteAppearance.disabled = nightVideoBrightness.disabled = !ready || saving;
   renderKeepAlive();
   hint.hidden = true;
   hint.textContent = "";
@@ -139,7 +146,7 @@ async function saveSettings(changes) {
     // Native disabled controls lose focus. Restore it after saving only if the
     // user has not moved elsewhere, so repeated keyboard toggles keep working.
     if (document.activeElement === document.body &&
-        [globalToggle, volumeToggle, defaultLiveLine, keepAliveToggle].includes(focused) && !focused.disabled) {
+        [globalToggle, volumeToggle, defaultLiveLine, siteAppearance, nightVideoBrightness, keepAliveToggle].includes(focused) && !focused.disabled) {
       focused.focus();
     }
     if (failed) summary.textContent = "设置保存失败，请重试";
@@ -157,6 +164,14 @@ volumeToggle.addEventListener("change", async () => {
 defaultLiveLine.addEventListener("change", async () => {
   const value = Number(defaultLiveLine.value);
   if ([0, 1, 2, 3].includes(value)) await saveSettings({ defaultLiveLine: value });
+});
+
+siteAppearance.addEventListener("change", async () => {
+  await saveSettings({ siteAppearance: appearance.normalizeAppearance(siteAppearance.value) });
+});
+
+nightVideoBrightness.addEventListener("change", async () => {
+  await saveSettings({ nightVideoBrightness: appearance.normalizeBrightness(nightVideoBrightness.value) });
 });
 
 keepAliveToggle.addEventListener("change", async () => {
@@ -213,6 +228,7 @@ manageSites.addEventListener("click", () => {
   render();
   try {
     settings = await chrome.storage.local.get({
+      ...appearance.defaults,
       enabled: true,
       volumeEnabled: true,
       defaultLiveLine: 0,
@@ -241,6 +257,7 @@ manageSites.addEventListener("click", () => {
     globalToggle.disabled = true;
     volumeToggle.disabled = true;
     defaultLiveLine.disabled = true;
+    siteAppearance.disabled = nightVideoBrightness.disabled = true;
     keepAliveToggle.disabled = true;
     siteSection.hidden = true;
     summary.textContent = "无法读取设置，请重新打开扩展";

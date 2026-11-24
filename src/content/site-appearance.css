@@ -1,0 +1,217 @@
+/* Opt-in colors only. Never invert the document or touch its layout. The
+   evaluation selectors target the site's component surfaces, not lesson media. */
+@media (forced-colors: none) {
+  html[data-xet-night-page] {
+    color-scheme: dark;
+    --xet-night-page: #14171c;
+    --xet-night-panel: #1c2129;
+    --xet-night-inset: #242a34;
+    --xet-night-hover: #2a3543;
+    --xet-night-border: #384353;
+    --xet-night-control-border: #708095;
+    --xet-night-text: #e8edf4;
+    --xet-night-muted: #aeb9c9;
+    --xet-night-blue: #91c5ff;
+    --xet-night-blue-bg: #253a51;
+    --xet-night-blue-border: #658cb7;
+    --xet-night-orange: #ffc097;
+    --xet-night-orange-bg: #472f24;
+    --xet-night-orange-border: #d48b5f;
+    accent-color: var(--xet-night-blue);
+  }
+
+  html[data-xet-night-page],
+  html[data-xet-night-page] :is(body, .base-layout, .analysis-base-layout,
+    .practice-analysis, .exam-analysis, .answer-page-layout, .practice-sheet, .exam-sheet,
+    .errbook-practice, .errbook-detail-page, .errbook-drillbook-page, .collect-catalog-page) {
+    background-color: var(--xet-night-page) !important;
+    color: var(--xet-night-text) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .base-layout__header, .analysis-base-layout__header, .analysis-base-layout__title,
+    .practice-record-page, .analysis-card, .analysis-card__header, .analysis-regional,
+    .analysis-only-content, .analysis-only-error, .collapsible-card:not(.is-collapsed),
+    .collapsible-card__header, .all-questions-card, .exam-top-bar, .exam-top-bar__font-panel,
+    .material-layout--pc-answer .material-layout__tabs,
+    .errbook-detail-page :is(.action-bar, .question-card),
+    .collect-catalog-card, .errbook-drillbook-card, .errbook-result-section, .practice-result, .exam-result,
+    .question-analysis :is(.answer-analysis, .question-analysis__correct-answer--card),
+    .question-draft__toolbar, .question-answer-item .user-answer-card,
+    .ss-dialog, .ss-dialog__header, .ss-dialog__body, .ss-dialog__footer, .el-dialog,
+    .xet-analysis-message
+  ) {
+    background-color: var(--xet-night-panel) !important;
+    border-color: var(--xet-night-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+
+  html[data-xet-night-page] :is(.collapsible-card__header, .analysis-card__header) {
+    border-color: var(--xet-night-blue-border) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .resource-card, .xet-history-records li, .question-analysis, .practice_answer_result, .exam-result .exam-info,
+    .exam-top-bar__status-box,
+    .question-status .button-status, .question-textarea_content, .question-textarea_content .icon_gongshi
+  ) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+
+  html[data-xet-night-page] :is(.analysis-item, .question-block__head, .question-draft__divider) {
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] .question-wrapper::before,
+  html[data-xet-night-page] .material-layout__question::before,
+  html[data-xet-night-page] :is(.question-draft__divider, .practice_answer_result .line, .exam-info-item .division, .exam-top-bar__divider) {
+    background-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page] :is(.resource-card:hover, .question-card:hover, .level5-card:hover) {
+    background-color: var(--xet-night-hover) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .resource-card__title, .main-tab-item.active .main-tab-item__text,
+    .errbook-detail-page :is(.page-header, .back-btn, .card-content, .question-card),
+    :is(.collect-catalog-page, .errbook-drillbook-page) :is(.page-header, .title, .level5-title, .back-btn),
+    .question-header, .question-index, .question-block__index, .question-content,
+    .question-option-item, .question-option-item__content, .question-select-item, .image-text,
+    .material-layout__source-content, .exam-top-bar__back, .exam-top-bar__time,
+    .judge-option__text, .answer-analysis-text, .answer-content, .user-answer, .user-answer-text,
+    .question-analysis__section, .question-analysis .answer-status__score,
+    .question-analysis__correct-answer--inline .correct-answer-text,
+    .question-analysis__correct-answer--card :is(.teacher-comment, .teacher-content, .correct-answer_content, .correct-answer-text, .correct-answer_text),
+    .question-analysis__correct-rate, .correct-answer-div, .question-judge .correct-answer-result,
+    .result-title, .result-stats .stat-value, .practice-result .result,
+    .practice_answer_result .item .content, .exam-result .countdown-time, .el-dialog__title,
+    .xet-question-order-label, .collapsible-card__collapsed span
+  ) {
+    color: var(--xet-night-text) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .main-tab-item__text, .card-line, .list-loading, .scroll-footer, .empty-text,
+    .error-time, .question-num, .select-all-text, .loading-state,
+    .answer-card__content__info, .answer-card__content__info .info-item,
+    .collapsible-card__toggle, .error-item-font, .error-item, .question-status .info,
+    .question-textarea-item__text, .question-textarea_content .formula_icon, .answer-text,
+    .result-stats .stat-label, .accuracy-label, .practice-result .result .des, .practice_answer_result .item .title,
+    .xet-history-records span, .xet-history-status, .xet-duplicate-favorites [role="status"],
+    .xet-question-order-hint, .material-layout__tab, .exam-top-bar__time-label, .exam-top-bar__progress,
+    .exam-result :is(.submit-time, .exam-info-item__unit, .exam-chance)
+  ) {
+    color: var(--xet-night-muted) !important;
+  }
+
+  html[data-xet-night-page] .main-tab-item.active .main-tab-item__text,
+  html[data-xet-night-page] :is(.material-layout__tabs .material-layout__tab:is(.active, .answered)) {
+    color: var(--xet-night-blue) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .sub-tab-item, .manage-btn, .cancel-btn, :is(.collect-catalog-page, .errbook-drillbook-page) .practice-btn,
+    .header-icon-item, .draft-btn, .xet-analysis-action, .xet-practice-undo,
+    .xet-history-more, .xet-duplicate-favorites-button, .xet-history-status button,
+    .ss-button__default, .question-option-item__marker, .judge-option__icon,
+    .exam-top-bar__font-trigger, .exam-top-bar__draft-trigger, .exam-result .button-plain,
+    .ss-input, .ss-input-inner,
+    .question-textarea_content textarea, .search-bar .ss-input-inner
+  ) {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] :is(.ss-input-inner, .question-textarea_content textarea)::placeholder {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] :is(.manage-btn, .cancel-btn, .header-icon-item, .draft-btn,
+    .xet-analysis-action, .xet-practice-undo, .ss-button__default, .question-draft__btn, .question-draft__width):hover:not(:disabled) {
+    background-color: var(--xet-night-hover) !important;
+  }
+  html[data-xet-night-page] :is(.draft-pen-icon, .question-draft__icon, .question-draft__width-line) {
+    background-color: var(--xet-night-text) !important;
+  }
+  /* Only the monochrome action artwork needs brightening; active icons keep
+     their original orange, and lesson illustrations are not selected. */
+  html[data-xet-night-page] .xet-analysis-action[aria-pressed="false"] > img { filter: invert(1); }
+  html[data-xet-night-page] :is(.xet-practice-undo, .xet-duplicate-favorites-button):disabled {
+    color: var(--xet-night-muted) !important;
+  }
+
+  html[data-xet-night-page] :is(
+    .sub-tab-item.active, .question-tag, .type-tag,
+    :is(.answer-page-layout, .practice-sheet, .exam-sheet, .errbook-practice) .question-type,
+    .question-type .question-text, .header-icon-item.is-draft-active, .question-status .active,
+    .question-draft__btn.is-active, .question-draft__width.is-active,
+    .question-option-item:is(.is-selected, .is-correct, .is-correct-unselected) .question-option-item__marker,
+    .judge-option:is(.is-selected, .is-correct, .is-correct-unselected) .judge-option__icon
+  ) {
+    background-color: var(--xet-night-blue-bg) !important;
+    border-color: var(--xet-night-blue-border) !important;
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] :is(
+    .question-option-item.is-wrong .question-option-item__marker,
+    .judge-option.is-wrong .judge-option__icon, .xet-wrong-count
+  ) {
+    background-color: var(--xet-night-orange-bg) !important;
+    border-color: var(--xet-night-orange-border) !important;
+    color: var(--xet-night-orange) !important;
+  }
+  html[data-xet-night-page] :is(
+    .xet-history-records a, .xet-history-status button, .correct-answer-item,
+    .answer-status__right, .answerStatus_success, .question-analysis__correct-rate-value,
+    .question-option-item:is(.is-correct, .is-correct-unselected) .question-option-item__content,
+    .judge-option:is(.is-correct, .is-correct-unselected) .judge-option__text,
+    .result-stats .stat-value.correct, .result-accuracy .accuracy-value
+  ) { color: var(--xet-night-blue) !important; }
+  html[data-xet-night-page] :is(
+    .answer-status__error, .answerStatus_fail, .correct-answer-result,
+    .question-option-item.is-wrong .question-option-item__content,
+    .judge-option.is-wrong .judge-option__text, .result-stats .stat-value.wrong
+  ) { color: var(--xet-night-orange) !important; }
+  html[data-xet-night-page] .question-analysis__correct-answer--inline .correct-answer-text:first-child .correct-answer-result {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] :is(button, a, input, textarea, select, [tabindex]):focus-visible {
+    outline-color: var(--xet-night-blue);
+  }
+
+  /* Keep the existing V2 grid, icons, and 4px current-question outline. */
+  html[data-xet-night-page][data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block) {
+    --xet-answer-background: #2a313c;
+    --xet-answer-border: #758397;
+    --xet-answer-symbol: #c5cfdd;
+  }
+  html[data-xet-night-page][data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block):is(.success, .answered) {
+    --xet-answer-background: var(--xet-night-blue-bg);
+    --xet-answer-border: var(--xet-night-blue-border);
+    --xet-answer-symbol: var(--xet-night-blue);
+  }
+  html[data-xet-night-page][data-xet-analysis-layout] :is(.answer-card__content__card__item, .info-item__block).error {
+    --xet-answer-background: var(--xet-night-orange-bg);
+    --xet-answer-border: var(--xet-night-orange-border);
+    --xet-answer-symbol: var(--xet-night-orange);
+  }
+  html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__card__item {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__card__item.current {
+    outline-color: #dce7f6 !important;
+  }
+  html[data-xet-night-page][data-xet-analysis-layout] .answer-card__content__info::after {
+    color: var(--xet-night-muted);
+  }
+
+  html[data-xet-night-video="soft"] { --xet-video-brightness: .85; }
+  html[data-xet-night-video="extra"] { --xet-video-brightness: .70; }
+  /* A pixel-only filter (equivalent to black at 15%/30%). Do not filter
+     the player wrapper, posters rendered separately, or native controls/cues. */
+  html[data-xet-night-video]:is(:not([data-xet-night-frame]), [data-xet-analysis-embed])
+    :is(xg-player, .xgplayer, .xgplayer-skin-default, .pc-live-player)
+    video:not([controls], :has(track:is([kind="captions" i], [kind="subtitles" i], :not([kind])))) {
+    filter: brightness(var(--xet-video-brightness)) !important;
+  }
+}
