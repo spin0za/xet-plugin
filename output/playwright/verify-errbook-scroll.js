@@ -19,7 +19,13 @@ async page => {
         .question{height:170px;background:#f5f7fa;margin:12px;padding:12px}.overview{height:6000px}
       </style><header>Header</header><div id="app"></div><footer>Footer</footer><script>
         window.overview=()=>{history.pushState({},'','/p/t_pc/pc_evaluation/practice_record?tab=1');app.innerHTML='<main class="overview">Long overview</main>'};
-        const content=()=>'<main class="errbook-detail-page"><h1>我的错题</h1>'+Array.from({length:12},(_,i)=>'<section class="question">Question '+(i+1)+'</section>').join('')+'</main>';
+        const content=()=>'<main class="errbook-detail-page"><h1>我的错题</h1><div class="question-list">'+Array.from({length:12},(_,i)=>'<section class="question question-card" data-xet-question-order-id="q'+i+'">Question '+(i+1)+'</section>').join('')+'</div></main>';
+        app.onclick=e=>{const q=e.target.closest('.question-card');if(!q)return;
+          history.pushState({},'',location.pathname.replace('/detail/','/practice/')+location.search+'&readonly=1&question_id='+q.dataset.xetQuestionOrderId);
+          app.innerHTML='<button>返回错题本</button>'; scrollTo(0,0);
+          app.firstElementChild.onclick=()=>location.assign(location.pathname.replace('/practice/','/detail/')+'?tab=2')};
+        onpopstate=()=>{app.innerHTML='Loading';setTimeout(()=>{app.innerHTML=content();
+          setTimeout(()=>document.querySelector('.question-list').prepend(document.querySelector('.question:last-child')),100)},120)};
         window.enter=(path,delay=0)=>{history.pushState({},'',path);app.innerHTML=delay?'<div>Loading</div>':content();if(delay)setTimeout(()=>app.innerHTML=content(),delay)};
         if(location.pathname.includes('/errbook/detail/'))app.innerHTML=content();else overview();
       </script>` }));
@@ -51,6 +57,20 @@ async page => {
     await fixture.waitForFunction(() => scrollY === 0); await paint();
     assert(await fixture.evaluate(() => scrollY) === 0, 'Reload restored an old bottom after initialization');
     checks.push('direct load/reload also starts at top');
+    stage = 'return to clicked card';
+    const entry = fixture.locator('[data-xet-question-order-id="q7"]');
+    await entry.evaluate(el=>scrollBy(0,el.getBoundingClientRect().top-168)); await paint();
+    const originalTop = await entry.evaluate(el=>el.getBoundingClientRect().top);
+    await entry.click(); await fixture.waitForURL('**/practice/123?**'); await paint();
+    await fixture.goBack(); await entry.waitFor();
+    await fixture.waitForFunction(y=>document.querySelector('.question')?.dataset.xetQuestionOrderId==='q11' &&
+      Math.abs(document.querySelector('[data-xet-question-order-id="q7"]').getBoundingClientRect().top-y)<=1,originalTop);
+    checks.push('browser Back restores clicked row at original viewport offset after late list mount and reorder');
+    stage = 'site return across documents';
+    await entry.click(); await paint();
+    await fixture.getByRole('button',{name:'返回错题本'}).click(); await fixture.waitForURL(origin+book);
+    await fixture.waitForFunction(y=>Math.abs(document.querySelector('[data-xet-question-order-id="q7"]')?.getBoundingClientRect().top-y)<=1,originalTop);
+    checks.push('in-page return to a newly loaded document restores the same card');
     stage = 'categories';
     for (const tab of [1,3]) {
       await fixture.evaluate(() => overview()); await paint(); await setBottom();

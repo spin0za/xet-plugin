@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.21**
+Current version: **1.32.22**
+
+1.32.22：从单题解析返回同一错题列表时，恢复刚才点开的题卡在屏幕上的位置；从章节目录首次进入仍从顶部开始。
 
 1.32.21：错题列表和单题解析统一显示「错误次数：2」这样的只读标签，统计方式不变。
 
