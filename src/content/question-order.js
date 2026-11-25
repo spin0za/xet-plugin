@@ -167,7 +167,7 @@
       const title = result?.official?.has(id) ? "个人作答次数减去答对次数，来自原站解析。"
         : verified ? "原站个人统计不可用，按已有作答记录统计。" : "已在错题本中，至少错过一次。";
       if (badge.title !== title) badge.title = title;
-      const text = `错${verified ?? 1}次`;
+      const text = `错误次数：${verified ?? 1}`;
       if (badge.textContent !== text) badge.textContent = text;
     }
     function pruneBadges() {

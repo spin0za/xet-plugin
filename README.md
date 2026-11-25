@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.20**
+Current version: **1.32.21**
+
+1.32.21：错题列表和单题解析统一显示「错误次数：2」这样的只读标签，统计方式不变。
 
 1.32.20：错题次数为只读标签，旧版的手动补记不再生效。优先显示原站解析里的逐题「个人作答次数 − 个人答对次数」。不使用四舍五入的百分比或全站正确率；没有个人统计时才按已有记录显示。
 

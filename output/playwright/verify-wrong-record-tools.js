@@ -103,7 +103,7 @@ async page => {
     await storedOld(beforeKey+':result');
     await fixture.goto(origin+book);
     const badge = id => fixture.locator(`[data-xet-question-order-id="${id}"] .xet-wrong-count`);
-    const check = async (id,n) => badge(id).filter({hasText:`错${n}次`}).waitFor();
+    const check = async (id,n) => badge(id).filter({hasText:new RegExp(`^错误次数：${n}$`)}).waitFor();
     await check('qs_old',2); await check('qs_new',1); await check('qs_same',3); await check('qs_unknown',1);
     const dialogCount = dialogs.length;
     await badge('qs_legacy').click(); await check('qs_legacy',1);
