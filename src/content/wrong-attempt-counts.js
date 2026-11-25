@@ -51,13 +51,50 @@
     const ids = [...new Set(rows.filter(q => valid(q?.id) && (!q.task_id || q.task_id === taskId)).map(q => q.id))];
     if (!signal.aborted && await stillBlank() && !signal.aborted) await storage.set({ [key]: ids });
   }
-  async function readCounts(records, source, read, signal, proof) {
-    const byJoin = new Map(), counts = new Map(), events = new Map(), adjustments = new Map();
+  // These are the two personal counters behind the native analysis page's
+  // percentage. A rounded rate or a shop-wide total is not a denominator.
+  async function analysisCounts(attempts, questions, read, signal) {
+    const counts = new Map(), missing = new Map(questions.map(q => [keyOf(q.id, q.taskId || null), q.taskId]));
+    const triedTasks = new Set();
+    for (const item of attempts) {
+      if (signal.aborted || !missing.size) break;
+      if (triedTasks.has(item.taskId) || ![...missing.values()].some(task => !task || task === item.taskId)) continue;
+      triedTasks.add(item.taskId); // One current paper per task, not one full download per past attempt.
+      try {
+        const paper = await read("/evaluation_wechat/practices/get_paper_question", {
+          practice_id: item.resourceId, task_id: item.taskId, join_id: item.joinId, start: -1, end: -1, filter_delete: true,
+        }, signal);
+        function collect(rows, depth) {
+          if (!Array.isArray(rows) || depth > 5) return;
+          for (const row of rows) {
+            const total = row?.stats?.user_total_count, correct = row?.stats?.user_correct_count;
+            if (valid(row?.id) && Number.isSafeInteger(total) && total > 0 &&
+                Number.isSafeInteger(correct) && correct >= 0 && correct <= total) {
+              for (const task of [item.taskId, null]) {
+                const key = keyOf(row.id, task);
+                if (missing.delete(key)) counts.set(key, total - correct);
+              }
+            }
+            collect(row?.child, depth + 1);
+          }
+        }
+        collect(paper?.practice_list, 0);
+      } catch { /* Use local submission evidence when native statistics are unavailable. */ }
+    }
+    return counts;
+  }
+  async function readCounts(records, source, read, signal, proof, questions = []) {
+    const byJoin = new Map(), events = new Map();
     for (const record of records) {
       if (record.resourceId === source && record.hasAnswers !== false && valid(record.joinId) &&
           (record.taskId === "" || valid(record.taskId))) byJoin.set(record.joinId, record);
     }
     const attempts = [...byJoin.values()].sort((a, b) => b.submittedAt - a.submittedAt);
+    const counts = await analysisCounts(attempts, questions, read, signal);
+    const official = new Set(counts.keys());
+    if (questions.length && questions.every(q => counts.has(keyOf(q.id, q.taskId || null)))) {
+      return { counts, official, checked: 0, total: byJoin.size };
+    }
     let next = 0, checked = 0;
     await Promise.all(Array.from({ length: Math.min(attempts.length, 3) }, async () => {
       while (next < attempts.length && !signal.aborted) {
@@ -68,14 +105,12 @@
           if (!ids || signal.aborted) continue;
           const state = proof && await proof.storage.get(base).catch(() => ({}));
           const before = Array.isArray(state?.[base]) ? new Set(state[base]) : null;
-          const manual = proof && !before && ids.length ? await proof.storage.get(ids.map(id => base + "|" + id)).catch(() => ({})) : {};
           checked++;
           for (const id of ids) {
-            const manualKey = base && !before ? base + "|" + id : null;
-            const confirmed = manualKey && manual[manualKey] === true;
-            const event = { time: item.submittedAt || 0, prior: before?.has(id) || confirmed, manualKey, confirmed };
+            const event = { time: item.submittedAt || 0, prior: before?.has(id) };
             for (const scope of [item.taskId, null]) {
               const key = keyOf(id, scope);
+              if (official.has(key)) continue;
               if (!events.has(key)) events.set(key, []);
               events.get(key).push(event);
             }
@@ -90,10 +125,8 @@
       const first = prior.reduce((t, e) => e.time && e.time < t ? e.time : t, Infinity);
       counts.set(key, Math.max(list.length, prior.length + 1,
         first < Infinity ? 2 + list.filter(e => e.time > first).length : 0));
-      const editable = list.find(e => e.confirmed) || (list.length === 1 && list[0]);
-      if (editable?.manualKey) adjustments.set(key, editable);
     }
-    return { counts, adjustments, checked, total: byJoin.size };
+    return { counts, official, checked, total: byJoin.size };
   }
   modules.wrongAttemptCounts = Object.freeze({ readCounts, submittedIds, snapshotBefore, keyOf, wrongIds });
 })();

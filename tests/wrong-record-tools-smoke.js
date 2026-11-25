@@ -89,6 +89,24 @@ async function main() {
   const three = await count([2,3]); assert.equal(get(three,'old'),3);
   assert.equal(get(await count([3,1,2]),'old'),3,'Recovered first submission must not double count the old membership');
   assert.equal(get((await stats.readCounts([attempt(2)],'wb_a',grade,signal,{...proof,account:'other'})).counts,'old'),1);
+  // Same 0% rate, different denominators. Include a question answered
+  // correctly this time and deliberately misleading shop-wide numbers.
+  const row = (id,total,correct) => ({id,stats:{user_total_count:total,user_correct_count:correct,
+    shop_total_count:136,shop_correct_count:83}});
+  const questions = ['once','twice','half','third','right','unknown'].map(id=>({id,taskId:'pt_x'}));
+  values['xetWrongPrior:'+origin+'|user|wb_a|pt_x|j4|unknown'] = true;
+  const paths = [];
+  const native = await stats.readCounts([attempt(4)],'wb_a',async (url,body)=>{
+    paths.push(url);
+    if(url.endsWith('/get_paper_question')) {
+      assert.deepEqual([body.join_id,body.start,body.end,body.filter_delete],['j4',-1,-1,true]);
+      return {practice_list:[row('once',1,0),row('twice',2,0),row('half',2,1),
+        {id:'material',child:[row('third',3,1)]},row('right',2,2),row('unknown',1,3)]};
+    }
+    return {list:[{id:'unknown',is_answer:1,answer_state:false}]};
+  },signal,proof,questions);
+  assert.deepEqual(questions.map(q=>get(native.counts,q.id)),[1,2,1,2,0,1]);
+  assert.equal(native.official.size,5); assert.equal(paths.length,2);
   console.log('wrong record tools: exact ID/task intersections, read-only preview, subtype and ambiguity guards, verified wrong counts and attempt deduplication passed');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

@@ -7,6 +7,7 @@ async page => {
   const book = base + '/errbook/detail/123?tab=1&source_id=' + resource;
   const orderKey = `xetQuestionOrder:${origin}|${resource}|${task}`;
   const seed = { [orderKey]: { version:1, ids:['qs_same','qs_unknown','qs_old','qs_new','qs_legacy'] } };
+  seed[`xetWrongPrior:${origin}|${account}|${resource}|${task}|uwb_three|qs_legacy`] = true; // Obsolete manual override.
   for (const joinId of ['uwb_one','uwb_two','uwb_three']) {
     seed[`xetPracticeHistory:${origin}|${account}|${joinId}`] = {version:1,resourceId:resource,taskId:task,
       joinId,hasAnswers:true,submittedAt:Date.now()};
@@ -43,6 +44,13 @@ async page => {
         }
         if (path.endsWith('/xe.qs.coll.question.collect/1.0.0')) {
           mutations.push(payload); favorite = false; return reply({});
+        }
+        if (path.endsWith('/practices/get_paper_question')) {
+          assert(payload.join_id==='uwb_retake'&&payload.start===-1&&payload.end===-1,'Expected latest analysis paper');
+          return reply({practice_list:[{id:'qs_old',stats:{user_total_count:2,user_correct_count:0}},
+            {id:'qs_new',stats:{user_total_count:1,user_correct_count:0}},
+            {id:'qs_unknown',stats:{user_total_count:2,user_correct_count:1}},
+            {id:'qs_same',stats:{user_total_count:4,user_correct_count:1}}]});
         }
         if (path.endsWith('/practices/commit_record')) {
           assert(payload.practice_id===resource&&payload.task_id===task,'Statistics escaped their practice scope');
@@ -86,15 +94,21 @@ async page => {
     },key);
     await storedOld(beforeKey);
     wrong.push({id:'qs_new',task_id:task},{id:'qs_legacy',task_id:task});
+    // The site's successful submit precedes result navigation and supplies its timestamp.
+    await worker.evaluate(({origin,account,resource,task})=>chrome.storage.local.set({
+      [`xetPracticeHistory:${origin}|${account}|uwb_retake`]:{version:1,resourceId:resource,taskId:task,
+        joinId:'uwb_retake',hasAnswers:true,submittedAt:Date.now()}
+    }),{origin,account,resource,task});
     await fixture.goto(origin+base+'/practice_result/'+resource+'?task_id='+task+'&join_id=uwb_retake');
     await storedOld(beforeKey+':result');
     await fixture.goto(origin+book);
     const badge = id => fixture.locator(`[data-xet-question-order-id="${id}"] .xet-wrong-count`);
     const check = async (id,n) => badge(id).filter({hasText:`错${n}次`}).waitFor();
-    await check('qs_old',2); await check('qs_new',1); await check('qs_same',2); await check('qs_unknown',1);
-    await badge('qs_legacy').click(); await check('qs_legacy',2);
-    await fixture.reload(); await check('qs_old',2); await check('qs_new',1); await check('qs_legacy',2);
+    await check('qs_old',2); await check('qs_new',1); await check('qs_same',3); await check('qs_unknown',1);
+    const dialogCount = dialogs.length;
     await badge('qs_legacy').click(); await check('qs_legacy',1);
+    assert(dialogs.length===dialogCount && await fixture.locator('button.xet-wrong-count').count()===0,'Counts must be read-only');
+    await fixture.reload(); await check('qs_same',3); await check('qs_legacy',1);
     assert(await fixture.getByText(/次数未核实|已核对错/).count()===0,'Old wording remains visible');
     assert(await fixture.locator('.question-card').first().evaluate(card =>
       card.querySelector('[data-xet-original-question-number]').nextElementSibling?.className==='xet-wrong-count'),
@@ -103,7 +117,7 @@ async page => {
     await fixture.waitForFunction(()=>!document.querySelector('.xet-wrong-count'));
     assert(!errors.length,errors.join('; '));
     return {passed:true,checks:['read-only until explicit confirmation','removed only the exact matching simulated favorite',
-      'old vs first-time wrong on same submission','reload is idempotent','legacy single-question confirmation and undo','badge removed on disable']};
+      'personal totals override local history','reload is idempotent','clicks and old overrides cannot change a count','badge removed on disable']};
   } finally {
     await worker.evaluate(async origin=>{
       for (const store of [chrome.storage.local,chrome.storage.sync]) {
