@@ -79,6 +79,32 @@ async (page) => {
       <div class="icon-wrapper leaning-icon opretor"><div>Study history</div></div></div>
   </div></nav>`;
   const app = (contents) => `<div id="common_template_mounted_el_container"><div id="app">${contents}</div></div>`;
+  const practiceBackdrop = iconCdn + "m5xa8u210x5v.png";
+  const practiceConfig = app(`${nav}<main class="practice-config">
+    <img id="practice-backdrop" src="${practiceBackdrop}" width="320" height="100" style="filter:blur(5px)" alt="">
+    ${cover}
+    </main>`) + `<div class="ss-dialog">
+      <div class="ss-dialog__body"><div class="practice-config-area">
+        <div class="task-desc" style="color:#999">Existing attempts are unchanged</div>
+        <div class="config-form"><div class="form-item"><div class="form-label">Order</div>
+          <div class="form-content"><div class="form-btn btn-active" id="ordered">In order</div>
+            <div class="form-btn" id="random" onclick="this.classList.add('btn-active');ordered.classList.remove('btn-active')">Random</div>
+            <div class="form-num"><div class="ss-input-number form-input">
+              <button class="ss-input-number__decrease is-disabled" disabled>−</button>
+              <input class="ss-input-inner" type="number" value="1">
+              <button class="ss-input-number__increase">+</button>
+            </div></div>
+          </div>
+        </div></div>
+      </div></div>
+      <div class="ss-dialog__footer"><button class="ss-button ss-button__default">Start practice</button></div>
+    </div>
+    <div class="ss-tooltip_view is-light"><div class="ss-tooltip__popper answer-mode-tooltip is-light-style" style="background:#fff;color:#333">Answer modes</div></div>
+    <style>
+      .practice-config-area .form-btn{color:#333;border:1px solid #e5e5e5;display:inline-block}
+      .practice-config-area .btn-active{color:#1472ff;border-color:#1472ff}
+      .practice-config-area .ss-input-number__decrease,.practice-config-area .ss-input-number__increase{background:#f5f5f5}
+    </style>`;
   const liveDetail = `${nav}<main class="detail">
     <header class="detail-header__wrapper"><div class="detail-header-main">
       ${cover}<div class="detail-header-right">
@@ -320,6 +346,9 @@ async (page) => {
     await test.route(`${iconCdn}*`, route => route.fulfill({ contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="none" stroke="#333" stroke-width="2" d="M3 10h14M9 4l-6 6 6 6"/></svg>',
     }));
+    await test.route(practiceBackdrop, route => route.fulfill({ contentType: "image/svg+xml",
+      body: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 100"><path fill="white" d="M0 0h320v100H0z"/><path fill="#333" d="M25 20h48v55H25z"/></svg>',
+    }));
     await test.route(merchantWordmark, route => route.fulfill({ contentType: "image/svg+xml",
       body: '<svg xmlns="http://www.w3.org/2000/svg" width="140" height="40"><circle cx="23" cy="20" r="13" fill="#ac7bea"/><rect x="51" y="14" width="70" height="12" fill="#000"/></svg>',
     }));
@@ -369,6 +398,7 @@ async (page) => {
         <iframe id="waiting-audio" src="${nativeEmbed}/page/?type=2"></iframe>`);
       else if (path.includes("/errbook/practice/")) body = app(answerLoader + question + makePlayer() +
         (path.endsWith("/slow") ? answerGate : ""));
+      else if (path.includes("/practiceConfig/")) body = practiceConfig;
       else if (path.includes("/practice_result/")) body = '<div class="practice-result">Result</div>';
       else if (path.includes("/practice_analysis/")) body = question + makePlayer() + `
         <img id="illustration" alt="Illustration" width="48" height="30"
@@ -768,6 +798,28 @@ async (page) => {
     await pageKind("site");
     assert(await color(test.locator(".detail-header__wrapper")) === "rgb(255, 255, 255)",
       "Live detail rules leaked onto a non-live path");
+    await test.goto(origin + evalPath + "practiceConfig/wb_course_fixture?task_id=pt_fixture");
+    await pageKind("practice-config");
+    const configOption = test.locator("#random");
+    const configSurface = test.locator(".practice-config");
+    assert(await color(configOption, "color") === "rgb(232, 237, 244)" &&
+      await color(configOption) === "rgb(36, 42, 52)" &&
+      await color(test.locator("#ordered"), "color") === "rgb(145, 197, 255)", "Practice config option contrast");
+    assert(await color(test.locator(".form-input .ss-input-inner")) === "rgb(36, 42, 52)" &&
+      await color(test.locator(".ss-input-number__increase")) === "rgb(36, 42, 52)" &&
+      await color(test.locator(".answer-mode-tooltip")) === "rgb(36, 42, 52)", "Practice config controls or help remain pale");
+    assert(await color(configSurface.locator(".brand-art"), "filter") === "none", "Practice config filtered non-backdrop artwork");
+    const configPixel = await renderedPixel("practice-backdrop");
+    assert(configPixel.slice(0, 3).every(value => value < 40), "White background baked into the practice config image still shows");
+    await configOption.click();
+    assert(await color(configOption, "color") === "rgb(145, 197, 255)" &&
+      await color(configOption) === "rgb(37, 58, 81)", "Changing the practice option lost the selected state");
+    await theme.selectOption("light");
+    await pageMode(false);
+    assert(await color(test.locator("#practice-backdrop"), "filter") === "blur(5px)" &&
+      (await renderedPixel("practice-backdrop")).slice(0, 3).every(value => value > 245) &&
+      await color(configOption, "color") === "rgb(20, 114, 255)", "Practice config did not restore its original light appearance");
+    await theme.selectOption("dark");
     for (const route of ["/p/t_pc/course_pc_detail/video/fixture", "/p/t_pc/live_pc/pc/fixture"]) {
       await test.goto(origin + route);
       await brightness(test, "brightness(0.85)");
@@ -824,7 +876,7 @@ async (page) => {
     assert(await theme.inputValue() === "dark" && await dim.inputValue() === "soft", "Settings did not persist");
     return { recordTabs: true, errbookAndCollection: true, practiceAndAnalysis: true, cardGeometry,
       originalFrame: pixel, onScreenPixels: { soft: softPixel, extra: extraPixel, poster: posterPixel }, earlyErrbookLoader: true, sharedAndCatalogLoaders: true,
-      crossOriginEmbed: true, liveAndCourseVideo: true, legacyLiveDetail: true,
+      crossOriginEmbed: true, liveAndCourseVideo: true, legacyLiveDetail: true, practiceConfig: true,
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
       siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true,

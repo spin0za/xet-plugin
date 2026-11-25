@@ -90,6 +90,57 @@
     border-color: var(--xet-night-blue-border) !important;
   }
 
+  /* The practice setup backdrop is a baked light-page screenshot, not the
+     course's actual cover or a live document. Blend its white canvas away. */
+  html[data-xet-night-page="practice-config"] .practice-config {
+    background-color: var(--xet-night-page) !important;
+    isolation: isolate;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config > img[src$="/m5xa8u210x5v.png"] {
+    filter: blur(5px) grayscale(1) invert(1) !important;
+    mix-blend-mode: screen;
+    opacity: .18;
+  }
+  /* The site appends the dialog and its tooltip outside .practice-config. */
+  html[data-xet-night-page="practice-config"] .practice-config-area :is(.form-label, .single-answer) {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area :is(.task-desc, .form-num) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area :is(
+    .form-btn, .ss-input-number__increase, .ss-input-number__decrease
+  ) {
+    color: var(--xet-night-text) !important;
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area .form-btn:not(.btn-active):hover {
+    background-color: var(--xet-night-hover) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area .form-btn.btn-active {
+    color: var(--xet-night-blue) !important;
+    background-color: var(--xet-night-blue-bg) !important;
+    border-color: var(--xet-night-blue) !important;
+    box-shadow: inset 0 0 0 1px var(--xet-night-blue-border);
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area .single-answer > span {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area :is(
+    .ss-input-number__increase, .ss-input-number__decrease
+  ).is-disabled {
+    color: var(--xet-night-muted) !important;
+    border-color: var(--xet-night-border) !important;
+  }
+  html[data-xet-night-page="practice-config"] .practice-config-area .ss-input-number__error-message {
+    color: var(--xet-night-orange) !important;
+  }
+  html[data-xet-night-page="practice-config"] .answer-mode-tooltip {
+    background-color: var(--xet-night-inset) !important;
+    color: var(--xet-night-text) !important;
+  }
+
   html[data-xet-night-page] :is(
     .resource-card, .xet-history-records li, .question-analysis, .practice_answer_result, .exam-result .exam-info,
     .exam-top-bar__status-box,

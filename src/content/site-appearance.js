@@ -6,11 +6,13 @@
   const PAGE = "data-xet-night-page";
   const DIM = "data-xet-night-video";
   const EVALUATION = /^\/p\/t_pc\/pc_evaluation\/(?:practice_record|question_collect|errbook\/(?:detail|practice|drillbook)|(?:practice|exam)_(?:sheet|analysis|result)|practice_self_evaluation)(?=\/|$)/;
+  const PRACTICE_CONFIG = /^\/p\/t_pc\/pc_evaluation\/practiceConfig\/[\w-]+\/?$/;
   const COURSE = /^\/p\/t_pc\/course_pc_detail(?:\/|$)/;
   const LIVE_DETAIL = /^\/detail\/l_[\w-]+\/4\/?$/;
   const VIDEO = /^\/p\/t_pc\/(?:course_pc_detail\/video\/|live_pc\/pc\/)/;
   const routeType = (path) => EVALUATION.test(path) ? "evaluation" :
-    COURSE.test(path) ? "course" : LIVE_DETAIL.test(path) ? "live-detail" : "site";
+    PRACTICE_CONFIG.test(path) ? "practice-config" : COURSE.test(path) ? "course" :
+      LIVE_DETAIL.test(path) ? "live-detail" : "site";
   const normalizeAppearance = (value) => value === "light" || value === "dark" ? value : "system";
   const normalizeBrightness = (value) => value === "off" || value === "soft" ? value : defaults.nightVideoBrightness;
 
