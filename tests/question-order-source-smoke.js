@@ -61,6 +61,17 @@ async function main() {
   assert.equal(readQuestionOrderContext(practiceKey).joinId, "uwb_fixture");
   instance.join_id = ""; assert.equal(readQuestionOrderContext(practiceKey), null); instance.join_id = "uwb_fixture";
   instance.taskId = "other"; assert.equal(readQuestionOrderContext(practiceKey), null); instance.taskId = "pt_fixture";
+  const entryPath = "/p/t_pc/pc_evaluation/practice/wb_course_fixture";
+  context.location.href = origin + entryPath + "?type=2";
+  window.USERID = "user_fixture";
+  Object.assign(instance,{totalPracticeNum:1,answerSheetArray:[{hasAnswer:false}]});
+  const entryKey = entryPath + "|wb_course_fixture|||1";
+  assert.equal(readQuestionOrderContext(entryKey).taskId,"pt_fixture");
+  assert.equal(readQuestionOrderContext(entryKey).blankSheet,true);
+  instance.answerSheetArray[0].hasAnswer = true;
+  assert.equal(readQuestionOrderContext(entryKey).blankSheet,false);
+  context.location.href = origin + practiceKey.split("|")[0] + "?task_id=pt_fixture&join_id=uwb_fixture";
+  assert.equal(readQuestionOrderContext(practiceKey).blankSheet,undefined,"Reopening results is not a pre-answer snapshot");
   const injections = [];
   let disabledSites = [], allowed = true, resultDocument = "document_fixture";
   context.chrome = { scripting: { async executeScript(options) {

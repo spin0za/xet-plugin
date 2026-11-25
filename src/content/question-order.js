@@ -6,10 +6,10 @@
   const READY = "xet:question-order-ready";
   const STOP_WATCH = "xet:question-order-stop-watch";
   const STYLE = ".xet-question-order-label{display:inline-block;margin:0 0 8px;color:#333;font:500 16px/1.5 sans-serif}.xet-question-order-hint{margin:12px 0;color:#666;font:14px/1.6 sans-serif}" +
-    ".xet-wrong-count{display:inline-block;margin-inline:8px 4px;padding:1px 7px;border-radius:5px;white-space:nowrap;color:#713d11;background:#fff0df;font:500 13px/1.5 sans-serif}";
+    ".xet-wrong-count{display:inline-block;margin-inline:8px 4px;padding:1px 7px;border:0;border-radius:5px;white-space:nowrap;color:#713d11;background:#fff0df;font:500 13px/1.5 sans-serif}button.xet-wrong-count{cursor:pointer;text-decoration:underline dotted;text-underline-offset:2px}";
 
   function routeKey() {
-    const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
+    const match = location.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice|practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
     if (!match) return "";
     const query = new URLSearchParams(location.search);
     const book = match[1].startsWith("errbook/"), review = match[1] === "errbook/practice";
@@ -106,6 +106,7 @@
     const labels = new Map();
     const badges = new Map(), countCache = new Map();
     let countJob = null;
+    let baselineStarted = false, waitingForSheet = false;
     const reviewText = new Map();
     const autoRequested = new Set();
     const autoResults = new Map();
@@ -139,7 +140,7 @@
         try {
           const records = await history.loadBoth(storage, syncStorage, location.origin, context.account);
           if (job.signal.aborted) return;
-          result = await api.readCounts(records, context.sourceId, post, job.signal);
+          result = await api.readCounts(records, context.sourceId, post, job.signal, { storage, origin: location.origin, account: context.account });
         } catch { result = { counts: new Map(), checked: 0, total: 0 }; }
         if (countJob !== job || current !== generation || job.signal.aborted || !started) return;
         countJob = null;
@@ -155,14 +156,27 @@
       if (!api || !question || !(anchor || fallback)) {
         badge?.remove(); badges.delete(owner); return;
       }
-      const verified = result?.counts.get(api.keyOf(question.id, question.taskId || null));
-      if (!badge?.isConnected) {
-        badge = document.createElement("span"); badge.className = "xet-wrong-count"; badges.set(owner, badge);
+      const id = api.keyOf(question.id, question.taskId || null);
+      const verified = result?.counts.get(id), adjust = result?.adjustments?.get(id);
+      const tag = adjust ? "button" : "span";
+      if (!badge?.isConnected || badge.localName !== tag) {
+        badge?.remove();
+        badge = document.createElement(tag); badge.className = "xet-wrong-count"; badges.set(owner, badge);
+        if (adjust) badge.type = "button";
       }
+      if (adjust) badge.onclick = async event => {
+        event.stopPropagation(); event.preventDefault();
+        if (!event.isTrusted || !window.confirm(adjust.confirmed ? "撤销这道题补记的那一次错误？"
+          : "在这次交卷之前，这道题就已经在错题本里了吗？确认后只补记一次。")) return;
+        try {
+          if (adjust.confirmed) await storage.remove(adjust.manualKey);
+          else await storage.set({ [adjust.manualKey]: true });
+        } catch { window.alert("未能保存，次数没有修改。"); }
+      };
       if (anchor && anchor.nextElementSibling !== badge) anchor.after(badge);
       else if (!anchor && fallback.firstElementChild !== badge) fallback.prepend(badge);
-      const title = verified ? "按可用的交卷记录统计，未答和未保留的历史不计入。"
-        : "当前在错题本中，没有查到可核实的错误记录时按错 1 次显示。";
+      const title = adjust ? (adjust.confirmed ? "点击撤销此前补记的一次错误" : "如果在这次交卷前就已是错题，点击补记一次")
+        : verified ? "同一次交卷只计一次，未答不计。" : "已在错题本中，至少错过一次。";
       if (badge.title !== title) badge.title = title;
       const text = `错${verified || 1}次`;
       if (badge.textContent !== text) badge.textContent = text;
@@ -178,6 +192,7 @@
     function clear() {
       generation++; abort?.abort(); abort = null;
       countJob = null;
+      baselineStarted = waitingForSheet = false;
       loading = pending = needsRetry = false; capturedJoin = "";
       autoRequested.clear(); autoResults.clear(); helperFinished = false;
       window.dispatchEvent(new Event(STOP_WATCH));
@@ -402,8 +417,20 @@
         if (!result?.ok || result.context?.key !== key) { needsRetry = true; restoreReviewText(); recognitionFailed(); return; }
         needsRetry = false;
         if (result.context.kind === "practice") {
+          const ctx = result.context;
+          if (ctx.account && !baselineStarted && !new URLSearchParams(location.search).has("xet_order_job")) {
+            waitingForSheet = ctx.blankSheet === null;
+            if (ctx.blankSheet === true) {
+              baselineStarted = true;
+              void modules.wrongAttemptCounts?.snapshotBefore(ctx, location.origin, storage, post, abort.signal, async () => {
+                const fresh = (await request({ type: "xet:question-order-context", key: ctx.key }))?.context;
+                return current === generation && routeKey() === ctx.key && fresh?.key === ctx.key &&
+                  fresh.account === ctx.account && fresh.taskId === ctx.taskId && fresh.joinId === ctx.joinId && fresh.blankSheet === true;
+              }).catch(() => {});
+            }
+          }
           const status = await capture(result.context, abort.signal, current);
-          if (current === generation) needsRetry = status === "failed";
+          if (current === generation) needsRetry = status === "failed" || waitingForSheet;
           if (status) await finishHelper(status);
         }
         else if (result.context.kind === "review") await renderReview(result.context, current);
@@ -420,7 +447,7 @@
       // Do not leave its first background animation frame parked indefinitely.
       if (helper && frame !== null && frame !== -1) { cancelAnimationFrame(frame); frame = null; }
       if (frame !== null) return;
-      if (capturedJoin && routeKey() === key && !location.pathname.includes("/errbook/detail/") && (!helper || helperFinished)) return;
+      if (capturedJoin && !waitingForSheet && routeKey() === key && !location.pathname.includes("/errbook/detail/") && (!helper || helperFinished)) return;
       // Inactive tabs can suspend animation frames indefinitely. The helper
       // reads metadata only and must not wait for a visible paint to proceed.
       if (helper) {
@@ -431,7 +458,8 @@
       frame = requestAnimationFrame(() => { frame = null; void refresh(); });
     }
     function storageChanged(changes, area) {
-      if (["local", "sync"].includes(area) && Object.keys(changes).some(k => k.startsWith(`xetPracticeHistory:${location.origin}|`))) {
+      if (["local", "sync"].includes(area) && Object.keys(changes).some(k => k.startsWith(`xetPracticeHistory:${location.origin}|`) ||
+        area === "local" && k.startsWith(`xetWrongPrior:${location.origin}|`) && (!k.endsWith(":result") || !countJob))) {
         countCache.clear(); countJob = null;
         if (key.includes("/errbook/")) schedule();
       }

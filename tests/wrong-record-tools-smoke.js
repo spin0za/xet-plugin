@@ -67,6 +67,28 @@ async function main() {
   assert.equal(result.counts.get(stats.keyOf('qs_pending', null)), undefined);
   assert.equal(result.counts.get(stats.keyOf('qs_right', null)), undefined);
   assert.deepEqual(reads.sort(), ['uwb_1', 'uwb_2', 'uwb_3', 'uwb_failed'].sort());
+  const values = {};
+  const storage = {
+    get: async keys => Object.fromEntries([].concat(keys).filter(k=>k in values).map(k=>[k,values[k]])),
+    set: async changes => Object.assign(values,changes)
+  };
+  const ctx = {account:'user', sourceId:'wb_a', taskId:'pt_x', joinId:'j2', blankSheet:true};
+  const origin = 'https://fixture.test', proof = {storage,origin,account:ctx.account};
+  const list = async path => path.endsWith('/list_classfy') ? {claasfy:[{source_id:'wb_a',id:123}]} :
+    {list:[wrong('old','pt_x'),wrong('foreign','pt_y')]};
+  await stats.snapshotBefore(ctx,origin,storage,list,signal,async()=>false);
+  assert.equal(Object.keys(values).length,0,'Never save membership obtained after answering');
+  await stats.snapshotBefore(ctx,origin,storage,list,signal,async()=>true);
+  await stats.snapshotBefore(ctx,origin,storage,()=>{throw Error('must not recapture on reload');},signal,async()=>true);
+  const attempt = n => ({resourceId:'wb_a',taskId:'pt_x',joinId:'j'+n,submittedAt:n});
+  const grade = async (_url,{join_id}) => ({list:(join_id==='j1'?['old']:['old','new','foreign']).map(id=>({id,is_answer:1,answer_state:false}))});
+  const count = async ns => (await stats.readCounts(ns.map(attempt),'wb_a',grade,signal,proof)).counts;
+  const get = (map,id) => map.get(stats.keyOf(id,'pt_x'));
+  const once = await count([2,2]);
+  assert.equal(get(once,'old'),2); assert.equal(get(once,'new'),1); assert.equal(get(once,'foreign'),1);
+  const three = await count([2,3]); assert.equal(get(three,'old'),3);
+  assert.equal(get(await count([3,1,2]),'old'),3,'Recovered first submission must not double count the old membership');
+  assert.equal(get((await stats.readCounts([attempt(2)],'wb_a',grade,signal,{...proof,account:'other'})).counts,'old'),1);
   console.log('wrong record tools: exact ID/task intersections, read-only preview, subtype and ambiguity guards, verified wrong counts and attempt deduplication passed');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; });

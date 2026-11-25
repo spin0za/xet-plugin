@@ -12,6 +12,7 @@
     let context = null, key = "", generation = 0, discovered = "", more = null, list = null, status = null;
     let duplicates = null;
     let captured = "", synchronized = "", syncProblem = false;
+    let gradeJob = null;
     const roots = new Set(), verified = new Set();
     let cacheScope = "", cacheDirty = true, cachedRecords = [];
     async function records(account) {
@@ -23,6 +24,7 @@
       return cachedRecords;
     }
     function clean() {
+      gradeJob?.abort(); gradeJob = null;
       titles?.clear();
       duplicates?.stop(); duplicates = null;
       list?.remove(); list = null; status?.remove(); status = null;
@@ -210,7 +212,20 @@
           const signature = JSON.stringify([context.account, data.normalize(context)]);
           if (captured !== signature) {
             const saved = await request({ type: "xet:practice-history", key: expected, action: "capture" });
-            if (saved?.ok) captured = signature;
+            if (saved?.ok && started && current === generation && routeKey() === expected) {
+              captured = signature;
+              // Preserve the submitted errors while this result is still
+              // available. Do not hold up submission or depend on a book visit.
+              gradeJob?.abort(); gradeJob = new AbortController();
+              void modules.wrongAttemptCounts?.submittedIds(context, async (path, payload, signal) => {
+                const response = await fetch(path, { method: "POST", credentials: "same-origin", redirect: "error",
+                  headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload), signal });
+                if (!response.ok) return null;
+                const result = await response.json();
+                return result.code === 0 ? result.data : null;
+              }, AbortSignal.any([gradeJob.signal, AbortSignal.timeout(15000)]),
+              { storage, origin: location.origin, account: context.account }).catch(() => {});
+            }
           }
         } else if (context.kind === "collections") {
           renderCollections(current);

@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.18**
+Current version: **1.32.19**
+
+1.32.19：从原课程重做时，开始答题前已在错题本里的题再答错，交卷后累计一次；本次首次答错仍算一次。重复查看不会增加次数。如果旧卷缺失且无法判断某题是否早已入本，可点击该题带点状下划线的次数标签补记一次，再点可撤销。只保存在本机，不修改原站错题。
 
 1.32.18：修复答题页富文本题干和选项在夜间模式下仍为深灰色的问题，保留正确、错误选项的区分色。
 

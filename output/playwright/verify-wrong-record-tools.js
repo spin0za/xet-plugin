@@ -6,7 +6,7 @@ async page => {
   const record = base + '/practice_record?tab=1&subTab=0';
   const book = base + '/errbook/detail/123?tab=1&source_id=' + resource;
   const orderKey = `xetQuestionOrder:${origin}|${resource}|${task}`;
-  const seed = { [orderKey]: { version:1, ids:['qs_same','qs_unknown'] } };
+  const seed = { [orderKey]: { version:1, ids:['qs_same','qs_unknown','qs_old','qs_new','qs_legacy'] } };
   for (const joinId of ['uwb_one','uwb_two','uwb_three']) {
     seed[`xetPracticeHistory:${origin}|${account}|${joinId}`] = {version:1,resourceId:resource,taskId:task,
       joinId,hasAnswers:true,submittedAt:Date.now()};
@@ -18,7 +18,7 @@ async page => {
   fixture.on('dialog', async dialog => { dialogs.push(dialog.message()); if (accept) await dialog.accept(); else await dialog.dismiss(); });
   fixture.setDefaultTimeout(12000);
   const vue = await (await context.request.get('https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.min.js')).text();
-  const wrong = [{id:'qs_same',task_id:task},{id:'qs_unknown',task_id:task}];
+  const wrong = [{id:'qs_same',task_id:task},{id:'qs_unknown',task_id:task},{id:'qs_old',task_id:task}];
   try {
     await worker.evaluate(seed => chrome.storage.local.set({...seed,disabledSites:[],keepAliveEnabled:false}),seed);
     await fixture.route(origin+'/**',async route => {
@@ -27,6 +27,7 @@ async page => {
         const payload = route.request().postDataJSON();
         const reply = data => route.fulfill({json:{code:0,data}});
         reads.push(path);
+        if (path.endsWith('/error_question/list_classfy')) return reply({claasfy:[{source_id:resource,id:123}]});
         if (path.endsWith('/xe.qs.coll.list/1.0.0')) {
           return reply({total:1,list:[{resource_type:34,resource_id:resource,qs_count:favorite?3:2}]});
         }
@@ -45,7 +46,9 @@ async page => {
         }
         if (path.endsWith('/practices/commit_record')) {
           assert(payload.practice_id===resource&&payload.task_id===task,'Statistics escaped their practice scope');
+          if (payload.join_id==='uwb_retake') return reply({list:['qs_old','qs_new'].map(id=>({id,is_answer:1,answer_state:false}))});
           return reply({list:[{id:'qs_same',is_answer:payload.join_id==='uwb_three'?0:1,answer_state:'false'},
+            {id:'qs_legacy',is_answer:payload.join_id==='uwb_three'?1:0,answer_state:false},
             {id:'qs_unknown',is_answer:1,answer_state:'true'}]});
         }
         throw Error('Unexpected endpoint '+path);
@@ -54,7 +57,8 @@ async page => {
       await route.fulfill({contentType:'text/html; charset=utf-8',body:`<!DOCTYPE html><meta charset="utf-8">
         <div id="app"></div><script>${vue}</script><script>
         window.USERID='${account}';
-        new Vue(${isBook?`{el:'#app',data:{classifyId:123,sourceId:'${resource}',currentTab:1,loading:false,questionList:${JSON.stringify(wrong)}},
+        new Vue(${path.includes('/practice_result/')?`{el:'#app',data:{resourceId:'${resource}',taskId:'${task}',join_id:'uwb_retake',resultPageData:{totalNum:2}},template:'<main class="practice-result"></main>'}`:
+        path.includes('/practice_sheet/')?`{el:'#app',data:{resourceId:'${resource}',taskId:'${task}',join_id:'uwb_retake',totalPracticeNum:2,answerSheetArray:[{hasAnswer:false},{hasAnswer:false}]},template:'<main class="practice-sheet"></main>'}`:isBook?`{el:'#app',data:{classifyId:123,sourceId:'${resource}',currentTab:1,loading:false,questionList:${JSON.stringify(wrong)}},
           template:'<main class="errbook-detail-page"><div class="question-list"><article v-for="q in questionList" :key="q.id" class="question-card"><div class="card-body"><p class="card-content">{{q.id}}</p></div></article></div></main>'}`:
         `{el:'#app',name:'ErrbookTab',data:{activeSubTab:0,list:[{id:123,source_id:'${resource}'}],loading:false,noMore:true,pagination:{page:1,pageSize:10}},methods:{fetchList(){}},
           template:'<main class="practice-record-page"><section class="errbook-tab"><p>错题记录</p></section></main>'}`});
@@ -71,9 +75,26 @@ async page => {
     await fixture.getByText('已取消 1 道重复收藏。错题记录未改动。').waitFor();
     assert(mutations.length===1&&mutations[0].question_id==='qs_same'&&mutations[0].is_collect===false&&
       mutations[0].task_id===task&&mutations[0].resource_id===resource,'Confirmed cleanup did not target the exact favorite');
+    await fixture.goto(origin+base+'/practice_sheet/'+resource+'?task_id='+task+'&join_id=uwb_retake');
+    const beforeKey = `xetWrongPrior:${origin}|${account}|${resource}|${task}|uwb_retake`;
+    const storedOld = key => worker.evaluate(async key=>{
+      for(let i=0;i<100;i++) {
+        if((await chrome.storage.local.get(key))[key]?.includes('qs_old')) return;
+        await new Promise(r=>setTimeout(r,100));
+      }
+      throw Error('Expected wrong-question IDs not captured: '+key);
+    },key);
+    await storedOld(beforeKey);
+    wrong.push({id:'qs_new',task_id:task},{id:'qs_legacy',task_id:task});
+    await fixture.goto(origin+base+'/practice_result/'+resource+'?task_id='+task+'&join_id=uwb_retake');
+    await storedOld(beforeKey+':result');
     await fixture.goto(origin+book);
-    await fixture.getByText('错2次',{exact:true}).waitFor();
-    assert(await fixture.getByText('错1次',{exact:true}).count()===1,'Missing history did not default to one');
+    const badge = id => fixture.locator(`[data-xet-question-order-id="${id}"] .xet-wrong-count`);
+    const check = async (id,n) => badge(id).filter({hasText:`错${n}次`}).waitFor();
+    await check('qs_old',2); await check('qs_new',1); await check('qs_same',2); await check('qs_unknown',1);
+    await badge('qs_legacy').click(); await check('qs_legacy',2);
+    await fixture.reload(); await check('qs_old',2); await check('qs_new',1); await check('qs_legacy',2);
+    await badge('qs_legacy').click(); await check('qs_legacy',1);
     assert(await fixture.getByText(/次数未核实|已核对错/).count()===0,'Old wording remains visible');
     assert(await fixture.locator('.question-card').first().evaluate(card =>
       card.querySelector('[data-xet-original-question-number]').nextElementSibling?.className==='xet-wrong-count'),
@@ -82,9 +103,16 @@ async page => {
     await fixture.waitForFunction(()=>!document.querySelector('.xet-wrong-count'));
     assert(!errors.length,errors.join('; '));
     return {passed:true,checks:['read-only until explicit confirmation','removed only the exact matching simulated favorite',
-      'two real wrong answers; existing wrong question with no history defaults to one','badge adjacent to question number and removed on disable']};
+      'old vs first-time wrong on same submission','reload is idempotent','legacy single-question confirmation and undo','badge removed on disable']};
   } finally {
-    await worker.evaluate(async keys=>{await chrome.storage.local.remove(keys);await chrome.storage.local.set({disabledSites:[]})},Object.keys(seed));
+    await worker.evaluate(async origin=>{
+      for (const store of [chrome.storage.local,chrome.storage.sync]) {
+        const keys = Object.keys(await store.get(null)).filter(k=>k.startsWith('xetWrongPrior:'+origin+'|') ||
+          k.startsWith('xetPracticeHistory:'+origin+'|') || k.startsWith('xetQuestionOrder:'+origin+'|'));
+        await store.remove(keys);
+      }
+      await chrome.storage.local.set({disabledSites:[]});
+    },origin);
     await fixture.close();
   }
 }

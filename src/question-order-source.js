@@ -4,7 +4,7 @@
   // questions. Never read answers or cookies, or mutate the site's Vue state.
   function readQuestionOrderContext(expectedKey) {
     const url = new URL(location.href);
-    const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
+    const match = url.pathname.match(/^\/p\/t_pc\/pc_evaluation\/(practice|practice_sheet|practice_analysis|errbook\/(?:detail|practice))\/([\w-]+)\/?$/);
     const id = /^[\w-]{1,160}$/;
     if (!match) return null;
     const review = match[1] === "errbook/practice", book = match[1].startsWith("errbook/");
@@ -16,7 +16,7 @@
     if (key !== expectedKey || !id.test(sourceId) || (taskId && !id.test(taskId))) return null;
     if (review && (url.searchParams.get("readonly") !== "1" || (questionId && !id.test(questionId)))) return null;
     const page = document.querySelector(review ? ".errbook-practice" : book ? ".errbook-detail-page" :
-      match[1] === "practice_sheet" ? ".practice-sheet" : ".practice-analysis");
+      match[1] === "practice_analysis" ? ".practice-analysis" : ".practice-sheet");
     const instance = page?.__vue__;
     if (!instance || instance._isDestroyed) return null;
     // A loading flag or join ID can become ready without adding a DOM node.
@@ -45,10 +45,17 @@
       window.addEventListener("xet:question-order-stop-watch", state.stop);
       instance.$once?.("hook:beforeDestroy", state.stop);
     }
+    const account = typeof window.USERID === "string" && id.test(window.USERID) &&
+      !window.USERID.includes("anonymous") ? window.USERID : undefined;
     if (!book) {
+      const sheetTask = instance.taskId || "";
       if (instance.resourceId !== sourceId || !id.test(instance.join_id || "") ||
-          (instance.taskId || "") !== taskId) return null;
-      return { key, kind: "practice", sourceId, taskId, joinId: instance.join_id };
+          sheetTask && !id.test(sheetTask) || (match[1] !== "practice" || taskId) && sheetTask !== taskId) return null;
+      const cards = instance.answerSheetArray;
+      const blankSheet = Array.isArray(cards) && cards.length > 0 && cards.length === instance.totalPracticeNum &&
+        cards.every(q => typeof q?.hasAnswer === "boolean") ? cards.every(q => !q.hasAnswer) : null;
+      return { key, kind: "practice", sourceId, taskId: sheetTask, joinId: instance.join_id,
+        ...(account && match[1] !== "practice_analysis" ? { account, blankSheet } : {}) };
     }
     // Vue Router keeps numeric API IDs on in-site navigation; a direct URL
     // supplies strings. Normalize safe scalar IDs without weakening identity
@@ -81,8 +88,6 @@
     if (cards.length !== questions.length || cards.some(card => !identities.has(card))) return null;
     if (review && cards.some((card, index) => identities.get(card) !== questions[index].id)) return null;
     for (const card of cards) card.setAttribute("data-xet-question-order-id", identities.get(card));
-    const account = typeof window.USERID === "string" && id.test(window.USERID) &&
-      !window.USERID.includes("anonymous") ? window.USERID : undefined;
     return { key, kind: review ? "review" : "book", sourceId, ...(account ? { account } : {}),
       questions, cardIds: cards.map(card => identities.get(card)) };
   }
