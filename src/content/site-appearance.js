@@ -5,7 +5,7 @@
   const defaults = Object.freeze({ siteAppearance: "system", nightVideoBrightness: "extra" });
   const PAGE = "data-xet-night-page";
   const DIM = "data-xet-night-video";
-  const EVALUATION = /^\/p\/t_pc\/pc_evaluation\/(?:practice_record|question_collect|errbook\/(?:detail|practice|drillbook)|(?:practice|exam)_(?:sheet|analysis|result)|practice_self_evaluation)(?=\/|$)/;
+  const EVALUATION = /^\/p\/t_pc\/pc_evaluation\/(?:practice|practice_record|question_collect|errbook\/(?:detail|practice|drillbook)|(?:practice|exam)_(?:sheet|analysis|result)|practice_self_evaluation)(?=\/|$)/;
   const PRACTICE_CONFIG = /^\/p\/t_pc\/pc_evaluation\/practiceConfig\/[\w-]+\/?$/;
   const COURSE = /^\/p\/t_pc\/course_pc_detail(?:\/|$)/;
   const LIVE_DETAIL = /^\/detail\/l_[\w-]+\/4\/?$/;

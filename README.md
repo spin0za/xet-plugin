@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.17**
+Current version: **1.32.18**
+
+1.32.18：修复答题页富文本题干和选项在夜间模式下仍为深灰色的问题，保留正确、错误选项的区分色。
 
 1.32.17：「练习设置」的选项、提示、题量输入及弹窗后方的默认背景图随夜间模式显示。
 

@@ -39,6 +39,9 @@ async (page) => {
         <div class="answer-card__content__info"><div class="info-item"><i class="info-item__block success"></i>Correct</div></div>
       </div>
     </aside>`;
+  const richQuestionText = (text) => `<div class="image-text-box t2"><div id="xePreview" class="xe-preview">
+    <div class="xe-preview__container"><div class="xe-preview__content forbidden_contextmenu"><p>${text}</p></div></div>
+  </div></div>`;
   const question = `
     <main class="practice-sheet practice-analysis">
       <header class="exam-top-bar">
@@ -56,10 +59,13 @@ async (page) => {
             <button class="header-icon-item"><img class="collect-icon" data-fixture-action="${state}"
                src="${iconCdn}${filename}" alt="${state}" width="20" height="20"></button>`).join("")}
           </section>
+          <div class="question-content">${richQuestionText('すみませんが、<span style="color:#bb4433">このバス</span>は三条駅を通るのでしょうか。')}</div>
+          <div class="question-option-item"><b class="question-option-item__marker">A</b>
+            <div class="question-option-item__content">${richQuestionText("へ")}</div></div>
           <div class="question-option-item is-correct"><b class="question-option-item__marker">C</b>
-            <span class="question-option-item__content">Correct option</span></div>
+            <div class="question-option-item__content">${richQuestionText("Correct option")}</div></div>
           <div class="question-option-item is-wrong"><b class="question-option-item__marker">D</b>
-            <span class="question-option-item__content">Wrong option</span></div>
+            <div class="question-option-item__content">${richQuestionText("Wrong option")}</div></div>
           <div class="question-analysis"><p class="answer-status__error">Wrong answer</p>
             <div class="answer-analysis">Explanation</div></div>
         </div>
@@ -243,6 +249,7 @@ async (page) => {
     .analysis-only-content,.answer-analysis,.all-questions-card,.question-card,.action-bar,
     .collect-catalog-card,.practice-result{background:white;color:#333}
     .resource-card__title,.question-header,.question-option-item__content{color:#333}
+    #xePreview.xe-preview .xe-preview__container .xe-preview__content.forbidden_contextmenu{color:#333}
     .resource-card__cover{width:269px;height:152px}
     .resource-card__info{display:flex;flex-direction:column;gap:4px}
     .resource-card__title{font-size:16px;line-height:24px}
@@ -521,6 +528,7 @@ async (page) => {
       ["errbook/detail/1?tab=1", ".question-card"],
       ["question_collect/1", ".collect-catalog-card"],
       ["question_collect/answer/1", ".all-questions-card"],
+      ["practice/wb_course_fixture?type=2", ".all-questions-card"],
       ["practice_sheet/fixture", ".all-questions-card"],
       ["exam_sheet/fixture", ".all-questions-card"],
       ["errbook/practice/1?readonly=1", ".all-questions-card"],
@@ -566,7 +574,21 @@ async (page) => {
           await pageMode(true);
         }
       }
-      if (selector === ".all-questions-card") await checkNativeActionIcons(true, path);
+      if (selector === ".all-questions-card") {
+        await pageKind("evaluation");
+        await checkNativeActionIcons(true, path);
+        for (const [scope, expected] of [
+          [".question-content", "rgb(232, 237, 244)"],
+          [".question-option-item:not(.is-correct, .is-wrong) .question-option-item__content", "rgb(232, 237, 244)"],
+          [".is-correct .question-option-item__content", "rgb(145, 197, 255)"],
+          [".is-wrong .question-option-item__content", "rgb(255, 192, 151)"],
+        ]) {
+          assert(await color(test.locator(`${scope} .xe-preview__content p`), "color") === expected,
+            `Protected quiz text has the wrong color in ${path}: ${scope}`);
+        }
+        assert(await color(test.locator(".question-content .xe-preview__content span"), "color") === "rgb(187, 68, 51)",
+          `Explicit authored color was changed in ${path}`);
+      }
       if (path.startsWith("errbook/detail")) {
         assert(await color(test.locator(".navbar-wrapper")) === "rgb(25, 30, 37)", "Errbook outer header remains white");
         assert(await color(test.locator(".nav-main__wrapper")) === "rgb(25, 30, 37)", "Errbook inner header remains white");
@@ -678,6 +700,8 @@ async (page) => {
     assert(await test.evaluate(() => controlsClicked) === 1, "Changing appearance reloaded the document");
     assert((await toolbarIcons.evaluateAll(nodes => nodes.every(el => getComputedStyle(el).filter === "none"))), "Light mode still brightens native toolbar icons");
     await checkNativeActionIcons(false, "light");
+    assert(await color(test.locator(".question-content .xe-preview__content p"), "color") === "rgb(51, 51, 51)",
+      "Light mode did not restore the native quiz text color");
     await test.emulateMedia({ colorScheme: "dark" });
     assert(await color(test.locator(".analysis-only-content")) === "rgb(255, 255, 255)", "Explicit light did not override system");
     await theme.selectOption("system");

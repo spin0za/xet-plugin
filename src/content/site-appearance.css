@@ -182,6 +182,16 @@
     color: var(--xet-night-text) !important;
   }
 
+  /* The native rich-text preview uses a fixed #333 in protected questions.
+     Inherit the quiz text color, including the correct/wrong option states. */
+  html[data-xet-night-page="evaluation"] :is(
+    .question-content, .question-option-item__content, .question-select-item .image-text,
+    .material-layout__source-content, .answer-analysis-text, .answer-content,
+    .question-analysis .answer-analysis, .errbook-detail-page .card-content
+  ) .xe-preview__content {
+    color: inherit !important;
+  }
+
   html[data-xet-night-page] :is(
     .main-tab-item__text, .card-line, .list-loading, .scroll-footer, .empty-text,
     .error-time, .question-num, .select-all-text, .loading-state,
