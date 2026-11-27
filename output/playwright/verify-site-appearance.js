@@ -181,6 +181,17 @@ async (page) => {
   const store = `${nav}
     <main class="mygoods-wrapper"><div class="has-goods"><table class="goods-table"><tbody><tr class="table-header">
       <th>My courses</th></tr><tr><td class="table-content">Lesson</td></tr></tbody></table></div></main>`;
+  const sessionNotice = `
+    <div class="ss-message-box-wrapper ss-message-box-wrapper__info s401" role="dialog" aria-labelledby="session-title">
+      <div class="ss-message-box s401" tabindex="-1">
+        <button class="ss-message-close" aria-label="关闭">×</button>
+        <div class="ss-message-box-main"><div class="ss-message-box-icon"><i class="sense-icon-status__primary">ⓘ</i></div>
+          <div class="ss-message-box-content"><div class="content__title" id="session-title">下线通知</div>
+            <div class="content__message">同时登录设备数过多，已被挤下线</div></div></div>
+        <div class="ss-message-box__btn"><button class="ss-button ss-button__plain">取消</button>
+          <button class="ss-button ss-button__default">重新登录</button></div>
+      </div>
+    </div>`;
   const studyHistory = `${nav}<main class="record-cover" style="background-color:#f5f6f9">
     <h1 class="record-header">Study history</h1><div class="record-list"><div class="record-item">
       <div class="record-item" style="background:#fff">${cover}
@@ -751,6 +762,46 @@ async (page) => {
       assert(await color(test.locator(".navbar-left a"), "color") === "rgb(145, 197, 255)", "Active navigation has insufficient contrast");
       assert(await color(test.locator(".goods-table .table-content")) === "rgb(28, 33, 41)", "Store table not dark");
     }
+    await test.goto(origin + "/bought");
+    await pageKind("site");
+    await test.addStyleTag({ content: `
+      .s401.ss-message-box-wrapper > .s401.ss-message-box { background: white; padding: 24px; }
+      .s401.ss-message-box-wrapper > .s401.ss-message-box:focus { background: white; }
+      .s401.ss-message-box-wrapper :is(.content__title, .content__message) { color: #333; }
+      .ss-message-close { color: #b2b2b2; }
+      .ss-button.ss-button__plain { background: white; border: 1px solid #dbdbdb; color: #333; }
+      .ss-button.ss-button__default, .sense-icon-status__primary { color: #1472ff; }
+      .ss-button.ss-button__default { background: #1472ff; color: white; }
+    ` });
+    await test.evaluate(markup => {
+      document.body.insertAdjacentHTML("beforeend", markup);
+      const dialog = document.querySelector(".ss-message-box-wrapper");
+      dialog.addEventListener("click", event => {
+        if (event.target instanceof HTMLButtonElement) dialog.dataset.action = event.target.textContent;
+      });
+    }, sessionNotice);
+    const notice = test.getByRole("dialog", { name: "下线通知" });
+    const noticePanel = notice.locator(".ss-message-box");
+    const noticeCancel = notice.getByRole("button", { name: "取消" });
+    const noticeConfirm = notice.getByRole("button", { name: "重新登录" });
+    await noticePanel.focus();
+    assert(await color(noticePanel) === "rgb(28, 33, 41)" &&
+      await color(notice.locator(".content__title"), "color") === "rgb(232, 237, 244)" &&
+      await color(notice.locator(".content__message"), "color") === "rgb(174, 185, 201)" &&
+      await color(notice.getByRole("button", { name: "关闭" }), "color") === "rgb(174, 185, 201)" &&
+      await color(noticeCancel) === "rgb(36, 42, 52)" &&
+      await color(noticeConfirm) === "rgb(145, 197, 255)" &&
+      await color(noticeConfirm, "color") === "rgb(20, 23, 28)", "Session notice is not readable in dark mode");
+    await noticeCancel.click();
+    assert(await notice.getAttribute("data-action") === "取消", "Session notice cancel was intercepted");
+    await noticeConfirm.click();
+    assert(await notice.getAttribute("data-action") === "重新登录", "Session notice confirmation was intercepted");
+    await theme.selectOption("light");
+    await pageMode(false);
+    assert(await color(noticePanel) === "rgb(255, 255, 255)" &&
+      await color(notice.locator(".content__message"), "color") === "rgb(51, 51, 51)" &&
+      await color(noticeConfirm) === "rgb(20, 114, 255)", "Session notice light styles were not restored");
+    await theme.selectOption("dark");
     for (const entry of ["camp_pro", "audio", "document", "image_text", "column", "member"]) {
       await test.goto(origin + "/p/t_pc/course_pc_detail/" + entry + "/fixture");
       await pageKind("course");
@@ -904,7 +955,8 @@ async (page) => {
       untouchedMediaAndControls: true, forcedColors: true, systemChanges: true, spaCleanup: true,
       sitePolicy: true, persistedPopup: true, defaultBrightness: "70%", toolbarAndLegendContrast: true,
       siteShellAndCatalog: true, navigationStatePreserved: true, studyHistory: true, earlyVideoCanvas: true, courseVideoSurround: true,
-      courseAndProductComments: true, emptyAndPopulatedInteraction: true, materialsAndAccountDialogs: true };
+      courseAndProductComments: true, emptyAndPopulatedInteraction: true, materialsAndAccountDialogs: true,
+      sessionNoticeAppearanceAndActions: true };
   } catch (error) {
     throw new Error(`Appearance regression at ${test.url()}: ${error.message}`);
   } finally {

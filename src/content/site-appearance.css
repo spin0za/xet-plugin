@@ -339,6 +339,39 @@
   html[data-xet-night-page] :is(.empty-wrapper :is(.weaken, .empty-sub-text), .login-dialog__result .login-dialog__result-msg) {
     color: var(--xet-night-muted) !important;
   }
+  /* The shared session notice mounts outside the storefront and styles its
+     text and controls separately. Leave the scrim and dialog events to the site. */
+  html[data-xet-night-page] .ss-message-box-wrapper > .ss-message-box,
+  html[data-xet-night-page] .ss-message-box-wrapper > .ss-message-box:focus {
+    background-color: var(--xet-night-panel) !important;
+  }
+  html[data-xet-night-page] .ss-message-box-wrapper .ss-message-box :is(.content__title, .ss-message-box__title) {
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] .ss-message-box-wrapper .ss-message-box :is(.content__message, .ss-message-close) {
+    color: var(--xet-night-muted) !important;
+  }
+  html[data-xet-night-page] .ss-message-box-wrapper .ss-message-box :is(.ss-message-close:hover, .sense-icon-status__primary) {
+    color: var(--xet-night-blue) !important;
+  }
+  html[data-xet-night-page] .ss-message-box__btn .ss-button:is(.ss-button__plain, .ss-button__info):hover:not(:disabled) {
+    background-color: var(--xet-night-hover) !important;
+  }
+  html[data-xet-night-page] .ss-message-box__btn .ss-button.ss-button__info {
+    background-color: var(--xet-night-inset) !important;
+    border-color: var(--xet-night-control-border) !important;
+    color: var(--xet-night-text) !important;
+  }
+  html[data-xet-night-page] :is(.ss-message-box-wrapper__info, .ss-message-box-wrapper__primary)
+    .ss-message-box__btn .ss-button.ss-button__default:not(:disabled) {
+    background-color: var(--xet-night-blue) !important;
+    border-color: var(--xet-night-blue) !important;
+    color: var(--xet-night-page) !important;
+  }
+  html[data-xet-night-page] :is(.ss-message-box-wrapper__info, .ss-message-box-wrapper__primary)
+    .ss-message-box__btn .ss-button.ss-button__default:hover:not(:disabled) {
+    background-color: color-mix(in srgb, var(--xet-night-blue), white 16%) !important;
+  }
   html[data-xet-night-page] .login-page { background-color: var(--xet-night-page) !important; }
   html[data-xet-night-page] :is(.category-nav-default, .image-ad-content .swiper-empty,
     .category-goods-tabs .el-tabs__nav-wrap :is(.el-tabs__nav-next, .el-tabs__nav-prev) > i,

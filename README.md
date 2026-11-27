@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.22**
+Current version: **1.32.23**
+
+1.32.23：「下线通知」的弹窗、文字与按钮适配夜间模式，不改变原站登录流程。
 
 1.32.22：从单题解析返回同一错题列表时，恢复刚才点开的题卡在屏幕上的位置；从章节目录首次进入仍从顶部开始。
 
