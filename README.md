@@ -438,7 +438,9 @@ The project icon is derived from game content from *Age of Empires II: Definitiv
 
 ## 版本 / Version
 
-Current version: **1.32.24**
+Current version: **1.32.25**
+
+1.32.25：答题卡跨题跳转按目标题定位，防止延迟加载的解析视频把落点挤到别的题。再次点题或手动滚动时立即停止旧定位。
 
 1.32.24：答题页向上加载前一批题时，保留加载完成前正在浏览的题目位置，不再跳回加载开始的位置。答题卡主动跳题不变。
 
