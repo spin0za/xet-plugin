@@ -9,7 +9,7 @@
     !modules.analysisLayout ||
     !modules.analysisScroll || !modules.errbookScroll ||
     !modules.analysisActions ||
-    !modules.practiceMarks ||
+    !modules.practiceMarks || !modules.practiceScroll ||
     !modules.practiceHistory ||
     !modules.practiceUndo || !modules.courseProgress || !modules.videoNavigation || !modules.liveCountdown || !modules.liveEntry || !modules.liveChat || !modules.liveLine ||
     !modules.pageTitle ||
@@ -100,7 +100,7 @@
   const questionTypography = modules.questionTypography.createQuestionTypographyController();
   const questionOrder = modules.questionOrder.createQuestionOrderController();
   const siteAppearance = modules.siteAppearance.createSiteAppearanceController();
-  const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, practiceHistory, practiceUndo, pageTitle,
+  const pageFeatures = [analysisLayout, analysisScroll, modules.errbookScroll.createErrbookScrollController(), analysisActions, practiceMarks, modules.practiceScroll.createPracticeScrollController(), practiceHistory, practiceUndo, pageTitle,
     textSelection, questionTypography, questionOrder, modules.courseProgress.createCourseProgressController(), modules.videoNavigation.createVideoNavigationController(), modules.liveCountdown.createLiveCountdownController(), modules.liveEntry.createLiveEntryController(), modules.liveChat.createLiveChatController(), modules.liveLine.createLiveLineController({ getPreference: () => settings.defaultLiveLine }), siteAppearance];
   const shortcuts = modules.mediaShortcuts.createShortcutController({
     fullscreen,

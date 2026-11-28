@@ -18,6 +18,7 @@ const expectedScripts = [
   "src/content/analysis-feedback.js",
   "src/content/analysis-actions.js",
   "src/content/practice-marks.js",
+  "src/content/practice-scroll.js",
   "src/content/practice-history-data.js",
   "src/content/duplicate-favorites.js",
   "src/content/practice-record-titles.js",

@@ -1,4 +1,5 @@
 importScripts("site-access.js", "download-source.js", "screenshot-source.js", "practice-analysis-source.js", "content/practice-history-data.js", "practice-marks-source.js", "practice-history-source.js", "practice-undo-source.js", "question-order-source.js", "question-order-jobs.js", "question-order-direct.js", "course-progress-source.js", "video-navigation-source.js", "live-countdown-source.js", "live-entry-source.js", "live-chat-source.js", "live-chat-replay-source.js");
+importScripts("practice-scroll-source.js");
 
 const siteAccess = globalThis.XetSiteAccess;
 const DEFAULT_SETTINGS = {
@@ -446,6 +447,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "xet:practice-undo") {
     return respond(sendResponse, "practice-undo", () =>
       globalThis.XetPracticeUndoSource.resolve(message, sender, { siteAccess, readSettings }));
+  }
+  if (message?.type === "xet:practice-scroll") {
+    return respond(sendResponse, "install-practice-scroll", () =>
+      globalThis.XetPracticeScrollSource.resolve(message, sender, { siteAccess, readSettings }));
   }
   if (message?.type === "xet:question-order-auto-load") {
     return respond(sendResponse, "auto-load-question-order", async () =>
